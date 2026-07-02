@@ -494,7 +494,7 @@ export function ConfiguracoesPage() {
     setFormMoradorCompleto({
       name: morador.name || '',
       email: morador.email || '',
-      role: morador.role || 'morador',
+      role: morador.role || 'hospede',
       phone: morador.phone || '',
       bio: morador.bio || '',
       birthDate: morador.birthDate || '',

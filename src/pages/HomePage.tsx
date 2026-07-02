@@ -99,7 +99,7 @@ export function HomePage() {
             uid: doc.id,
             name: d.name || d.email?.split('@')[0] || 'Morador',
             email: d.email || '',
-            role: d.role || 'morador',
+            role: d.role || 'hospede',
             isPresent: d.isPresent !== false,
             isActive: d.isActive !== false,
             photoURL: d.photoURL || '',

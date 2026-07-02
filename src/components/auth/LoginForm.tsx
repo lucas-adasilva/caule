@@ -30,7 +30,7 @@ export function LoginForm() {
         email: result.user.email || '',
         name: userData.name || result.user.displayName || email.split('@')[0],
         fullName: userData.fullName || '',
-        role: userData.role || 'morador',
+        role: userData.role || 'hospede',
         isActive: userData.isActive !== false,
         isPresent: userData.isPresent !== false,
         phone: userData.phone || '',

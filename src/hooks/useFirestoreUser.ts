@@ -47,7 +47,7 @@ export function useFirestoreUser() {
           // SEMPRE sobrescreve com dados do Firestore
           const updatedUser = {
             ...user,
-            role: userData.role || user.role || 'morador',
+            role: userData.role || user.role || 'hospede',
             photoURL: (userData.photoURL && userData.photoURL.trim() !== '')
               ? userData.photoURL
               : (user.photoURL || ''),

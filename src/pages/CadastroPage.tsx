@@ -64,7 +64,7 @@ export function CadastroPage() {
         // Campos do sistema
         uid: userCredential.user.uid,
         houseId: '',           // vazio - vincula depois
-        role: 'morador',       // padrao
+        role: 'hospede',       // padrao: novos usuarios comecam como hospede
         isActive: true,        // ativo
         isPresent: true,       // presente
         photoURL: '',          // vazio - upload depois
