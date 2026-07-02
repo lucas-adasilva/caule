@@ -71,7 +71,7 @@ async function buildUserObject(firebaseUser: any) {
     console.error('[AUTH] Firestore ERRO:', e.code, e.message);
   }
 
-  const role = userData.role || 'morador';
+  const role = userData.role || 'hospede';
   let photoURL = '';
   if (firestoreFound && userData.photoURL && userData.photoURL.trim() !== '') {
     photoURL = userData.photoURL;
