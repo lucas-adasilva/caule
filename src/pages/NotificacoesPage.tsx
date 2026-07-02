@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { TopAppBar } from '@/components/TopAppBar';
@@ -49,6 +49,14 @@ export function NotificacoesPage() {
     } catch (e) { console.error(e); }
   }
 
+  async function excluirNotificacao(notifId: string) {
+    if (!confirm('Excluir esta notificação?')) return;
+    try {
+      await deleteDoc(doc(db, 'notificacoes', notifId));
+      setNotifs(prev => prev.filter(n => n.id !== notifId));
+    } catch (e) { console.error(e); }
+  }
+
   const tipoIcon = { convite: 'mail', tarefa: 'check_circle', sistema: 'info' };
   const tipoColor = { convite: 'text-tertiary', tarefa: 'text-primary', sistema: 'text-on-surface-variant' };
 
@@ -69,25 +77,45 @@ export function NotificacoesPage() {
             <p className="text-text-muted">Nenhuma notificacao</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {notifs.map(n => (
-              <button
+              <div
                 key={n.id}
-                onClick={() => !n.lida && marcarLida(n.id)}
-                className={`w-full text-left bg-surface-card rounded-xl border p-4 transition-all ${
-                  n.lida ? 'border-outline-variant/50 opacity-60' : 'border-primary/30'
+                className={`w-full bg-surface-card rounded-xl border p-4 transition-all relative ${
+                  n.lida ? 'border-outline-variant/50' : 'border-primary/30'
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <span className={`material-symbols-outlined text-2xl flex-shrink-0 ${tipoColor[n.tipo]}`}>{tipoIcon[n.tipo]}</span>
                   <div className="flex-1 min-w-0">
-                    <h4 className={`font-bold text-sm ${n.lida ? 'text-on-surface-variant' : 'text-on-surface'}`}>{n.titulo}</h4>
-                    <p className="text-caption text-on-surface-variant mt-1">{n.mensagem}</p>
-                    <p className="text-[10px] text-on-surface-variant mt-2">{n.createdAt}</p>
+                    <h4 className={`font-bold text-base ${n.lida ? 'text-on-surface-variant' : 'text-on-surface'}`}>{n.titulo}</h4>
+                    <p className="text-sm text-on-surface-variant mt-1 leading-relaxed">{n.mensagem}</p>
+                    <div className="flex items-center justify-between mt-3">
+                      <span className="text-[10px] text-on-surface-variant/60 bg-surface-container-high px-2 py-0.5 rounded-full font-medium">
+                        {n.createdAt}
+                      </span>
+                      {!n.lida && (
+                        <button
+                          onClick={() => marcarLida(n.id)}
+                          className="text-[10px] text-primary font-bold hover:underline"
+                        >
+                          Marcar como lida
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  {!n.lida && <div className="w-3 h-3 bg-primary rounded-full flex-shrink-0 mt-1" />}
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    {!n.lida && <div className="w-2.5 h-2.5 bg-primary rounded-full" />}
+                    <button
+                      onClick={() => excluirNotificacao(n.id)}
+                      className="p-1.5 text-error/60 hover:text-error hover:bg-error/10 rounded-lg transition-all"
+                      title="Excluir notificação"
+                    >
+                      <span className="material-symbols-outlined text-lg">delete</span>
+                    </button>
+                  </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}
