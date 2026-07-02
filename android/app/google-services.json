@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "480280627243",
+    "project_id": "caule-c064f",
+    "storage_bucket": "caule-c064f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:480280627243:android:c42590a6f3f15465fc826e",
+        "android_client_info": {
+          "package_name": "com.caule.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "480280627243-xxxxxxxxxxxxxxxx.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBtv6kvVpVfzN05dHMXiSu15PEE7VwAi0k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "480280627243-xxxxxxxxxxxxxxxx.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

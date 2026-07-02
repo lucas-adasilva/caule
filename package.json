@@ -7,7 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:sync": "cap sync",
+    "cap:android": "cap sync android && cap open android",
+    "cap:ios": "cap sync ios && cap open ios",
+    "cap:add:android": "cap add android",
+    "cap:add:ios": "cap add ios"
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^8.3.0",
