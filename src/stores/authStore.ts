@@ -15,6 +15,9 @@ interface UserData {
   birthDate?: string;
   photoURL?: string;
   houseId?: string;
+  estadiaInicio?: string;
+  estadiaFim?: string;
+  estadiaAtiva?: boolean;
 }
 
 interface AuthStore {

@@ -23,7 +23,9 @@ import { NotificacoesPage } from './pages/NotificacoesPage';
 import { PerfilPage } from './pages/PerfilPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { ProjetosPage } from './pages/ProjetosPage';
+import { EstadiaPage } from './pages/EstadiaPage';
 import { usePushNotifications } from './hooks/usePushNotifications';
+
 
 // Contexto para handlers globais (menu, notificacoes)
 const AppContext = createContext({
@@ -92,11 +94,22 @@ async function buildUserObject(firebaseUser: any) {
     pixKey: userData.pixKey || '',
     photoURL: photoURL,
     houseId: userData.houseId || '',
+    estadiaInicio: userData.estadiaInicio || '',
+    estadiaFim: userData.estadiaFim || '',
+    estadiaAtiva: verificarEstadiaAtiva(userData.estadiaInicio, userData.estadiaFim),
   };
+}
+
+function verificarEstadiaAtiva(estadiaInicio?: string, estadiaFim?: string): boolean {
+  if (!estadiaInicio || !estadiaFim) return false;
+  const hoje = new Date().toISOString().split('T')[0];
+  return estadiaInicio <= hoje && estadiaFim > hoje;
 }
 
 function AuthListener() {
   const { setUser, setLoading } = useAuthStore();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     let unsubscribe: any;
@@ -110,6 +123,10 @@ function AuthListener() {
           if (result.user) {
             const user = await buildUserObject(result.user);
             setUser(user);
+            // Se hóspede sem estadia ativa, redireciona para /estadia
+            if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
+              navigate('/estadia', { replace: true });
+            }
           } else {
             setUser(null);
           }
@@ -122,6 +139,10 @@ function AuthListener() {
           if (firebaseUser) {
             const user = await buildUserObject(firebaseUser);
             setUser(user);
+            // Se hóspede sem estadia ativa, redireciona para /estadia
+            if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
+              navigate('/estadia', { replace: true });
+            }
           } else {
             setUser(null);
           }
@@ -132,7 +153,7 @@ function AuthListener() {
 
     setupAuth();
     return () => { if (unsubscribe?.remove) unsubscribe.remove(); };
-  }, [setUser, setLoading]);
+  }, [setUser, setLoading, navigate, location.pathname]);
 
   return null;
 }
@@ -158,6 +179,7 @@ function AppRoutes() {
         <Route path="/notificacoes" element={<ProtectedRoute><NotificacoesPage /></ProtectedRoute>} />
         <Route path="/perfil" element={<ProtectedRoute><PerfilPage /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
+        <Route path="/estadia" element={<ProtectedRoute><EstadiaPage /></ProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute adminOnly><ConfiguracoesPage /></ProtectedRoute>} />
       </Routes>
     </AppLayout>

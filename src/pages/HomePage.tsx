@@ -95,6 +95,12 @@ export function HomePage() {
         querySnapshot.forEach((doc) => {
           const d = doc.data();
           if (d.isActive === false) return;
+          // Se for hospede, verifica se esta dentro do periodo de estadia
+          if (d.role === 'hospede') {
+            const hoje = new Date().toISOString().split('T')[0];
+            const estadiaAtiva = d.estadiaInicio && d.estadiaFim && d.estadiaInicio <= hoje && d.estadiaFim > hoje;
+            if (!estadiaAtiva) return; // pula hospede fora da estadia
+          }
           data.push({
             uid: doc.id,
             name: d.name || d.email?.split('@')[0] || 'Morador',

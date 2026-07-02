@@ -539,14 +539,20 @@ export function ConfiguracoesPage() {
       const s2 = await getDocs(q2);
       const ex: Execucao[] = []; s2.forEach(d => ex.push({ id: d.id, ...d.data() } as Execucao));
       setExecucoes(ex);
-      // Moradores - busca por casaId, filtra PRESENTES e ativos
+      // Moradores - busca por casaId, filtra PRESENTES, ativos e hospedes dentro da estadia
       const q3 = query(collection(db, 'users'), where('houseId', '==', casaId));
       const s3 = await getDocs(q3);
       const mp: MoradorPresente[] = [];
       const uidsMoradores: string[] = [];
+      const hoje = new Date().toISOString().split('T')[0];
       s3.forEach(d => {
         const data = d.data() as Omit<MoradorPresente, 'uid'>;
         if (data.isActive !== false && data.isPresent === true) {
+          // Se for hospede, verifica se esta dentro do periodo de estadia
+          if (data.role === 'hospede') {
+            const estadiaAtiva = data.estadiaInicio && data.estadiaFim && data.estadiaInicio <= hoje && data.estadiaFim > hoje;
+            if (!estadiaAtiva) return; // pula hospede fora da estadia
+          }
           mp.push({ uid: d.id, ...data });
           uidsMoradores.push(d.id);
         }
