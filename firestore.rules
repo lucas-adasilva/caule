@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users: cada um edita o proprio, mas pode ler outros da mesma casa
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    // Viagens: leitura para logados, criar para logados, editar/excluir so dono
+    match /viagens/{viagemId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.uid;
+    }
+    // Casas: leitura aberta para logados, escrita para logados
+    match /casas/{casaId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    // Comodos
+    match /comodos/{comodoId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    // Tarefas
+    match /tarefas/{tarefaId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    // Distribuicoes
+    match /distribuicoes/{distId} {
+      allow read, write: if request.auth != null;
+    }
+    // Execucoes
+    match /execucoes/{execId} {
+      allow read, write: if request.auth != null;
+    }
+    // Atribuicoes
+    match /atribuicoes/{atribId} {
+      allow read, write: if request.auth != null;
+    }
+    // Convites
+    match /convites/{conviteId} {
+      allow read, write: if request.auth != null;
+    }
+    // Mensagens
+    match /mensagens/{mensagemId} {
+      allow read, write: if request.auth != null;
+    }
+    // Notificacoes
+    match /notificacoes/{notifId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    // Notifications (push)
+    match /notifications/{notifId} {
+      allow read, write: if request.auth != null;
+    }
+    // Eventos
+    match /eventos/{eventoId} {
+      allow read, write: if request.auth != null;
+    }
+    // Chats
+    match /chats/{chatId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
