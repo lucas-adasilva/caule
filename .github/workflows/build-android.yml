@@ -53,13 +53,19 @@ jobs:
         with:
           name: caule-apk
           path: ./apk
+      - name: Find APK file
+        id: find-apk
+        run: |
+          APK_PATH=$(ls ./apk/*.apk | head -n 1)
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "Found APK: $APK_PATH"
       - name: Upload to Firebase App Distribution
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
           appId: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
           serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           groups: testers
-          file: ./apk/*.apk
+          file: ${{ steps.find-apk.outputs.apk_path }}
           releaseNotes: |
             Nova versão disponível!
             Commit: ${{ github.sha }}
