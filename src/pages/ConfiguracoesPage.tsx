@@ -32,7 +32,7 @@ interface Atribuicao { id: string; tarefaId: string; titulo: string; descricao: 
 interface Distribuicao { id: string; weekId: string; houseId: string; atribuicoes: Atribuicao[]; }
 interface TarefaBase { id: string; titulo: string; descricao: string; frequencia: string; prioridade: 'alta' | 'media' | 'baixa'; diasSemana: string[]; horarioLimite: string; houseId: string; ativo: boolean; }
 interface Execucao { id: string; tarefaId: string; executorId: string; data: string; houseId: string; }
-interface MoradorPresente { uid: string; name: string; isPresent: boolean; isActive: boolean; }
+interface MoradorPresente { uid: string; name: string; isPresent: boolean; isActive: boolean; role?: string; estadiaInicio?: string; estadiaFim?: string; }
 interface Viagem { id: string; uid: string; destino: string; dataSaida: string; dataRetorno: string; motivo: string; }
 
 const EMOJI_SUGESTOES = ['🛋️','🍽️','🚿','🛏️','🚽','🧺','🚗','🌳','🎮','📚','🎬','🔥','🌱'];
