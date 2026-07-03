@@ -24,6 +24,7 @@ import { PerfilPage } from './pages/PerfilPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { ProjetosPage } from './pages/ProjetosPage';
 import { EstadiaPage } from './pages/EstadiaPage';
+import { UpdateDialog } from './components/UpdateDialog';
 import { usePushNotifications } from './hooks/usePushNotifications';
 
 
@@ -52,6 +53,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
         {showNav && !menuOpen && <BottomNav />}
+        <UpdateDialog />
       </div>
     </AppContext.Provider>
   );
