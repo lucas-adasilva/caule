@@ -3,6 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    
+    <!-- PWA: Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- PWA: Theme colors -->
+    <meta name="theme-color" content="#D8E8D2" />
+    <meta name="background-color" content="#121212" />
+    
+    <!-- iOS PWA: Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+    <link rel="apple-touch-icon" sizes="72x72" href="/icons/icon-72x72.png" />
+    <link rel="apple-touch-icon" sizes="96x96" href="/icons/icon-96x96.png" />
+    <link rel="apple-touch-icon" sizes="128x128" href="/icons/icon-128x128.png" />
+    <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144x144.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
+    
+    <!-- iOS PWA: Fullscreen / Standalone -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Caule" />
+    
+    <!-- iOS PWA: Startup Image (splash screen) -->
+    <link rel="apple-touch-startup-image" href="/icons/icon-512x512.png" />
+    
+    <!-- PWA: Favicon -->
+    <link rel="icon" type="image/png" href="/icons/icon-192x192.png" />
+    
     <title>Caule</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -12,5 +40,7 @@
   <body class="bg-surface text-on-surface">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- PWA: Registro do Service Worker -->
+    <script src="/registerSW.js"></script>
   </body>
 </html>
