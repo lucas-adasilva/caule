@@ -59,14 +59,19 @@ jobs:
           APK_PATH=$(ls ./apk/*.apk | head -n 1)
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
           echo "Found APK: $APK_PATH"
-      - name: Upload to Firebase App Distribution
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
+      - name: Setup Firebase CLI
+        uses: google-github-actions/setup-gcloud@v2
         with:
-          appId: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
-          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          groups: testers
-          file: ${{ steps.find-apk.outputs.apk_path }}
-          releaseNotes: |
-            Nova versão disponível!
-            Commit: ${{ github.sha }}
-            Branch: ${{ github.ref }}
+          version: '>= 363.0.0'
+      - name: Create service account file
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > service-account.json
+      - name: Upload to Firebase App Distribution
+        run: |
+          gcloud auth activate-service-account --key-file=service-account.json
+          gcloud firebase appdistribution:distribute ${{ steps.find-apk.outputs.apk_path }} \
+            --app ${{ secrets.FIREBASE_ANDROID_APP_ID }} \
+            --groups testers \
+            --release-notes "Nova versão disponível! Commit: ${{ github.sha }}"
+      - name: Cleanup
+        run: rm -f service-account.json
