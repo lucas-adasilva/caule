@@ -19,10 +19,6 @@ export function useVersionCheck() {
   useEffect(() => {
     async function checkVersion() {
       try {
-        // Versão atual do app (do capacitor.config.ts ou package.json)
-        // Em produção, isso viria de um arquivo gerado no build
-        const isNative = Capacitor.isNativePlatform();
-        
         // Buscar versão mais recente no Firestore
         const versionDoc = await getDoc(doc(db, 'appConfig', 'version'));
         if (!versionDoc.exists()) {
@@ -34,16 +30,8 @@ export function useVersionCheck() {
         
         // Versão atual do app (hardcoded para APK, detectada para PWA)
         let appVersion = '1.0.0';
-        if (isNative) {
-          // Em app nativo, poderia vir do Info.plist (iOS) ou build.gradle (Android)
-          // Por simplicidade, usamos uma versão armazenada localmente
-          const localVersion = localStorage.getItem('caule-app-version');
-          appVersion = localVersion || '1.0.0';
-        } else {
-          // PWA: verifica versão do build
-          const buildVersion = (document as any).querySelector('meta[name="app-version"]')?.content;
-          appVersion = buildVersion || '1.0.0';
-        }
+        const localVersion = localStorage.getItem('caule-app-version');
+        appVersion = localVersion || '1.0.0';
         
         setCurrentVersion(appVersion);
 
