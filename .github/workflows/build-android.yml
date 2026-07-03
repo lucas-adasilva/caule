@@ -41,7 +41,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: caule-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/release/*.apk
 
   firebase-distribution:
     needs: build-android
@@ -59,7 +59,7 @@ jobs:
           appId: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
           serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           groups: testers
-          file: ./apk/app-release.apk
+          file: ./apk/*.apk
           releaseNotes: |
             Nova versão disponível!
             Commit: ${{ github.sha }}
