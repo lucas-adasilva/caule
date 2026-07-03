@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Capacitor } from '@capacitor/core';
-import { Browser } from '@capacitor/browser';
 
 interface AppVersion {
   latestVersion: string;
@@ -82,16 +80,8 @@ export function useVersionCheck() {
 
   async function downloadUpdate() {
     if (!versionInfo?.downloadUrl) return;
-    
-    const isNative = Capacitor.isNativePlatform();
-    
-    if (isNative) {
-      // Em app nativo, abre o link no navegador para download do APK
-      await Browser.open({ url: versionInfo.downloadUrl });
-    } else {
-      // PWA: recarrega a página para pegar nova versão
-      window.location.reload();
-    }
+    // Abre o link no navegador para download do APK
+    window.open(versionInfo.downloadUrl, '_blank');
   }
 
   function dismissUpdate() {
