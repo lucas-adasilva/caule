@@ -56,41 +56,18 @@ export function LoginForm() {
       const isNative = Capacitor.isNativePlatform();
       
       if (isNative) {
-        // No Android/iOS, tenta usar o plugin nativo primeiro
-        try {
-          const result = await FirebaseAuthentication.signInWithGoogle();
-          
-          // Se o plugin retornar credenciais, usa elas
-          if (result.credential?.idToken) {
-            const credential = GoogleAuthProvider.credential(
-              result.credential.idToken,
-              result.credential.accessToken
-            );
-            await signInWithCredential(auth, credential);
-          } else if (result.user) {
-            // Usuário já autenticado pelo plugin
-            console.log('[GoogleLogin] Usuário autenticado via plugin nativo:', result.user);
-          }
-        } catch (nativeErr: any) {
-          console.error('[GoogleLogin] Erro no plugin nativo:', nativeErr);
-          
-          // Fallback: usa redirect (melhor para webview do Capacitor)
-          if (nativeErr?.message?.includes('No credentials available') || 
-              nativeErr?.code === 'auth/popup-closed-by-user') {
-            console.log('[GoogleLogin] Tentando fallback via signInWithRedirect...');
-            const provider = new GoogleAuthProvider();
-            provider.addScope('profile');
-            provider.addScope('email');
-            // Usa redirect em vez de popup para mobile
-            await signInWithRedirect(auth, provider);
-            // O app será reiniciado após o redirect, então não navegamos aqui
-            return;
-          } else {
-            throw nativeErr;
-          }
+        // Android/iOS: usa plugin nativo (janelinha de escolha de conta)
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        
+        if (result.credential?.idToken) {
+          const credential = GoogleAuthProvider.credential(
+            result.credential.idToken,
+            result.credential.accessToken
+          );
+          await signInWithCredential(auth, credential);
         }
       } else {
-        // No web, usa popup normal
+        // Web: usa popup normal
         const provider = new GoogleAuthProvider();
         provider.addScope('profile');
         provider.addScope('email');
@@ -99,12 +76,13 @@ export function LoginForm() {
       
       navigate('/app');
     } catch (err: any) {
-      console.error('[GoogleLogin] Erro completo:', err);
+      console.error('[GoogleLogin] Erro:', err);
       
-      // Tratamento de erro detalhado
       let errorMessage = 'Erro ao fazer login com Google';
       
-      if (err?.code) {
+      if (err?.message?.includes('No credentials available')) {
+        errorMessage = 'Nenhuma conta Google encontrada no dispositivo. Verifique se você tem uma conta Google configurada nas configurações do Android.';
+      } else if (err?.code) {
         switch (err.code) {
           case 'auth/popup-blocked':
             errorMessage = 'Popup bloqueado pelo navegador. Permita popups para este site.';
@@ -112,20 +90,12 @@ export function LoginForm() {
           case 'auth/popup-closed-by-user':
             errorMessage = 'Login cancelado. Você fechou a janela de login.';
             break;
-          case 'auth/cancelled-popup-request':
-            errorMessage = 'Múltiplas tentativas de login. Tente novamente.';
-            break;
           case 'auth/account-exists-with-different-credential':
             errorMessage = 'Já existe uma conta com este e-mail usando outro método de login.';
-            break;
-          case 'auth/unauthorized-domain':
-            errorMessage = 'Domínio não autorizado. Adicione este domínio no Firebase Console > Authentication > Settings > Authorized domains.';
             break;
           default:
             errorMessage = err.message || errorMessage;
         }
-      } else if (err?.message?.includes('No credentials available')) {
-        errorMessage = 'Nenhuma credencial Google encontrada no dispositivo. Verifique se você tem uma conta Google configurada.';
       }
       
       setError(errorMessage);
