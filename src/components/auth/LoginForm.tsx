@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCredential } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -57,9 +57,24 @@ export function LoginForm() {
       
       if (isNative) {
         // Android/iOS: usa plugin nativo (janelinha de escolha de conta)
-        // O plugin autentica nativamente e o AuthListener no App.tsx detecta
-        await FirebaseAuthentication.signInWithGoogle();
-        // Não navegamos aqui - o AuthListener redireciona automaticamente
+        console.log('[GoogleLogin] Chamando plugin nativo...');
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        console.log('[GoogleLogin] Plugin retornou:', JSON.stringify(result));
+        
+        if (result.credential?.idToken) {
+          console.log('[GoogleLogin] Criando credential Firebase...');
+          const credential = GoogleAuthProvider.credential(
+            result.credential.idToken,
+            result.credential.accessToken
+          );
+          console.log('[GoogleLogin] Chamando signInWithCredential...');
+          await signInWithCredential(auth, credential);
+          console.log('[GoogleLogin] signInWithCredential sucesso!');
+          navigate('/app');
+        } else {
+          console.error('[GoogleLogin] Plugin nao retornou idToken');
+          throw new Error('Credencial incompleta do Google');
+        }
       } else {
         // Web: usa popup normal
         const provider = new GoogleAuthProvider();
@@ -69,26 +84,28 @@ export function LoginForm() {
         navigate('/app');
       }
     } catch (err: any) {
-      console.error('[GoogleLogin] Erro:', err);
+      console.error('[GoogleLogin] Erro completo:', err);
       
       let errorMessage = 'Erro ao fazer login com Google';
       
       if (err?.message?.includes('No credentials available')) {
-        errorMessage = 'Nenhuma conta Google encontrada no dispositivo. Verifique se você tem uma conta Google configurada nas configurações do Android.';
+        errorMessage = 'Nenhuma conta Google encontrada no dispositivo.';
       } else if (err?.code) {
         switch (err.code) {
           case 'auth/popup-blocked':
-            errorMessage = 'Popup bloqueado pelo navegador. Permita popups para este site.';
+            errorMessage = 'Popup bloqueado pelo navegador.';
             break;
           case 'auth/popup-closed-by-user':
-            errorMessage = 'Login cancelado. Você fechou a janela de login.';
+            errorMessage = 'Login cancelado.';
             break;
           case 'auth/account-exists-with-different-credential':
-            errorMessage = 'Já existe uma conta com este e-mail usando outro método de login.';
+            errorMessage = 'Já existe uma conta com este e-mail.';
             break;
           default:
             errorMessage = err.message || errorMessage;
         }
+      } else if (err?.message) {
+        errorMessage = err.message;
       }
       
       setError(errorMessage);
