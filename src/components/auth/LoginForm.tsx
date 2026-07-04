@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCredential } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -54,15 +54,78 @@ export function LoginForm() {
     setError('');
     try {
       const isNative = Capacitor.isNativePlatform();
+      
       if (isNative) {
-        await FirebaseAuthentication.signInWithGoogle();
+        // No Android/iOS, tenta usar o plugin nativo primeiro
+        try {
+          const result = await FirebaseAuthentication.signInWithGoogle();
+          
+          // Se o plugin retornar credenciais, usa elas
+          if (result.credential?.idToken) {
+            const credential = GoogleAuthProvider.credential(
+              result.credential.idToken,
+              result.credential.accessToken
+            );
+            await signInWithCredential(auth, credential);
+          } else if (result.user) {
+            // Usuário já autenticado pelo plugin
+            console.log('[GoogleLogin] Usuário autenticado via plugin nativo:', result.user);
+          }
+        } catch (nativeErr: any) {
+          console.error('[GoogleLogin] Erro no plugin nativo:', nativeErr);
+          
+          // Fallback: tenta popup do web (funciona no webview do Capacitor)
+          if (nativeErr?.message?.includes('No credentials available') || 
+              nativeErr?.code === 'auth/popup-closed-by-user') {
+            console.log('[GoogleLogin] Tentando fallback via signInWithPopup...');
+            const provider = new GoogleAuthProvider();
+            provider.addScope('profile');
+            provider.addScope('email');
+            await signInWithPopup(auth, provider);
+          } else {
+            throw nativeErr;
+          }
+        }
       } else {
+        // No web, usa popup normal
         const provider = new GoogleAuthProvider();
+        provider.addScope('profile');
+        provider.addScope('email');
         await signInWithPopup(auth, provider);
       }
+      
       navigate('/app');
     } catch (err: any) {
-      setError(err.message || 'Erro ao fazer login com Google');
+      console.error('[GoogleLogin] Erro completo:', err);
+      
+      // Tratamento de erro detalhado
+      let errorMessage = 'Erro ao fazer login com Google';
+      
+      if (err?.code) {
+        switch (err.code) {
+          case 'auth/popup-blocked':
+            errorMessage = 'Popup bloqueado pelo navegador. Permita popups para este site.';
+            break;
+          case 'auth/popup-closed-by-user':
+            errorMessage = 'Login cancelado. Você fechou a janela de login.';
+            break;
+          case 'auth/cancelled-popup-request':
+            errorMessage = 'Múltiplas tentativas de login. Tente novamente.';
+            break;
+          case 'auth/account-exists-with-different-credential':
+            errorMessage = 'Já existe uma conta com este e-mail usando outro método de login.';
+            break;
+          case 'auth/unauthorized-domain':
+            errorMessage = 'Domínio não autorizado. Adicione este domínio no Firebase Console > Authentication > Settings > Authorized domains.';
+            break;
+          default:
+            errorMessage = err.message || errorMessage;
+        }
+      } else if (err?.message?.includes('No credentials available')) {
+        errorMessage = 'Nenhuma credencial Google encontrada no dispositivo. Verifique se você tem uma conta Google configurada.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
       setAuthLoading(false);
