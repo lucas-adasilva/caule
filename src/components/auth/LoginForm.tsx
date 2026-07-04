@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCredential } from 'firebase/auth';
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -57,24 +57,17 @@ export function LoginForm() {
       
       if (isNative) {
         // Android/iOS: usa plugin nativo (janelinha de escolha de conta)
-        const result = await FirebaseAuthentication.signInWithGoogle();
-        
-        if (result.credential?.idToken) {
-          const credential = GoogleAuthProvider.credential(
-            result.credential.idToken,
-            result.credential.accessToken
-          );
-          await signInWithCredential(auth, credential);
-        }
+        // O plugin autentica nativamente e o AuthListener no App.tsx detecta
+        await FirebaseAuthentication.signInWithGoogle();
+        // Não navegamos aqui - o AuthListener redireciona automaticamente
       } else {
         // Web: usa popup normal
         const provider = new GoogleAuthProvider();
         provider.addScope('profile');
         provider.addScope('email');
         await signInWithPopup(auth, provider);
+        navigate('/app');
       }
-      
-      navigate('/app');
     } catch (err: any) {
       console.error('[GoogleLogin] Erro:', err);
       
