@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCredential } from 'firebase/auth';
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithCredential } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -74,14 +74,17 @@ export function LoginForm() {
         } catch (nativeErr: any) {
           console.error('[GoogleLogin] Erro no plugin nativo:', nativeErr);
           
-          // Fallback: tenta popup do web (funciona no webview do Capacitor)
+          // Fallback: usa redirect (melhor para webview do Capacitor)
           if (nativeErr?.message?.includes('No credentials available') || 
               nativeErr?.code === 'auth/popup-closed-by-user') {
-            console.log('[GoogleLogin] Tentando fallback via signInWithPopup...');
+            console.log('[GoogleLogin] Tentando fallback via signInWithRedirect...');
             const provider = new GoogleAuthProvider();
             provider.addScope('profile');
             provider.addScope('email');
-            await signInWithPopup(auth, provider);
+            // Usa redirect em vez de popup para mobile
+            await signInWithRedirect(auth, provider);
+            // O app será reiniciado após o redirect, então não navegamos aqui
+            return;
           } else {
             throw nativeErr;
           }

@@ -1,6 +1,6 @@
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect, createContext, useContext } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { auth } from './lib/firebase';
@@ -118,6 +118,23 @@ function AuthListener() {
 
     async function setupAuth() {
       const isNative = Capacitor.isNativePlatform();
+
+      // Verifica se há resultado de redirect pendente (após login Google no mobile)
+      try {
+        const redirectResult = await getRedirectResult(auth);
+        if (redirectResult?.user) {
+          console.log('[AuthListener] Login via redirect detectado:', redirectResult.user.email);
+          const user = await buildUserObject(redirectResult.user);
+          setUser(user);
+          if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
+            navigate('/estadia', { replace: true });
+          } else {
+            navigate('/app', { replace: true });
+          }
+        }
+      } catch (redirectErr) {
+        console.log('[AuthListener] Erro ao processar redirect:', redirectErr);
+      }
 
       if (isNative) {
         const handle = await FirebaseAuthentication.addListener('authStateChange', async (result: any) => {
