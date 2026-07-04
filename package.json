@@ -17,7 +17,6 @@
   "dependencies": {
     "@capacitor-firebase/authentication": "^8.3.0",
     "@capacitor/android": "^8.4.0",
-    "@capacitor/app": "^8.4.0",
     "@capacitor/cli": "^7.6.6",
     "@capacitor/core": "^8.4.0",
     "@capacitor/ios": "^8.4.0",

@@ -46,6 +46,9 @@ jobs:
           fi
           echo "VERSION_NAME=$VERSION" >> $GITHUB_ENV
           echo "Building version: $VERSION"
+          # Atualiza src/version.ts com a versão do build
+          echo "export const APP_VERSION = '$VERSION';" > src/version.ts
+          cat src/version.ts
       - name: Install dependencies
         run: npm ci
       - name: Build web app

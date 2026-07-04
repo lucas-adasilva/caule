@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { Capacitor } from '@capacitor/core';
 import { db } from '@/lib/firebase';
+import { APP_VERSION } from '@/version';
 
 interface AppVersion {
   latestVersion: string;
@@ -20,23 +21,18 @@ export function useVersionCheck() {
   useEffect(() => {
     async function checkVersion() {
       try {
-        // Detectar versão nativa do app (Android/iOS) ou usar fallback
+        // Detectar versão do app: nativa usa APP_VERSION, web usa localStorage
         let appVersion = '1.0.0';
         try {
           if (Capacitor.isNativePlatform()) {
-            const { App } = await import('@capacitor/app');
-            const info = await App.getInfo();
-            appVersion = info.version || info.versionName || '1.0.0';
-            console.log('[VersionCheck] Versão nativa detectada:', appVersion);
+            appVersion = APP_VERSION;
+            console.log('[VersionCheck] Versão nativa (APP_VERSION):', appVersion);
           } else {
-            // No navegador, tenta ler do localStorage
             const localVersion = localStorage.getItem('caule-app-version');
             appVersion = localVersion || '1.0.0';
           }
-        } catch (nativeErr) {
-          console.log('[VersionCheck] Erro ao detectar versão nativa:', nativeErr);
-          const localVersion = localStorage.getItem('caule-app-version');
-          appVersion = localVersion || '1.0.0';
+        } catch (err) {
+          console.log('[VersionCheck] Erro ao detectar versão:', err);
         }
         
         setCurrentVersion(appVersion);
