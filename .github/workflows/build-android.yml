@@ -37,6 +37,15 @@ jobs:
       - name: Decode keystore
         run: |
           cat android/app/caule-release.keystore.base64 | base64 -d > android/app/caule-release.keystore
+      - name: Extract version from tag
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          echo "VERSION_NAME=$VERSION" >> $GITHUB_ENV
+          echo "Building version: $VERSION"
       - name: Install dependencies
         run: npm ci
       - name: Build web app
@@ -48,6 +57,8 @@ jobs:
         run: chmod +x gradlew
       - name: Build APK (release - signed)
         working-directory: ./android
+        env:
+          VERSION_NAME: ${{ env.VERSION_NAME }}
         run: ./gradlew assembleRelease
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

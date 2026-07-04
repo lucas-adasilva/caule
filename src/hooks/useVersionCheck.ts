@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
+import { Capacitor } from '@capacitor/core';
 import { db } from '@/lib/firebase';
 
 interface AppVersion {
@@ -19,6 +20,27 @@ export function useVersionCheck() {
   useEffect(() => {
     async function checkVersion() {
       try {
+        // Detectar versão nativa do app (Android/iOS) ou usar fallback
+        let appVersion = '1.0.0';
+        try {
+          if (Capacitor.isNativePlatform()) {
+            const { App } = await import('@capacitor/app');
+            const info = await App.getInfo();
+            appVersion = info.version || info.versionName || '1.0.0';
+            console.log('[VersionCheck] Versão nativa detectada:', appVersion);
+          } else {
+            // No navegador, tenta ler do localStorage
+            const localVersion = localStorage.getItem('caule-app-version');
+            appVersion = localVersion || '1.0.0';
+          }
+        } catch (nativeErr) {
+          console.log('[VersionCheck] Erro ao detectar versão nativa:', nativeErr);
+          const localVersion = localStorage.getItem('caule-app-version');
+          appVersion = localVersion || '1.0.0';
+        }
+        
+        setCurrentVersion(appVersion);
+        
         // Buscar versão mais recente no Firestore
         const versionDoc = await getDoc(doc(db, 'appConfig', 'version'));
         if (!versionDoc.exists()) {
@@ -27,17 +49,12 @@ export function useVersionCheck() {
         }
 
         const data = versionDoc.data() as AppVersion;
-        
-        // Versão atual do app (hardcoded para APK, detectada para PWA)
-        let appVersion = '1.0.0';
-        const localVersion = localStorage.getItem('caule-app-version');
-        appVersion = localVersion || '1.0.0';
-        
-        setCurrentVersion(appVersion);
 
         // Comparar versões (formato semver: x.y.z)
         const current = semverToNumber(appVersion);
         const latest = semverToNumber(data.latestVersion);
+        
+        console.log(`[VersionCheck] Comparando: local=${appVersion}(${current}) vs latest=${data.latestVersion}(${latest})`);
 
         if (latest > current) {
           setVersionInfo(data);
