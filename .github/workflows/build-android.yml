@@ -7,6 +7,10 @@ on:
       - 'v*'
   workflow_dispatch:
 
+env:
+  KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+  KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
 jobs:
   build-android:
     runs-on: ubuntu-latest
@@ -30,6 +34,9 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/caule-release.keystore
       - name: Install dependencies
         run: npm ci
       - name: Build web app
@@ -39,25 +46,25 @@ jobs:
       - name: Make gradlew executable
         working-directory: ./android
         run: chmod +x gradlew
-      - name: Build APK (debug - signed)
+      - name: Build APK (release - signed)
         working-directory: ./android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleRelease
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: caule-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          files: android/app/build/outputs/apk/release/app-release.apk
           body: |
             Nova versão do Caule disponível!
             
             Para instalar:
             1. Baixe o APK
             2. Ative "Fontes desconhecidas" no Android
-            3. Instale o APK
+            3. Instale o APK (atualiza automaticamente se já tiver o app instalado)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
