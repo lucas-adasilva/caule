@@ -2,7 +2,6 @@ import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'r
 import { useState, useEffect, createContext, useContext } from 'react';
 import { onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
-import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { auth } from './lib/firebase';
 import { useAuthStore } from './stores/authStore';
 import { LoginForm } from './components/auth/LoginForm';
@@ -114,14 +113,14 @@ function AuthListener() {
   const location = useLocation();
 
   useEffect(() => {
-    let unsubscribe: any;
-
-    async function setupAuth() {
-      const isNative = Capacitor.isNativePlatform();
-
-      // Verifica se há resultado de redirect pendente (após login Google no mobile)
-      try {
-        const redirectResult = await getRedirectResult(auth);
+    // ==========================================
+    // WEB: processa resultado de redirect primeiro
+    // ==========================================
+    // Quando o login Google usa signInWithRedirect (mobile web/PWA),
+    // a página recarrega e o resultado fica pendente.
+    const isNative = Capacitor.isNativePlatform();
+    if (!isNative) {
+      getRedirectResult(auth).then(async (redirectResult) => {
         if (redirectResult?.user) {
           console.log('[AuthListener] Login via redirect detectado:', redirectResult.user.email);
           const user = await buildUserObject(redirectResult.user);
@@ -132,46 +131,35 @@ function AuthListener() {
             navigate('/app', { replace: true });
           }
         }
-      } catch (redirectErr) {
-        console.log('[AuthListener] Erro ao processar redirect:', redirectErr);
-      }
-
-      if (isNative) {
-        const handle = await FirebaseAuthentication.addListener('authStateChange', async (result: any) => {
-          setLoading(true);
-          if (result.user) {
-            const user = await buildUserObject(result.user);
-            setUser(user);
-            // Se hóspede sem estadia ativa, redireciona para /estadia
-            if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
-              navigate('/estadia', { replace: true });
-            }
-          } else {
-            setUser(null);
-          }
-          setLoading(false);
-        });
-        unsubscribe = handle;
-      } else {
-        unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-          setLoading(true);
-          if (firebaseUser) {
-            const user = await buildUserObject(firebaseUser);
-            setUser(user);
-            // Se hóspede sem estadia ativa, redireciona para /estadia
-            if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
-              navigate('/estadia', { replace: true });
-            }
-          } else {
-            setUser(null);
-          }
-          setLoading(false);
-        });
-      }
+      }).catch((err) => {
+        console.log('[AuthListener] Sem redirect pendente:', err);
+      });
     }
 
-    setupAuth();
-    return () => { if (unsubscribe?.remove) unsubscribe.remove(); };
+    // ==========================================
+    // Listener unificado para TODAS as plataformas
+    // ==========================================
+    // Com skipNativeAuth: true, o plugin NÃO autentica no Firebase nativo.
+    // O login é feito via signInWithCredential no JS SDK, e o onAuthStateChanged
+    // detecta a mudança de estado em todas as plataformas (web, PWA, Android, iOS).
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true);
+      if (firebaseUser) {
+        const user = await buildUserObject(firebaseUser);
+        setUser(user);
+        if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
+          navigate('/estadia', { replace: true });
+        } else if (location.pathname === '/login' || location.pathname === '/cadastro') {
+          // Se está logado mas está na tela de login/cadastro, redireciona para home
+          navigate('/app', { replace: true });
+        }
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [setUser, setLoading, navigate, location.pathname]);
 
   return null;

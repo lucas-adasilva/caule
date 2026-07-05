@@ -2,7 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import {
+  signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  signInWithCredential,
+  linkWithCredential,
+} from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -12,6 +19,11 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [linkingState, setLinkingState] = useState<{
+    pending: boolean;
+    email: string;
+    credential: any;
+  } | null>(null);
   const navigate = useNavigate();
   const { setUser, setLoading: setAuthLoading } = useAuthStore();
 
@@ -40,10 +52,47 @@ export function LoginForm() {
         houseId: userData.houseId || '',
       };
       setUser(userObj);
-      // Redireciona: sem casa -> vincular, com casa -> app
       navigate(userObj.houseId ? '/app' : '/vincular-casa');
     } catch (err: any) {
       setError(err.message || 'Erro ao fazer login');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /**
+   * Detecta se o navegador é mobile (para escolher popup vs redirect)
+   */
+  function isMobileBrowser(): boolean {
+    const ua = navigator.userAgent;
+    const isMobileUA = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    const isSmallScreen = window.innerWidth <= 768;
+    return isMobileUA || isSmallScreen;
+  }
+
+  /**
+   * Vincula a credencial do Google à conta existente de email/senha
+   */
+  async function handleLinkAccount() {
+    if (!linkingState) return;
+    setLoading(true);
+    setError('');
+    try {
+      // Faz login com email/senha da conta existente
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        linkingState.email,
+        password
+      );
+      // Vincula a credencial do Google
+      await linkWithCredential(userCredential.user, linkingState.credential);
+      console.log('[LinkAccount] Google vinculado com sucesso!');
+      setLinkingState(null);
+      setPassword('');
+      navigate('/app');
+    } catch (err: any) {
+      console.error('[LinkAccount] Erro:', err);
+      setError(err.message || 'Erro ao vincular conta. Verifique a senha.');
     } finally {
       setLoading(false);
     }
@@ -54,32 +103,104 @@ export function LoginForm() {
     setError('');
     try {
       const isNative = Capacitor.isNativePlatform();
-      
+
       if (isNative) {
-        // Android/iOS: chama plugin nativo. Com skipNativeAuth=false, o plugin
-        // autentica no Firebase automaticamente. O AuthListener em App.tsx detecta
-        // o estado e redireciona.
-        await FirebaseAuthentication.signInWithGoogle();
-        // Não navegamos aqui — o AuthListener cuida do redirecionamento
+        // ==========================================
+        // ANDROID / iOS NATIVO (APK)
+        // ==========================================
+        // Com skipNativeAuth: true, o plugin só pega a credencial.
+        // A gente faz a autenticação manualmente no JS SDK para controlar
+        // o fluxo de vinculação de contas.
+        const result = await FirebaseAuthentication.signInWithGoogle();
+
+        if (!result.credential?.idToken) {
+          throw new Error('Credencial incompleta do Google');
+        }
+
+        const googleCredential = GoogleAuthProvider.credential(
+          result.credential.idToken,
+          result.credential.accessToken
+        );
+
+        try {
+          // Tenta fazer login com a credencial do Google
+          await signInWithCredential(auth, googleCredential);
+          // Se chegou aqui, o login funcionou (novo usuário ou já vinculado)
+          navigate('/app');
+        } catch (signInErr: any) {
+          // Se o email já existe com outro provider (email/senha)
+          if (signInErr.code === 'auth/account-exists-with-different-credential') {
+            const pendingEmail = signInErr.customData?.email || result.user?.email;
+            if (pendingEmail) {
+              setLinkingState({
+                pending: true,
+                email: pendingEmail,
+                credential: googleCredential,
+              });
+              // Preenche o email no form para facilitar
+              setEmail(pendingEmail);
+            } else {
+              setError('Esta conta Google já existe com outro método de login. Use email e senha.');
+            }
+          } else {
+            throw signInErr;
+          }
+        }
+        return;
+      }
+
+      // ==========================================
+      // WEB (desktop e mobile/PWA)
+      // ==========================================
+      const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+
+      if (isMobileBrowser()) {
+        // Mobile web / PWA: usa redirect
+        await signInWithRedirect(auth, provider);
+        // A página recarrega; o App.tsx processa via getRedirectResult
       } else {
-        // Web: usa popup normal
-        const provider = new GoogleAuthProvider();
-        provider.addScope('profile');
-        provider.addScope('email');
-        await signInWithPopup(auth, provider);
-        navigate('/app');
+        // Desktop web: usa popup
+        try {
+          await signInWithPopup(auth, provider);
+          navigate('/app');
+        } catch (popupErr: any) {
+          if (popupErr.code === 'auth/account-exists-with-different-credential') {
+            const pendingEmail = popupErr.customData?.email;
+            const pendingCredential = GoogleAuthProvider.credentialFromError(popupErr);
+            if (pendingEmail && pendingCredential) {
+              setLinkingState({
+                pending: true,
+                email: pendingEmail,
+                credential: pendingCredential,
+              });
+              setEmail(pendingEmail);
+            } else {
+              setError('Esta conta Google já existe com outro método de login. Use email e senha.');
+            }
+          } else {
+            throw popupErr;
+          }
+        }
       }
     } catch (err: any) {
       console.error('[GoogleLogin] Erro:', err);
-      
+
       let errorMessage = 'Erro ao fazer login com Google';
-      
-      if (err?.message?.includes('No credentials available')) {
+
+      if (err?.code === 'auth/popup-blocked') {
+        errorMessage = 'Popup bloqueado. Tente recarregar a página.';
+      } else if (err?.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'Login cancelado.';
+      } else if (err?.code === 'auth/unauthorized-domain') {
+        errorMessage = 'Domínio não autorizado no Firebase. Adicione este domínio no console.';
+      } else if (err?.message?.includes('No credentials available')) {
         errorMessage = 'Nenhuma conta Google encontrada no dispositivo.';
       } else if (err?.message) {
         errorMessage = err.message;
       }
-      
+
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -107,6 +228,45 @@ export function LoginForm() {
 
         {/* Form Card */}
         <div className="w-full glass-panel rounded-xl p-8 shadow-xl">
+          {/* Modal de Vinculação de Conta */}
+          {linkingState?.pending && (
+            <div className="mb-6 bg-secondary-container/30 border border-secondary/30 rounded-lg p-4">
+              <h3 className="text-label-sm font-label-sm text-on-surface mb-2">
+                Conta Google já existe
+              </h3>
+              <p className="text-caption font-caption text-on-surface-variant mb-3">
+                O email <strong>{linkingState.email}</strong> já tem uma conta. Digite sua senha para vincular o login Google.
+              </p>
+              <div className="relative group mb-3">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">lock</span>
+                <input
+                  className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-3 pl-11 pr-4 focus:ring-2 focus:ring-secondary/30 focus:border-secondary transition-all outline-none"
+                  type="password"
+                  placeholder="Senha da conta existente"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleLinkAccount}
+                  disabled={loading || !password}
+                  className="flex-1 bg-secondary-container text-on-secondary-container font-bold py-2 rounded-lg hover:brightness-110 transition-all text-label-sm font-label-sm disabled:opacity-50"
+                >
+                  {loading ? 'Vinculando...' : 'Vincular Conta'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setLinkingState(null); setPassword(''); }}
+                  className="px-4 py-2 text-on-surface-variant hover:text-on-surface transition-colors text-label-sm font-label-sm"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+
           <form className="space-y-stack-md" onSubmit={handleEmailLogin}>
             {/* Email Input */}
             <div className="space-y-2">
@@ -188,7 +348,7 @@ export function LoginForm() {
             <button
               type="button"
               onClick={handleGoogleLogin}
-              disabled={loading}
+              disabled={loading || linkingState?.pending}
               className="w-full bg-surface-container text-on-surface border border-outline-variant py-3 rounded-lg hover:bg-surface-container-highest transition-colors flex items-center justify-center gap-3 text-label-sm font-label-sm disabled:opacity-50"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
