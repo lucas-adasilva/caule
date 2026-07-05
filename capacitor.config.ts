@@ -12,7 +12,7 @@ const config: CapacitorConfig = {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
     FirebaseAuthentication: {
-      skipNativeAuth: true,
+      skipNativeAuth: false,
       providers: ['google.com'],
     },
   },
