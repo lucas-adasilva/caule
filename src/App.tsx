@@ -119,30 +119,43 @@ function AuthListener() {
     async function setupAuth() {
       const isNative = Capacitor.isNativePlatform();
 
-      // Verifica se há resultado de redirect pendente (após login Google no mobile)
-      try {
-        const redirectResult = await getRedirectResult(auth);
-        if (redirectResult?.user) {
-          console.log('[AuthListener] Login via redirect detectado:', redirectResult.user.email);
-          const user = await buildUserObject(redirectResult.user);
-          setUser(user);
-          if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
-            navigate('/estadia', { replace: true });
-          } else {
-            navigate('/app', { replace: true });
+      // ==========================================
+      // WEB: processa resultado de redirect primeiro
+      // ==========================================
+      // Quando o login Google usa signInWithRedirect (mobile web/PWA),
+      // a página recarrega e o resultado fica pendente.
+      if (!isNative) {
+        try {
+          const redirectResult = await getRedirectResult(auth);
+          if (redirectResult?.user) {
+            console.log('[AuthListener] Login via redirect detectado:', redirectResult.user.email);
+            const user = await buildUserObject(redirectResult.user);
+            setUser(user);
+            if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
+              navigate('/estadia', { replace: true });
+            } else {
+              navigate('/app', { replace: true });
+            }
+            return; // Já processamos o login, não precisa de listener adicional agora
           }
+        } catch (redirectErr: any) {
+          console.log('[AuthListener] Sem redirect pendente ou erro:', redirectErr.code || redirectErr.message);
         }
-      } catch (redirectErr) {
-        console.log('[AuthListener] Erro ao processar redirect:', redirectErr);
       }
 
+      // ==========================================
+      // Configura listener de autenticação
+      // ==========================================
       if (isNative) {
+        // ANDROID / iOS NATIVO (APK):
+        // Com skipNativeAuth: false, o plugin autentica no Firebase
+        // nativamente. Usamos o listener authStateChange do plugin
+        // para detectar mudanças de estado.
         const handle = await FirebaseAuthentication.addListener('authStateChange', async (result: any) => {
           setLoading(true);
           if (result.user) {
             const user = await buildUserObject(result.user);
             setUser(user);
-            // Se hóspede sem estadia ativa, redireciona para /estadia
             if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
               navigate('/estadia', { replace: true });
             }
@@ -153,12 +166,14 @@ function AuthListener() {
         });
         unsubscribe = handle;
       } else {
+        // WEB (desktop + mobile/PWA):
+        // Usa onAuthStateChanged do Firebase JS SDK.
+        // Funciona para: popup desktop, redirect mobile, email/senha.
         unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
           setLoading(true);
           if (firebaseUser) {
             const user = await buildUserObject(firebaseUser);
             setUser(user);
-            // Se hóspede sem estadia ativa, redireciona para /estadia
             if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
               navigate('/estadia', { replace: true });
             }

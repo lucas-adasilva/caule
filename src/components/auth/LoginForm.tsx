@@ -2,7 +2,12 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import {
+  signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+} from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -40,7 +45,6 @@ export function LoginForm() {
         houseId: userData.houseId || '',
       };
       setUser(userObj);
-      // Redireciona: sem casa -> vincular, com casa -> app
       navigate(userObj.houseId ? '/app' : '/vincular-casa');
     } catch (err: any) {
       setError(err.message || 'Erro ao fazer login');
@@ -49,37 +53,69 @@ export function LoginForm() {
     }
   }
 
+  /**
+   * Detecta se o navegador é mobile (para escolher popup vs redirect)
+   */
+  function isMobileBrowser(): boolean {
+    const ua = navigator.userAgent;
+    const isMobileUA = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    const isSmallScreen = window.innerWidth <= 768;
+    return isMobileUA || isSmallScreen;
+  }
+
   async function handleGoogleLogin() {
     setLoading(true);
     setError('');
     try {
       const isNative = Capacitor.isNativePlatform();
-      
+
       if (isNative) {
-        // Android/iOS: chama plugin nativo. Com skipNativeAuth=false, o plugin
-        // autentica no Firebase automaticamente. O AuthListener em App.tsx detecta
-        // o estado e redireciona.
+        // ==========================================
+        // ANDROID / iOS NATIVO (APK)
+        // ==========================================
+        // Com skipNativeAuth: false, o plugin autentica
+        // diretamente no Firebase nativo. O listener
+        // authStateChange no App.tsx detecta e redireciona.
         await FirebaseAuthentication.signInWithGoogle();
-        // Não navegamos aqui — o AuthListener cuida do redirecionamento
+        return;
+      }
+
+      // ==========================================
+      // WEB (desktop e mobile/PWA)
+      // ==========================================
+      const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+
+      if (isMobileBrowser()) {
+        // Mobile web / PWA (iOS Safari, Android Chrome):
+        // Popups são bloqueados em mobile. Usa redirect.
+        // A página recarrega após o login; o App.tsx processa
+        // o resultado via getRedirectResult().
+        await signInWithRedirect(auth, provider);
+        // NÃO navegamos aqui — a página vai recarregar
       } else {
-        // Web: usa popup normal
-        const provider = new GoogleAuthProvider();
-        provider.addScope('profile');
-        provider.addScope('email');
+        // Desktop web: popup funciona normalmente
         await signInWithPopup(auth, provider);
         navigate('/app');
       }
     } catch (err: any) {
       console.error('[GoogleLogin] Erro:', err);
-      
+
       let errorMessage = 'Erro ao fazer login com Google';
-      
-      if (err?.message?.includes('No credentials available')) {
+
+      if (err?.code === 'auth/popup-blocked') {
+        errorMessage = 'Popup bloqueado. Tente recarregar a página.';
+      } else if (err?.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'Login cancelado.';
+      } else if (err?.code === 'auth/unauthorized-domain') {
+        errorMessage = 'Domínio não autorizado no Firebase. Adicione este domínio no console.';
+      } else if (err?.message?.includes('No credentials available')) {
         errorMessage = 'Nenhuma conta Google encontrada no dispositivo.';
       } else if (err?.message) {
         errorMessage = err.message;
       }
-      
+
       setError(errorMessage);
     } finally {
       setLoading(false);

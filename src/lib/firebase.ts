@@ -16,7 +16,13 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-getAnalytics(app);
+
+// Proteger Analytics — pode falhar no WebView/Capacitor (localhost não é domínio válido)
+try {
+  getAnalytics(app);
+} catch (e) {
+  console.warn('[Firebase] Analytics não disponível neste ambiente:', e);
+}
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
