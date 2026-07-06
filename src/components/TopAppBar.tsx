@@ -1,5 +1,7 @@
 import { useAuthStore } from '@/stores/authStore';
 import { useState, useEffect } from 'react';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import { UserAvatar } from '@/components/UserAvatar';
 import { usuarioViajandoAgora, buscarViagemAtiva, interromperViagem, redistribuirTarefasPorRetorno } from '@/utils/viagens';
 import {
@@ -37,7 +39,7 @@ export function TopAppBar({
   showBackButton = false,
   onBackClick,
 }: TopAppBarProps) {
-  const { user, setIsPresent, logout } = useAuthStore();
+  const { user, setIsPresent } = useAuthStore();
   const navigate = useNavigate();
   const [isTraveling, setIsTraveling] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -76,9 +78,13 @@ export function TopAppBar({
     }
   }
 
-  function handleLogout() {
-    logout();
-    navigate('/login');
+  async function handleLogout() {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error('[TopAppBar] Erro ao fazer signOut:', err);
+    }
+    // O AuthListener detecta o signOut e o ProtectedRoute redireciona para /login
   }
 
   return (
@@ -199,7 +205,7 @@ export function TopAppBar({
                 className="px-3 py-2 text-sm rounded-lg focus:bg-destructive/10 focus:text-destructive cursor-pointer"
               >
                 <LogOut className="w-4 h-4 mr-2" />
-                <span>Sair</span>
+                <span>Sair da Conta</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

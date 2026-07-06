@@ -1,7 +1,8 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
+import { db, auth } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { UserAvatar } from '@/components/UserAvatar';
 import { usuarioViajandoAgora } from '@/utils/viagens';
@@ -38,7 +39,7 @@ const menuItems: MenuItem[] = [
 export function MenuDrawer({ isOpen, onClose }: MenuDrawerProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
   const [houseName, setHouseName] = useState<string>('Caule');
   const [isTraveling, setIsTraveling] = useState(false);
 
@@ -184,7 +185,15 @@ export function MenuDrawer({ isOpen, onClose }: MenuDrawerProps) {
 
           {/* Sair */}
           <button
-            onClick={() => { logout(); onClose(); navigate('/login'); }}
+            onClick={async () => {
+              onClose();
+              try {
+                await signOut(auth);
+              } catch (err) {
+                console.error('[Logout] Erro ao fazer signOut:', err);
+              }
+              // O AuthListener detecta o signOut e redireciona para /login via ProtectedRoute
+            }}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-left text-error hover:bg-error/10 transition-all"
           >
             <span className="material-symbols-outlined text-xl">logout</span>
