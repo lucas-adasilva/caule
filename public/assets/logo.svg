@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <!-- ============================================= -->
+  <!-- C A U L E  -  Logo SVG (proporções 1024x1024) -->
+  <!-- ============================================= -->
+
+  <!-- DEFINIÇÕES: gradientes para suavidade -->
+  <defs>
+    <linearGradient id="gradCExterno" x1="200" y1="512" x2="824" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#087a4a"/>
+      <stop offset="50%" stop-color="#0A8554"/>
+      <stop offset="100%" stop-color="#0D9B63"/>
+    </linearGradient>
+    <linearGradient id="gradCInterno" x1="280" y1="512" x2="744" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0D9B63"/>
+      <stop offset="100%" stop-color="#10B981"/>
+    </linearGradient>
+    <linearGradient id="gradFolha" x1="600" y1="300" x2="900" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0D9B63"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="gradLaranja1" x1="300" y1="200" x2="150" y2="350" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FB923C"/>
+      <stop offset="100%" stop-color="#F97316"/>
+    </linearGradient>
+    <linearGradient id="gradLaranja2" x1="400" y1="180" x2="280" y2="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FDBA74"/>
+      <stop offset="100%" stop-color="#FB923C"/>
+    </linearGradient>
+    <linearGradient id="gradVermelho" x1="460" y1="160" x2="400" y2="380" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FCA5A5"/>
+      <stop offset="100%" stop-color="#EF4444"/>
+    </linearGradient>
+    <linearGradient id="gradAzul" x1="520" y1="320" x2="620" y2="280" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#60A5FA"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ============================================= -->
+  <!-- CURVA EXTERNA DO C (grossa, base do logo)     -->
+  <!-- ============================================= -->
+  <!-- Começa no topo (~400,360), desce em curva pela esquerda, -->
+  <!-- faz a base arredondada embaixo, sobe pela direita terminando em (~736,680) -->
+  <path id="c-exterior"
+    d="M 736 680
+       C 824 560, 824 448, 736 360
+       C 648 272, 504 272, 400 360
+       C 296 448, 240 560, 240 680
+       C 240 824, 352 936, 512 936
+       C 624 936, 712 880, 736 820"
+    stroke="url(#gradCExterno)"
+    stroke-width="72"
+    stroke-linecap="round"
+    fill="none"/>
+
+  <!-- ============================================= -->
+  <!-- CURVA INTERNA DO C (mais fina, efeito 3D)     -->
+  <!-- ============================================= -->
+  <path id="c-interior"
+    d="M 680 680
+       C 752 576, 752 480, 680 408
+       C 608 336, 504 336, 416 408
+       C 328 480, 288 576, 288 680
+       C 288 792, 384 872, 512 872
+       C 600 872, 664 832, 680 792"
+    stroke="url(#gradCInterno)"
+    stroke-width="40"
+    stroke-linecap="round"
+    fill="none"/>
+
+  <!-- ============================================= -->
+  <!-- FOLHA VERDE (direita, a maior)                -->
+  <!-- ============================================= -->
+  <path id="folha-verde"
+    d="M 440 360
+       C 520 280, 640 240, 800 280
+       C 680 320, 600 360, 560 400
+       C 520 440, 480 440, 440 400
+       C 420 380, 430 370, 440 360Z"
+    fill="url(#gradFolha)"/>
+
+  <!-- ============================================= -->
+  <!-- PÉTALA LARANJA ESCURA (esquerda, mais larga)  -->
+  <!-- ============================================= -->
+  <path id="petala-laranja-1"
+    d="M 420 360
+       C 380 280, 320 200, 200 160
+       C 280 240, 340 320, 360 380
+       C 380 440, 400 420, 420 400
+       C 440 380, 430 370, 420 360Z"
+    fill="url(#gradLaranja1)"/>
+
+  <!-- ============================================= -->
+  <!-- PÉTALA LARANJA (centro-esquerda)              -->
+  <!-- ============================================= -->
+  <path id="petala-laranja-2"
+    d="M 450 350
+       C 440 280, 420 200, 340 120
+       C 380 200, 400 280, 410 340
+       C 420 400, 440 390, 450 370
+       C 460 360, 455 355, 450 350Z"
+    fill="url(#gradLaranja2)"/>
+
+  <!-- ============================================= -->
+  <!-- PÉTALA VERMELHA/LARANJA ESCURA (centro, alta) -->
+  <!-- ============================================= -->
+  <path id="petala-vermelha"
+    d="M 470 340
+       C 468 260, 460 180, 440 100
+       C 448 180, 452 260, 454 320
+       C 456 380, 465 370, 470 360
+       C 475 350, 472 345, 470 340Z"
+    fill="url(#gradVermelho)"/>
+
+  <!-- ============================================= -->
+  <!-- PÉTALA AZUL (centro-direita, pequena)         -->
+  <!-- ============================================= -->
+  <path id="petala-azul"
+    d="M 490 350
+       C 520 300, 560 260, 640 240
+       C 580 280, 540 320, 520 360
+       C 500 400, 490 380, 485 370
+       C 480 360, 485 355, 490 350Z"
+    fill="url(#gradAzul)"/>
+
+</svg>

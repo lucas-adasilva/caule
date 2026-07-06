@@ -8,6 +8,7 @@ import { LoginForm } from './components/auth/LoginForm';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { BottomNav } from './components/BottomNav';
 import { MenuDrawer } from './components/MenuDrawer';
+import { SplashScreen } from './components/SplashScreen';
 import { HomePage } from './pages/HomePage';
 import { TarefasPage } from './pages/TarefasPage';
 import { ConquistasPage } from './pages/ConquistasPage';
@@ -25,7 +26,6 @@ import { ProjetosPage } from './pages/ProjetosPage';
 import { EstadiaPage } from './pages/EstadiaPage';
 import { UpdateDialog } from './components/UpdateDialog';
 import { usePushNotifications } from './hooks/usePushNotifications';
-
 
 // Contexto para handlers globais (menu, notificacoes)
 const AppContext = createContext({
@@ -116,8 +116,6 @@ function AuthListener() {
     // ==========================================
     // WEB: processa resultado de redirect primeiro
     // ==========================================
-    // Quando o login Google usa signInWithRedirect (mobile web/PWA),
-    // a página recarrega e o resultado fica pendente.
     const isNative = Capacitor.isNativePlatform();
     if (!isNative) {
       getRedirectResult(auth).then(async (redirectResult) => {
@@ -139,9 +137,6 @@ function AuthListener() {
     // ==========================================
     // Listener unificado para TODAS as plataformas
     // ==========================================
-    // Com skipNativeAuth: true, o plugin NÃO autentica no Firebase nativo.
-    // O login é feito via signInWithCredential no JS SDK, e o onAuthStateChanged
-    // detecta a mudança de estado em todas as plataformas (web, PWA, Android, iOS).
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
@@ -150,7 +145,6 @@ function AuthListener() {
         if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
           navigate('/estadia', { replace: true });
         } else if (location.pathname === '/login' || location.pathname === '/cadastro') {
-          // Se está logado mas está na tela de login/cadastro, redireciona para home
           navigate('/app', { replace: true });
         }
       } else {
@@ -194,8 +188,21 @@ function AppRoutes() {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+  const { user, isLoading } = useAuthStore();
+
+  // Se usuário já está logado, não mostra splash (vai direto para app)
+  // Se está deslogado, mostra splash antes do login
+  const shouldShowSplash = showSplash && !user && !isLoading;
+
   return (
     <HashRouter>
+      {shouldShowSplash && (
+        <SplashScreen
+          duration={3500}
+          onComplete={() => setShowSplash(false)}
+        />
+      )}
       <AuthListener />
       <AppRoutes />
     </HashRouter>
