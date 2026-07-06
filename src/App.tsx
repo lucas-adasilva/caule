@@ -198,10 +198,7 @@ export default function App() {
   return (
     <HashRouter>
       {shouldShowSplash && (
-        <SplashScreen
-          duration={3500}
-          onComplete={() => setShowSplash(false)}
-        />
+        <SplashScreen onComplete={() => setShowSplash(false)} />
       )}
       <AuthListener />
       <AppRoutes />
