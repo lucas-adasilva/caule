@@ -24,6 +24,7 @@ import { PerfilPage } from './pages/PerfilPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { ProjetosPage } from './pages/ProjetosPage';
 import { EstadiaPage } from './pages/EstadiaPage';
+import { CompletarPerfilPage } from './pages/CompletarPerfilPage';
 import { UpdateDialog } from './components/UpdateDialog';
 import { usePushNotifications } from './hooks/usePushNotifications';
 
@@ -59,7 +60,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 async function buildUserObject(firebaseUser: any) {
-  const { getDoc, setDoc, doc } = await import('firebase/firestore');
+  const { getDoc, doc } = await import('firebase/firestore');
   const { db } = await import('./lib/firebase');
 
   let userData: any = {};
@@ -69,29 +70,6 @@ async function buildUserObject(firebaseUser: any) {
     if (userDoc.exists()) {
       userData = userDoc.data();
       firestoreFound = true;
-    } else {
-      // Documento não existe → criar para logins Google (ou novos)
-      const newUserData = {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email || '',
-        name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || '',
-        fullName: firebaseUser.displayName || '',
-        photoURL: firebaseUser.photoURL || '',
-        phone: firebaseUser.phoneNumber || '',
-        cpf: '',
-        pixKey: '',
-        birthDate: '',
-        houseId: '',
-        role: 'hospede',
-        isActive: true,
-        isPresent: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      await setDoc(doc(db, 'users', firebaseUser.uid), newUserData);
-      userData = newUserData;
-      firestoreFound = true;
-      console.log('[AUTH] Novo usuário criado no Firestore:', firebaseUser.uid);
     }
   } catch (e: any) {
     console.error('[AUTH] Firestore ERRO:', e.code, e.message);
@@ -121,6 +99,7 @@ async function buildUserObject(firebaseUser: any) {
     estadiaInicio: userData.estadiaInicio || '',
     estadiaFim: userData.estadiaFim || '',
     estadiaAtiva: verificarEstadiaAtiva(userData.estadiaInicio, userData.estadiaFim),
+    isNewUser: !firestoreFound, // true quando não existe no Firestore
   };
 }
 
@@ -146,7 +125,9 @@ function AuthListener() {
           console.log('[AuthListener] Login via redirect detectado:', redirectResult.user.email);
           const user = await buildUserObject(redirectResult.user);
           setUser(user);
-          if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
+          if (user.isNewUser) {
+            navigate('/completar-perfil', { replace: true });
+          } else if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
             navigate('/estadia', { replace: true });
           } else {
             navigate('/app', { replace: true });
@@ -165,7 +146,9 @@ function AuthListener() {
       if (firebaseUser) {
         const user = await buildUserObject(firebaseUser);
         setUser(user);
-        if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
+        if (user.isNewUser) {
+          navigate('/completar-perfil', { replace: true });
+        } else if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia' && location.pathname !== '/completar-perfil') {
           navigate('/estadia', { replace: true });
         } else if (location.pathname === '/login' || location.pathname === '/cadastro') {
           navigate('/app', { replace: true });
@@ -204,6 +187,7 @@ function AppRoutes() {
         <Route path="/perfil" element={<ProtectedRoute><PerfilPage /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
         <Route path="/estadia" element={<ProtectedRoute><EstadiaPage /></ProtectedRoute>} />
+        <Route path="/completar-perfil" element={<ProtectedRoute><CompletarPerfilPage /></ProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute adminOnly><ConfiguracoesPage /></ProtectedRoute>} />
       </Routes>
     </AppLayout>
