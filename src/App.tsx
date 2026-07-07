@@ -59,7 +59,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 async function buildUserObject(firebaseUser: any) {
-  const { getDoc, doc } = await import('firebase/firestore');
+  const { getDoc, setDoc, doc } = await import('firebase/firestore');
   const { db } = await import('./lib/firebase');
 
   let userData: any = {};
@@ -69,6 +69,29 @@ async function buildUserObject(firebaseUser: any) {
     if (userDoc.exists()) {
       userData = userDoc.data();
       firestoreFound = true;
+    } else {
+      // Documento não existe → criar para logins Google (ou novos)
+      const newUserData = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || '',
+        fullName: firebaseUser.displayName || '',
+        photoURL: firebaseUser.photoURL || '',
+        phone: firebaseUser.phoneNumber || '',
+        cpf: '',
+        pixKey: '',
+        birthDate: '',
+        houseId: '',
+        role: 'hospede',
+        isActive: true,
+        isPresent: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, 'users', firebaseUser.uid), newUserData);
+      userData = newUserData;
+      firestoreFound = true;
+      console.log('[AUTH] Novo usuário criado no Firestore:', firebaseUser.uid);
     }
   } catch (e: any) {
     console.error('[AUTH] Firestore ERRO:', e.code, e.message);
