@@ -126,7 +126,15 @@ export function LoginForm() {
           // Tenta fazer login com a credencial do Google
           await signInWithCredential(auth, googleCredential);
           // Se chegou aqui, o login funcionou (novo usuário ou já vinculado)
-          navigate('/app');
+          // Verifica se é novo usuário (sem documento no Firestore)
+          const { getDoc, doc } = await import('firebase/firestore');
+          const { db } = await import('@/lib/firebase');
+          const userDoc = await getDoc(doc(db, 'users', auth.currentUser!.uid));
+          if (!userDoc.exists()) {
+            navigate('/completar-perfil');
+          } else {
+            navigate('/app');
+          }
         } catch (signInErr: any) {
           // Se o email já existe com outro provider (email/senha)
           if (signInErr.code === 'auth/account-exists-with-different-credential') {
@@ -164,7 +172,15 @@ export function LoginForm() {
         // Desktop web: usa popup
         try {
           await signInWithPopup(auth, provider);
-          navigate('/app');
+          // Verifica se é novo usuário (sem documento no Firestore)
+          const { getDoc, doc } = await import('firebase/firestore');
+          const { db } = await import('@/lib/firebase');
+          const userDoc = await getDoc(doc(db, 'users', auth.currentUser!.uid));
+          if (!userDoc.exists()) {
+            navigate('/completar-perfil');
+          } else {
+            navigate('/app');
+          }
         } catch (popupErr: any) {
           if (popupErr.code === 'auth/account-exists-with-different-credential') {
             const pendingEmail = popupErr.customData?.email;
