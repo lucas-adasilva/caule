@@ -99,6 +99,7 @@ async function buildUserObject(firebaseUser: any) {
     estadiaInicio: userData.estadiaInicio || '',
     estadiaFim: userData.estadiaFim || '',
     estadiaAtiva: verificarEstadiaAtiva(userData.estadiaInicio, userData.estadiaFim),
+    isNewUser: !firestoreFound,
   };
 }
 
@@ -115,26 +116,13 @@ function AuthListener() {
 
   useEffect(() => {
     // ==========================================
-    // WEB: processa resultado de redirect primeiro
+    // WEB: processa resultado de redirect (logging apenas)
     // ==========================================
     const isNative = Capacitor.isNativePlatform();
     if (!isNative) {
-      getRedirectResult(auth).then(async (redirectResult) => {
+      getRedirectResult(auth).then((redirectResult) => {
         if (redirectResult?.user) {
-          console.log('[AuthListener] Login via redirect detectado:', redirectResult.user.email);
-          const user = await buildUserObject(redirectResult.user);
-          setUser(user);
-          // Verifica se é novo usuário (sem documento no Firestore)
-          const { getDoc, doc } = await import('firebase/firestore');
-          const { db } = await import('./lib/firebase');
-          const userDoc = await getDoc(doc(db, 'users', redirectResult.user.uid));
-          if (!userDoc.exists()) {
-            navigate('/completar-perfil', { replace: true });
-          } else if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
-            navigate('/estadia', { replace: true });
-          } else {
-            navigate('/app', { replace: true });
-          }
+          console.log('[AuthListener] Redirect result processado:', redirectResult.user.email);
         }
       }).catch((err) => {
         console.log('[AuthListener] Sem redirect pendente:', err);
@@ -149,7 +137,9 @@ function AuthListener() {
       if (firebaseUser) {
         const user = await buildUserObject(firebaseUser);
         setUser(user);
-        if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
+        if (user.isNewUser && location.pathname !== '/completar-perfil') {
+          navigate('/completar-perfil', { replace: true });
+        } else if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
           navigate('/estadia', { replace: true });
         } else if (location.pathname === '/login' || location.pathname === '/cadastro') {
           navigate('/app', { replace: true });

@@ -18,6 +18,7 @@ interface UserData {
   estadiaInicio?: string;
   estadiaFim?: string;
   estadiaAtiva?: boolean;
+  isNewUser?: boolean;
 }
 
 interface AuthStore {
