@@ -41,7 +41,7 @@ export function CompletarPerfilPage() {
         birthDate: form.birthDate || '',
         photoURL: currentUser.photoURL || '',
         houseId: '',
-        role: 'hospede',
+        role: 'hospede' as const,
         isActive: true,
         isPresent: true,
         createdAt: new Date().toISOString(),
