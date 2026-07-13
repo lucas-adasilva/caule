@@ -1,21 +1,60 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { setDoc, doc } from 'firebase/firestore';
+import { setDoc, doc, collection, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
+
+interface Casa {
+  id: string;
+  nome: string;
+  endereco: string;
+  cidade: string;
+  estado: string;
+}
 
 export function CompletarPerfilPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
+  const [carregandoCasas, setCarregandoCasas] = useState(true);
   const [error, setError] = useState('');
+  const [casas, setCasas] = useState<Casa[]>([]);
   const [form, setForm] = useState({
     fullName: user?.name || '',
     phone: '',
     cpf: '',
     pixKey: '',
     birthDate: '',
+    houseId: '',
   });
+
+  // Carrega as casas disponíveis ao montar o componente
+  useEffect(() => {
+    async function carregarCasas() {
+      try {
+        const snap = await getDocs(collection(db, 'casas'));
+        const lista: Casa[] = [];
+        snap.forEach(d => {
+          const data = d.data() as any;
+          if (data.isActive !== false) {
+            lista.push({
+              id: d.id,
+              nome: data.nome || 'Casa sem nome',
+              endereco: data.endereco || '',
+              cidade: data.cidade || '',
+              estado: data.estado || '',
+            });
+          }
+        });
+        setCasas(lista);
+      } catch (e: any) {
+        console.error('[CompletarPerfil] Erro ao carregar casas:', e);
+      } finally {
+        setCarregandoCasas(false);
+      }
+    }
+    carregarCasas();
+  }, []);
 
   async function handleSalvar(e: React.FormEvent) {
     e.preventDefault();
@@ -24,12 +63,14 @@ export function CompletarPerfilPage() {
     if (!form.fullName.trim()) { setError('Nome completo é obrigatório'); return; }
     if (!form.phone.trim()) { setError('Telefone é obrigatório'); return; }
     if (!form.cpf.trim()) { setError('CPF é obrigatório'); return; }
+    if (!form.houseId) { setError('Escolha uma casa para se associar'); return; }
 
     const currentUser = auth.currentUser;
     if (!currentUser) { setError('Usuário não autenticado'); return; }
 
     setLoading(true);
     try {
+      const casaSelecionada = casas.find(c => c.id === form.houseId);
       const userData = {
         uid: currentUser.uid,
         email: currentUser.email || '',
@@ -40,7 +81,7 @@ export function CompletarPerfilPage() {
         pixKey: form.pixKey.trim(),
         birthDate: form.birthDate || '',
         photoURL: currentUser.photoURL || '',
-        houseId: '',
+        houseId: form.houseId,
         role: 'hospede' as const,
         isActive: true,
         isPresent: true,
@@ -49,7 +90,7 @@ export function CompletarPerfilPage() {
       };
 
       await setDoc(doc(db, 'users', currentUser.uid), userData);
-      console.log('[CompletarPerfil] Perfil salvo:', currentUser.uid);
+      console.log('[CompletarPerfil] Perfil salvo:', currentUser.uid, 'casa:', casaSelecionada?.nome);
 
       // Atualiza o store local
       const { setUser } = useAuthStore.getState();
@@ -65,10 +106,11 @@ export function CompletarPerfilPage() {
         cpf: userData.cpf,
         pixKey: userData.pixKey,
         photoURL: userData.photoURL,
-        houseId: '',
+        houseId: userData.houseId,
       });
 
-      navigate('/estadia', { replace: true });
+      // Redireciona para o app (com casa já vinculada, o usuário terá acesso completo)
+      navigate('/app', { replace: true });
     } catch (err: any) {
       console.error('[CompletarPerfil] Erro:', err);
       setError(err.message || 'Erro ao salvar perfil');
@@ -147,6 +189,41 @@ export function CompletarPerfilPage() {
             />
           </div>
 
+          {/* === SELEÇÃO DE CASA === */}
+          <div>
+            <label className="block text-label-sm text-on-surface-variant mb-1">
+              Escolha sua casa *
+            </label>
+            {carregandoCasas ? (
+              <div className="w-full px-3 py-2.5 rounded-lg bg-surface-container-high border border-outline-variant text-on-surface-variant text-sm flex items-center gap-2">
+                <span className="material-symbols-outlined animate-spin text-primary text-lg">refresh</span>
+                Carregando casas...
+              </div>
+            ) : casas.length === 0 ? (
+              <div className="w-full px-3 py-2.5 rounded-lg bg-error/10 border border-error/30 text-error text-sm">
+                <span className="material-symbols-outlined text-sm mr-1">error</span>
+                Nenhuma casa disponível. Entre em contato com o admin.
+              </div>
+            ) : (
+              <select
+                value={form.houseId}
+                onChange={(e) => setForm({ ...form, houseId: e.target.value })}
+                className="w-full px-3 py-2.5 rounded-lg bg-surface text-on-surface border border-outline-variant focus:border-primary focus:outline-none text-sm"
+                required
+              >
+                <option value="">Selecione uma casa</option>
+                {casas.map(casa => (
+                  <option key={casa.id} value={casa.id}>
+                    {casa.nome} — {casa.cidade}{casa.estado ? `, ${casa.estado}` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+            <p className="text-[10px] text-on-surface-variant mt-1">
+              As tarefas, moradores e eventos são organizados por casa.
+            </p>
+          </div>
+
           <div>
             <label className="block text-label-sm text-on-surface-variant mb-1">Chave PIX</label>
             <input
@@ -170,7 +247,7 @@ export function CompletarPerfilPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || carregandoCasas || casas.length === 0}
             className="w-full py-3 rounded-lg bg-primary text-on-primary font-bold text-body-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
             {loading ? 'Salvando...' : 'Continuar'}

@@ -141,6 +141,11 @@ function AuthListener() {
           if (location.pathname !== '/completar-perfil') {
             navigate('/completar-perfil', { replace: true });
           }
+        } else if (!user.houseId) {
+          // Usuário existe mas não tem casa vinculada → manda escolher casa
+          if (location.pathname !== '/vincular-casa') {
+            navigate('/vincular-casa', { replace: true });
+          }
         } else if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
           navigate('/estadia', { replace: true });
         } else if (location.pathname === '/login' || location.pathname === '/cadastro') {
