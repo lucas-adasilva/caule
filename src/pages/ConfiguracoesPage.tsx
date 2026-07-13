@@ -6,7 +6,7 @@ import { useApp } from '@/App';
 import { TopAppBar } from '@/components/TopAppBar';
 import { UserAvatar } from '@/components/UserAvatar';
 
-interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; }
+interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; }
 interface Comodo { id: string; nome: string; icone: string; cor: string; tipo: 'coletivo' | 'privado'; casaId: string; ordem: number; createdBy: string; responsavelId?: string; }
 interface Tarefa { id: string; titulo: string; descricao: string; comodoId: string; responsavelId: string; casaId: string; prioridade: 'alta' | 'media' | 'baixa'; frequencia: 'unica' | 'diaria' | 'semanal' | 'quinzenal' | 'mensal'; status: 'aguardando_responsavel' | 'pendente' | 'em_andamento' | 'concluida'; tipo: 'coletiva' | 'privada'; diasSemana: string[]; diaMes: number; createdBy: string; dataUnica?: string; vezesPorSemana?: number; }
 interface UserData {
@@ -53,7 +53,7 @@ export function ConfiguracoesPage() {
   const [casas, setCasas] = useState<Casa[]>([]);
   const [casaSelecionada, setCasaSelecionada] = useState<Casa | null>(null);
   const [editandoCasaId, setEditandoCasaId] = useState<string | null>(null);
-  const [formCasa, setFormCasa] = useState({ nome: '', endereco: '', cidade: '', estado: '', cep: '' });
+  const [formCasa, setFormCasa] = useState({ nome: '', endereco: '', cidade: '', estado: '', cep: '', senhaCadastro: '' });
 
   // Comodos
   const [comodos, setComodos] = useState<Comodo[]>([]);
@@ -295,7 +295,7 @@ export function ConfiguracoesPage() {
       } else {
         await addDoc(collection(db, 'casas'), { ...formCasa, createdBy: user?.uid, createdAt: serverTimestamp() });
       }
-      setFormCasa({ nome: '', endereco: '', cidade: '', estado: '', cep: '' });
+      setFormCasa({ nome: '', endereco: '', cidade: '', estado: '', cep: '', senhaCadastro: '' });
       setEditandoCasaId(null);
       setSucesso('Casa salva!');
       carregarCasas();
@@ -956,9 +956,14 @@ export function ConfiguracoesPage() {
                 <input value={formCasa.estado} onChange={e => setFormCasa({ ...formCasa, estado: e.target.value })} placeholder="UF" className="w-14 bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                 <input value={formCasa.cep} onChange={e => setFormCasa({ ...formCasa, cep: e.target.value })} placeholder="CEP" className="w-28 bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
               </div>
+              <div>
+                <label className="text-label-sm text-on-surface-variant block mb-1">Senha de cadastro</label>
+                <input value={formCasa.senhaCadastro} onChange={e => setFormCasa({ ...formCasa, senhaCadastro: e.target.value })} placeholder="ex: perguntaproabacate" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                <p className="text-[10px] text-on-surface-variant mt-1">Os novos usuários precisarão digitar esta senha para se associar à casa.</p>
+              </div>
               <div className="flex gap-2">
                 <button onClick={handleSalvarCasa} className="flex-1 bg-primary-container text-on-primary-container font-bold py-2 rounded-lg text-sm hover:brightness-110 transition-all">{editandoCasaId ? 'Atualizar' : 'Criar'}</button>
-                {editandoCasaId && <button onClick={() => { setEditandoCasaId(null); setFormCasa({ nome: '', endereco: '', cidade: '', estado: '', cep: '' }); }} className="px-4 py-2 bg-surface-container text-on-surface rounded-lg text-sm border border-outline-variant">Cancelar</button>}
+                {editandoCasaId && <button onClick={() => { setEditandoCasaId(null); setFormCasa({ nome: '', endereco: '', cidade: '', estado: '', cep: '', senhaCadastro: '' }); }} className="px-4 py-2 bg-surface-container text-on-surface rounded-lg text-sm border border-outline-variant">Cancelar</button>}
               </div>
             </div>
 
@@ -988,7 +993,7 @@ export function ConfiguracoesPage() {
                         </div>
                         {/* Acoes */}
                         <div className="flex gap-1 flex-shrink-0">
-                          <button onClick={() => { setEditandoCasaId(c.id); setFormCasa({ nome: c.nome, endereco: c.endereco, cidade: c.cidade, estado: c.estado, cep: c.cep }); }} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
+                          <button onClick={() => { setEditandoCasaId(c.id); setFormCasa({ nome: c.nome, endereco: c.endereco, cidade: c.cidade, estado: c.estado, cep: c.cep, senhaCadastro: c.senhaCadastro || '' }); }} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
                           <button onClick={() => handleExcluirCasa(c.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="material-symbols-outlined text-lg">delete</span></button>
                         </div>
                       </div>
