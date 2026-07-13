@@ -137,8 +137,10 @@ function AuthListener() {
       if (firebaseUser) {
         const user = await buildUserObject(firebaseUser);
         setUser(user);
-        if (user.isNewUser && location.pathname !== '/completar-perfil') {
-          navigate('/completar-perfil', { replace: true });
+        if (user.isNewUser) {
+          if (location.pathname !== '/completar-perfil') {
+            navigate('/completar-perfil', { replace: true });
+          }
         } else if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
           navigate('/estadia', { replace: true });
         } else if (location.pathname === '/login' || location.pathname === '/cadastro') {
