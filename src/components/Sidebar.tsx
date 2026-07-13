@@ -95,8 +95,8 @@ export function Sidebar({ className = '' }: { className?: string }) {
       alert('Selecione uma imagem válida');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      alert('A imagem deve ter no máximo 2MB');
+    if (file.size > 4 * 1024 * 1024) {
+      alert('A imagem deve ter no máximo 4MB');
       return;
     }
     setUploadingPhoto(true);

@@ -50,8 +50,8 @@ export function PerfilPage() {
       setErro('Selecione uma imagem válida');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setErro('A imagem deve ter no máximo 2MB');
+    if (file.size > 4 * 1024 * 1024) {
+      setErro('A imagem deve ter no máximo 4MB');
       return;
     }
     setUploadingPhoto(true);

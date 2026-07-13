@@ -321,8 +321,8 @@ export function ConfiguracoesPage() {
       setErro('Selecione uma imagem válida');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setErro('A imagem deve ter no máximo 2MB');
+    if (file.size > 4 * 1024 * 1024) {
+      setErro('A imagem deve ter no máximo 4MB');
       return;
     }
     setUploadingFotoCasa(true);
@@ -1033,7 +1033,7 @@ export function ConfiguracoesPage() {
                         {formCasa.foto ? 'Trocar foto' : 'Adicionar foto'}
                       </button>
                       <p className="text-[10px] text-on-surface-variant mt-1">
-                        Foto que aparecerá na tela de boas-vindas para novos moradores. Max 2MB.
+                        Foto que aparecerá na tela de boas-vindas para novos moradores. Máx 4MB.
                       </p>
                     </div>
                     <input
