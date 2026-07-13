@@ -24,6 +24,8 @@ interface UserData {
   birthDate?: string;
   emergencyContact?: string;
   room?: string;
+  fullName?: string;
+  pixKey?: string;
   [key: string]: any;
 }
 type Aba = 'casas' | 'comodos' | 'tarefas' | 'moradores' | 'distribuicao' | 'notificacoes';
@@ -509,6 +511,7 @@ export function ConfiguracoesPage() {
       avatar: morador.avatar || '',
       estadiaInicio: morador.estadiaInicio || '',
       estadiaFim: morador.estadiaFim || '',
+      pixKey: morador.pixKey || '',
     });
     setViagensMoradorEditando([]);
     setNovaViagem({ destino: '', dataSaida: '', dataRetorno: '', motivo: '' });
@@ -537,7 +540,12 @@ export function ConfiguracoesPage() {
   async function handleExcluirMorador(morador: UserData) {
     if (!confirm('Tem certeza que deseja excluir ' + morador.name + '? Esta acao nao pode ser desfeita.')) return;
     try {
-      await deleteDoc(doc(db, 'users', morador.uid));
+      // Soft delete - desativa o usuario e remove da casa (evita permissao de deleteDoc no doc de outro user)
+      await updateDoc(doc(db, 'users', morador.uid), {
+        isActive: false,
+        houseId: '',
+        updatedAt: serverTimestamp(),
+      });
       setMoradores(prev => prev.filter(m => m.uid !== morador.uid));
       setSucesso(morador.name + ' excluido');
     } catch (e: any) { setErro('Erro ao excluir: ' + e.message); }
@@ -1358,17 +1366,8 @@ export function ConfiguracoesPage() {
                   </div>
                   {formMoradorCompleto.role === 'morador' ? (
                     <div>
-                      <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Quarto</label>
-                      <select
-                        value={formMoradorCompleto.room || ''}
-                        onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, room: e.target.value })}
-                        className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm"
-                      >
-                        <option value="">Sem quarto</option>
-                        {comodos.filter(c => c.tipo === 'privado').map(c => (
-                          <option key={c.id} value={c.id}>{c.icone} {c.nome}</option>
-                        ))}
-                      </select>
+                      <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Chave PIX</label>
+                      <input value={formMoradorCompleto.pixKey || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, pixKey: e.target.value })} placeholder="CPF, CNPJ, email, celular ou chave aleatória" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                     </div>
                   ) : (
                     <div>
@@ -1481,7 +1480,7 @@ export function ConfiguracoesPage() {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-on-surface text-sm truncate">{m.name}</h4>
+                        <h4 className="font-bold text-on-surface text-sm truncate">{m.name || m.fullName || m.email?.split('@')[0] || 'Sem nome'}</h4>
                         <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${m.role === 'admin' ? 'bg-error/10 text-error' : m.role === 'hospede' ? 'bg-blue-500/10 text-blue-500' : 'bg-primary/10 text-primary'}`}>
                           {m.role}
                         </span>
