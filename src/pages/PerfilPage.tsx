@@ -321,11 +321,11 @@ export function PerfilPage() {
               isTraveling={isTraveling}
               size={96}
             />
-            {/* Botão de câmera */}
+            {/* Botão de câmera — canto inferior esquerdo para não cobrir o indicador de presença */}
             <button
               onClick={triggerPhotoUpload}
               disabled={uploadingPhoto}
-              className="absolute -bottom-1 -right-1 w-9 h-9 bg-primary rounded-full flex items-center justify-center shadow-lg border-2 border-surface hover:brightness-110 transition-all disabled:opacity-50 z-10"
+              className="absolute -bottom-1 -left-1 w-9 h-9 bg-primary rounded-full flex items-center justify-center shadow-lg border-2 border-surface hover:brightness-110 transition-all disabled:opacity-50 z-10"
               title="Tirar foto ou escolher da galeria"
             >
               <span className="material-symbols-outlined text-on-primary text-lg">photo_camera</span>
@@ -340,7 +340,6 @@ export function PerfilPage() {
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             className="hidden"
             onChange={handlePhotoChange}
           />
