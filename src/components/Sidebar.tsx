@@ -49,6 +49,7 @@ export function Sidebar({ className = '' }: { className?: string }) {
   const [editPhone, setEditPhone] = useState(user?.phone || '');
   const [editCpf, setEditCpf] = useState(user?.cpf || '');
   const [editPixKey, setEditPixKey] = useState(user?.pixKey || '');
+  const [editBirthDate, setEditBirthDate] = useState(user?.birthDate || '');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const userPhoto = user?.photoURL || '';
@@ -73,6 +74,7 @@ export function Sidebar({ className = '' }: { className?: string }) {
     setEditPhone(user?.phone || '');
     setEditCpf(user?.cpf || '');
     setEditPixKey(user?.pixKey || '');
+    setEditBirthDate(user?.birthDate || '');
     setEditingProfile(false);
     setProfileOpen(true);
   }
@@ -136,6 +138,7 @@ export function Sidebar({ className = '' }: { className?: string }) {
         phone: editPhone.trim(),
         cpf: editCpf.trim(),
         pixKey: editPixKey.trim(),
+        birthDate: editBirthDate || '',
         updatedAt: new Date(),
       });
       useAuthStore.setState(state => ({
@@ -146,6 +149,7 @@ export function Sidebar({ className = '' }: { className?: string }) {
           phone: editPhone.trim(),
           cpf: editCpf.trim(),
           pixKey: editPixKey.trim(),
+          birthDate: editBirthDate || '',
         } : null
       }));
       setEditingProfile(false);
@@ -313,26 +317,29 @@ export function Sidebar({ className = '' }: { className?: string }) {
             <div className="flex-1 overflow-y-auto p-6">
               {/* Foto */}
               <div className="flex flex-col items-center mb-8">
-                <div
-                  className={`relative ${editingProfile ? 'cursor-pointer group' : ''}`}
-                  onClick={editingProfile ? triggerPhotoUpload : undefined}
-                >
+                <div className="relative">
                   <UserAvatar
                     photoURL={userPhoto}
                     name={userName}
                     isPresent={user?.isPresent}
                     isTraveling={isTraveling}
                     size={112}
-                    className="group-hover:border-emerald-500/50 transition-colors"
-                    imgClassName="border-4 border-gray-700 group-hover:border-emerald-500/50 transition-colors"
-                    fallbackClassName="border-4 border-gray-700 group-hover:border-emerald-500/50 transition-colors"
+                    className="border-4 border-gray-700"
+                    imgClassName="border-4 border-gray-700"
+                    fallbackClassName="border-4 border-gray-700"
                   />
+                  {/* Overlay clicável para troca de foto */}
                   {editingProfile && (
-                    <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                        <circle cx="12" cy="13" r="4" />
-                      </svg>
+                    <div
+                      className="absolute inset-0 rounded-full cursor-pointer group"
+                      onClick={triggerPhotoUpload}
+                    >
+                      <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                          <circle cx="12" cy="13" r="4" />
+                        </svg>
+                      </div>
                     </div>
                   )}
                   {uploadingPhoto && (
@@ -433,6 +440,21 @@ export function Sidebar({ className = '' }: { className?: string }) {
                   )}
                 </div>
 
+                {/* Data de Nascimento */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Data de Nascimento</label>
+                  {editingProfile ? (
+                    <input
+                      type="date"
+                      value={editBirthDate}
+                      onChange={(e) => setEditBirthDate(e.target.value)}
+                      className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  ) : (
+                    <p className="text-gray-300">{user?.birthDate || <span className="text-gray-500 italic">Não informado</span>}</p>
+                  )}
+                </div>
+
                 {/* Chave Pix */}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Chave Pix</label>
@@ -477,6 +499,7 @@ export function Sidebar({ className = '' }: { className?: string }) {
                       setEditPhone(user?.phone || '');
                       setEditCpf(user?.cpf || '');
                       setEditPixKey(user?.pixKey || '');
+                      setEditBirthDate(user?.birthDate || '');
                     }}
                     className="w-full py-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors text-gray-300"
                   >
