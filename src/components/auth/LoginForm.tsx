@@ -222,7 +222,7 @@ export function LoginForm() {
           <div className="w-32 h-32 mb-4 bg-surface-container rounded-3xl flex items-center justify-center overflow-hidden shadow-2xl">
             <img src="/assets/logo.png" alt="Caule Logo" className="w-24 h-24 object-contain" />
           </div>
-          <h1 className="text-headline-lg-mobile font-headline-lg-mobile text-primary tracking-tight">Caule</h1>
+          <h1 className="text-4xl font-bold text-primary tracking-tight">Caule</h1>
         </div>
 
         {/* Form Card */}
