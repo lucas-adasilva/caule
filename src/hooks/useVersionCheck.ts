@@ -19,24 +19,19 @@ export function useVersionCheck() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    // Só verifica versão em plataforma nativa (APK)
+    // Web/PWA são atualizadas automaticamente pelo deploy do Firebase
+    if (!Capacitor.isNativePlatform()) {
+      setChecking(false);
+      return;
+    }
+
     async function checkVersion() {
       try {
-        // Detectar versão do app: nativa usa APP_VERSION, web usa localStorage
-        let appVersion = '1.0.0';
-        try {
-          if (Capacitor.isNativePlatform()) {
-            appVersion = APP_VERSION;
-            console.log('[VersionCheck] Versão nativa (APP_VERSION):', appVersion);
-          } else {
-            const localVersion = localStorage.getItem('caule-app-version');
-            appVersion = localVersion || '1.0.0';
-          }
-        } catch (err) {
-          console.log('[VersionCheck] Erro ao detectar versão:', err);
-        }
-        
+        const appVersion = APP_VERSION;
         setCurrentVersion(appVersion);
-        
+        console.log('[VersionCheck] Versão nativa:', appVersion);
+
         // Buscar versão mais recente no Firestore
         const versionDoc = await getDoc(doc(db, 'appConfig', 'version'));
         if (!versionDoc.exists()) {
@@ -49,17 +44,17 @@ export function useVersionCheck() {
         // Comparar versões (formato semver: x.y.z)
         const current = semverToNumber(appVersion);
         const latest = semverToNumber(data.latestVersion);
-        
+
         console.log(`[VersionCheck] Comparando: local=${appVersion}(${current}) vs latest=${data.latestVersion}(${latest})`);
 
         if (latest > current) {
           setVersionInfo(data);
           setHasUpdate(true);
-          
+
           // Verifica se já mostrou este update hoje
           const lastDismissed = localStorage.getItem(`caule-update-dismissed-${data.latestVersion}`);
           const today = new Date().toISOString().split('T')[0];
-          
+
           if (!lastDismissed || lastDismissed !== today) {
             setShowDialog(true);
           }

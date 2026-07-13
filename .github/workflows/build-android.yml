@@ -82,3 +82,11 @@ jobs:
             3. Instale o APK (atualiza automaticamente se já tiver o app instalado)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Firestore version info
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CAULE_C064F }}
+        run: |
+          npm install firebase-admin --no-save
+          node scripts/update-firestore-version.js
