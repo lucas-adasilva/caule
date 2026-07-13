@@ -328,34 +328,21 @@ export function Sidebar({ className = '' }: { className?: string }) {
                     imgClassName="border-4 border-gray-700"
                     fallbackClassName="border-4 border-gray-700"
                   />
-                  {/* Overlay clicável para troca de foto */}
-                  {editingProfile && (
-                    <div
-                      className="absolute inset-0 rounded-full cursor-pointer group"
-                      onClick={triggerPhotoUpload}
-                    >
-                      <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                          <circle cx="12" cy="13" r="4" />
-                        </svg>
-                      </div>
-                    </div>
-                  )}
+                  {/* Ícone de lápis no canto inferior direito */}
+                  <button
+                    onClick={triggerPhotoUpload}
+                    className="absolute -bottom-1 -right-1 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg border-2 border-gray-900 hover:bg-emerald-400 transition-colors z-10"
+                    title="Editar foto"
+                  >
+                    <span className="material-symbols-outlined text-white text-lg">edit</span>
+                  </button>
+                  {/* Overlay de upload */}
                   {uploadingPhoto && (
                     <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center">
                       <div className="animate-spin h-6 w-6 border-2 border-white border-t-transparent rounded-full" />
                     </div>
                   )}
                 </div>
-                {editingProfile && (
-                  <button
-                    onClick={triggerPhotoUpload}
-                    className="mt-3 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
-                  >
-                    {userPhoto ? 'Alterar foto' : 'Adicionar foto'}
-                  </button>
-                )}
                 <input
                   ref={fileInputRef}
                   type="file"
