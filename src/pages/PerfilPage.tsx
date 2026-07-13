@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { doc, updateDoc, collection, query, where, getDocs, addDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { TopAppBar } from '@/components/TopAppBar';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -33,6 +34,46 @@ export function PerfilPage() {
     cpf: user?.cpf || '',
     pixKey: user?.pixKey || '',
   });
+
+  // Upload de foto de perfil
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function triggerPhotoUpload() {
+    fileInputRef.current?.click();
+  }
+
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user?.uid) return;
+    if (!file.type.startsWith('image/')) {
+      setErro('Selecione uma imagem válida');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setErro('A imagem deve ter no máximo 2MB');
+      return;
+    }
+    setUploadingPhoto(true);
+    setErro('');
+    try {
+      const storageRef = ref(storage, `avatars/${user.uid}`);
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+      await updateDoc(doc(db, 'users', user.uid), {
+        photoURL: downloadURL,
+        updatedAt: serverTimestamp(),
+      });
+      setUser({ ...user, photoURL: downloadURL });
+      setSucesso('Foto atualizada!');
+    } catch (error: any) {
+      console.error('Erro ao fazer upload:', error);
+      setErro('Erro ao enviar foto: ' + error.message);
+    } finally {
+      setUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
 
   // Viagens
   const [viagens, setViagens] = useState<Viagem[]>([]);
@@ -272,12 +313,36 @@ export function PerfilPage() {
       <main className="px-margin-page mt-stack-md space-y-6">
         {/* Header com avatar */}
         <div className="flex flex-col items-center gap-3 pt-2">
-          <UserAvatar
-            photoURL={user?.photoURL}
-            name={user?.name}
-            isPresent={user?.isPresent}
-            isTraveling={isTraveling}
-            size={96}
+          <div className="relative">
+            <UserAvatar
+              photoURL={user?.photoURL}
+              name={user?.name}
+              isPresent={user?.isPresent}
+              isTraveling={isTraveling}
+              size={96}
+            />
+            {/* Botão de câmera */}
+            <button
+              onClick={triggerPhotoUpload}
+              disabled={uploadingPhoto}
+              className="absolute -bottom-1 -right-1 w-9 h-9 bg-primary rounded-full flex items-center justify-center shadow-lg border-2 border-surface hover:brightness-110 transition-all disabled:opacity-50 z-10"
+              title="Tirar foto ou escolher da galeria"
+            >
+              <span className="material-symbols-outlined text-on-primary text-lg">photo_camera</span>
+            </button>
+            {uploadingPhoto && (
+              <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center">
+                <div className="animate-spin h-6 w-6 border-2 border-white border-t-transparent rounded-full" />
+              </div>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handlePhotoChange}
           />
           <div className="text-center">
             <h2 className="font-bold text-xl text-on-surface">{user?.name || 'Morador'}</h2>
