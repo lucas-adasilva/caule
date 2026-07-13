@@ -58,7 +58,7 @@ export function CompletarPerfilPage() {
       });
 
       if (!casa) {
-        setError('Senha da casa incorreta. Verifique com o admin.');
+        setError('Senha da casa incorreta. Peça a senha para algum morador da casa ❤️');
         setLoading(false);
         return;
       }
@@ -212,7 +212,7 @@ export function CompletarPerfilPage() {
                 required
               />
               <p className="text-[10px] text-on-surface-variant mt-1">
-                Peça a senha ao administrador da casa. Cada casa tem uma senha diferente.
+                Peça a senha para algum morador da casa ❤️
               </p>
             </div>
 
