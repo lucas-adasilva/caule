@@ -2,6 +2,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { useState, useEffect } from 'react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { UserAvatar } from '@/components/UserAvatar';
 import { usuarioViajandoAgora, buscarViagemAtiva, interromperViagem, redistribuirTarefasPorRetorno } from '@/utils/viagens';
 import {
@@ -80,11 +82,14 @@ export function TopAppBar({
 
   async function handleLogout() {
     try {
-      await signOut(auth);
-    } catch (err) {
-      console.error('[TopAppBar] Erro ao fazer signOut:', err);
+      if (Capacitor.isNativePlatform()) {
+        await FirebaseAuthentication.signOut();
+      }
+    } catch (e) {
+      console.log('[TopAppBar] Native signOut error:', e);
     }
-    // O AuthListener detecta o signOut e o ProtectedRoute redireciona para /login
+    await signOut(auth);
+    useAuthStore.getState().logout();
   }
 
   return (
