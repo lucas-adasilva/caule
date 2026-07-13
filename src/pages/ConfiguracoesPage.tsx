@@ -110,6 +110,12 @@ export function ConfiguracoesPage() {
   // Form completo de edicao de morador
   const [editandoMoradorId, setEditandoMoradorId] = useState<string | null>(null);
   const [formMoradorCompleto, setFormMoradorCompleto] = useState<Record<string, any>>({});
+  // Viagens dos moradores para badge de ausente
+  const [moradorViagens, setMoradorViagens] = useState<Record<string, boolean>>({});
+  // CRUD de viagens no modal de edicao
+  const [viagensMoradorEditando, setViagensMoradorEditando] = useState<Viagem[]>([]);
+  const [novaViagem, setNovaViagem] = useState({ destino: '', dataSaida: '', dataRetorno: '', motivo: '' });
+  const [editandoViagemId, setEditandoViagemId] = useState<string | null>(null);
 
   const DIAS_SEMANA = [
     { key: '0', label: 'Seg', cod: 'seg' },
@@ -266,6 +272,7 @@ export function ConfiguracoesPage() {
   useEffect(() => { if (user?.uid) { carregarCasas(); } }, [user?.uid]);
   useEffect(() => { if (casaSelecionada?.id) { carregarComodos(); carregarTarefas(); carregarMoradores(); } }, [casaSelecionada?.id]);
   useEffect(() => { if (abaAtiva === 'distribuicao' && casaSelecionada?.id) { carregarDadosDistribuicao(); } }, [abaAtiva, casaSelecionada?.id, semanaSelecionada]);
+  useEffect(() => { if (abaAtiva === 'moradores' && moradores.length > 0) { carregarViagensMoradores(); } }, [abaAtiva, moradores]);
 
   async function carregarCasas() {
     try {
@@ -490,7 +497,6 @@ export function ConfiguracoesPage() {
   // Abre edicao completa com todos os campos do Firestore
   function abrirEdicaoMoradorCompleto(morador: UserData) {
     setEditandoMoradorId(morador.uid);
-    // Carrega todos os campos disponiveis do morador no form
     setFormMoradorCompleto({
       name: morador.name || '',
       email: morador.email || '',
@@ -501,7 +507,13 @@ export function ConfiguracoesPage() {
       emergencyContact: morador.emergencyContact || '',
       room: morador.room || '',
       avatar: morador.avatar || '',
+      estadiaInicio: morador.estadiaInicio || '',
+      estadiaFim: morador.estadiaFim || '',
     });
+    setViagensMoradorEditando([]);
+    setNovaViagem({ destino: '', dataSaida: '', dataRetorno: '', motivo: '' });
+    setEditandoViagemId(null);
+    carregarViagensMorador(morador.uid);
   }
 
   async function handleSalvarMoradorCompleto() {
@@ -520,6 +532,74 @@ export function ConfiguracoesPage() {
       setSucesso('Morador atualizado!');
       carregarMoradores();
     } catch (e: any) { setErro('Erro ao salvar: ' + e.message); }
+  }
+
+  async function handleExcluirMorador(morador: UserData) {
+    if (!confirm('Tem certeza que deseja excluir ' + morador.name + '? Esta acao nao pode ser desfeita.')) return;
+    try {
+      await deleteDoc(doc(db, 'users', morador.uid));
+      setMoradores(prev => prev.filter(m => m.uid !== morador.uid));
+      setSucesso(morador.name + ' excluido');
+    } catch (e: any) { setErro('Erro ao excluir: ' + e.message); }
+  }
+
+  async function carregarViagensMoradores() {
+    if (!casaSelecionada?.id || moradores.length === 0) return;
+    try {
+      const hoje = new Date().toISOString().split('T')[0];
+      const map: Record<string, boolean> = {};
+      for (let i = 0; i < moradores.length; i += 10) {
+        const batch = moradores.slice(i, i + 10).map(m => m.uid);
+        const q = query(collection(db, 'viagens'), where('uid', 'in', batch));
+        const snap = await getDocs(q);
+        snap.forEach(d => {
+          const v = d.data() as Omit<Viagem, 'id'>;
+          if (v.dataSaida <= hoje && v.dataRetorno >= hoje) {
+            map[v.uid] = true;
+          }
+        });
+      }
+      setMoradorViagens(map);
+    } catch (e: any) { /* silencioso */ }
+  }
+
+  async function carregarViagensMorador(uid: string) {
+    try {
+      const q = query(collection(db, 'viagens'), where('uid', '==', uid));
+      const snap = await getDocs(q);
+      const data: Viagem[] = [];
+      snap.forEach(d => data.push({ id: d.id, ...d.data() } as Viagem));
+      data.sort((a, b) => a.dataSaida.localeCompare(b.dataSaida));
+      setViagensMoradorEditando(data);
+    } catch (e: any) { setErro('Erro ao carregar viagens: ' + e.message); }
+  }
+
+  async function salvarViagem() {
+    if (!editandoMoradorId) return;
+    if (!novaViagem.destino.trim() || !novaViagem.dataSaida || !novaViagem.dataRetorno) { setErro('Preencha destino, data de saida e retorno'); return; }
+    if (novaViagem.dataSaida > novaViagem.dataRetorno) { setErro('Data de retorno deve ser apos a data de saida'); return; }
+    try {
+      if (editandoViagemId) {
+        await updateDoc(doc(db, 'viagens', editandoViagemId), { ...novaViagem, updatedAt: serverTimestamp() });
+      } else {
+        await addDoc(collection(db, 'viagens'), { ...novaViagem, uid: editandoMoradorId, createdAt: serverTimestamp() });
+      }
+      setNovaViagem({ destino: '', dataSaida: '', dataRetorno: '', motivo: '' });
+      setEditandoViagemId(null);
+      setSucesso('Viagem salva!');
+      await carregarViagensMorador(editandoMoradorId);
+      await carregarViagensMoradores();
+    } catch (e: any) { setErro('Erro ao salvar viagem: ' + e.message); }
+  }
+
+  async function excluirViagem(viagemId: string) {
+    if (!confirm('Excluir esta viagem?')) return;
+    try {
+      await deleteDoc(doc(db, 'viagens', viagemId));
+      setViagensMoradorEditando(prev => prev.filter(v => v.id !== viagemId));
+      setSucesso('Viagem excluida!');
+      await carregarViagensMoradores();
+    } catch (e: any) { setErro('Erro ao excluir viagem: ' + e.message); }
   }
 
   async function carregarDadosDistribuicao() {
@@ -1276,11 +1356,106 @@ export function ConfiguracoesPage() {
                     <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Contato Emergencia</label>
                     <input value={formMoradorCompleto.emergencyContact || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, emergencyContact: e.target.value })} placeholder="Nome e telefone" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                   </div>
-                  <div>
-                    <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Quarto</label>
-                    <input value={formMoradorCompleto.room || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, room: e.target.value })} placeholder="ex: Quarto 2" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
-                  </div>
+                  {formMoradorCompleto.role === 'morador' ? (
+                    <div>
+                      <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Quarto</label>
+                      <select
+                        value={formMoradorCompleto.room || ''}
+                        onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, room: e.target.value })}
+                        className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm"
+                      >
+                        <option value="">Sem quarto</option>
+                        {comodos.filter(c => c.tipo === 'privado').map(c => (
+                          <option key={c.id} value={c.id}>{c.icone} {c.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Quarto</label>
+                      <input value={formMoradorCompleto.room || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, room: e.target.value })} placeholder="ex: Quarto 2" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                    </div>
+                  )}
                 </div>
+
+                {/* Viagens / Estadia */}
+                {formMoradorCompleto.role === 'morador' ? (
+                  <div className="border-t border-outline-variant pt-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-on-surface">Viagens</h4>
+                      <button
+                        onClick={() => { setNovaViagem({ destino: '', dataSaida: '', dataRetorno: '', motivo: '' }); setEditandoViagemId(null); }}
+                        className="px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-all"
+                      >
+                        + Adicionar Viagem
+                      </button>
+                    </div>
+                    {/* Lista de viagens */}
+                    {viagensMoradorEditando.length > 0 && (
+                      <div className="space-y-2">
+                        {viagensMoradorEditando.map(v => (
+                          <div key={v.id} className="bg-surface-container-high rounded-lg p-2 flex justify-between items-center">
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-on-surface truncate">{v.destino}</p>
+                              <p className="text-[10px] text-on-surface-variant">{v.dataSaida} → {v.dataRetorno}</p>
+                              {v.motivo && <p className="text-[10px] text-on-surface-variant truncate">{v.motivo}</p>}
+                            </div>
+                            <div className="flex gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => { setNovaViagem({ destino: v.destino, dataSaida: v.dataSaida, dataRetorno: v.dataRetorno, motivo: v.motivo }); setEditandoViagemId(v.id); }}
+                                className="p-1 text-primary hover:bg-primary/10 rounded-lg"
+                              >
+                                <span className="material-symbols-outlined text-sm">edit</span>
+                              </button>
+                              <button
+                                onClick={() => excluirViagem(v.id)}
+                                className="p-1 text-error hover:bg-error/10 rounded-lg"
+                              >
+                                <span className="material-symbols-outlined text-sm">delete</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Form de viagem */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Destino</label>
+                        <input value={novaViagem.destino} onChange={e => setNovaViagem({ ...novaViagem, destino: e.target.value })} placeholder="ex: São Paulo" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Motivo</label>
+                        <input value={novaViagem.motivo} onChange={e => setNovaViagem({ ...novaViagem, motivo: e.target.value })} placeholder="ex: Trabalho" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Data Saída</label>
+                        <input type="date" value={novaViagem.dataSaida} onChange={e => setNovaViagem({ ...novaViagem, dataSaida: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Data Retorno</label>
+                        <input type="date" value={novaViagem.dataRetorno} onChange={e => setNovaViagem({ ...novaViagem, dataRetorno: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                      </div>
+                    </div>
+                    <button onClick={salvarViagem} className="w-full bg-primary-container text-on-primary-container font-bold py-2 rounded-lg text-sm hover:brightness-110 transition-all">
+                      {editandoViagemId ? 'Atualizar Viagem' : 'Salvar Viagem'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="border-t border-outline-variant pt-3 space-y-3">
+                    <h4 className="text-sm font-bold text-on-surface">Período de Estadia</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Data Início</label>
+                        <input type="date" value={formMoradorCompleto.estadiaInicio || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, estadiaInicio: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Data Fim</label>
+                        <input type="date" value={formMoradorCompleto.estadiaFim || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, estadiaFim: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex gap-2">
                   <button onClick={handleSalvarMoradorCompleto} className="flex-1 bg-primary text-on-primary font-bold py-2 rounded-lg text-sm hover:brightness-110 transition-all">Salvar Alteracoes</button>
@@ -1307,10 +1482,16 @@ export function ConfiguracoesPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <h4 className="font-bold text-on-surface text-sm truncate">{m.name}</h4>
-                        <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${m.role === 'admin' ? 'bg-error/10 text-error' : m.role === 'hospede' ? 'bg-tertiary/10 text-tertiary' : 'bg-primary/10 text-primary'}`}>
+                        <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${m.role === 'admin' ? 'bg-error/10 text-error' : m.role === 'hospede' ? 'bg-blue-500/10 text-blue-500' : 'bg-primary/10 text-primary'}`}>
                           {m.role}
                         </span>
-                        {!m.isPresent && <span className="flex-shrink-0 px-2 py-0.5 bg-surface-variant rounded-full text-[9px] text-on-surface-variant">ausente</span>}
+                        {(() => {
+                          const hoje = new Date().toISOString().split('T')[0];
+                          const emViagem = moradorViagens[m.uid] || false;
+                          const estadiaFora = m.role === 'hospede' && m.estadiaInicio && m.estadiaFim && (hoje < m.estadiaInicio || hoje >= m.estadiaFim);
+                          const estaAusente = !m.isPresent || emViagem || estadiaFora;
+                          return estaAusente ? <span className="flex-shrink-0 px-2 py-0.5 bg-error/10 rounded-full text-[9px] text-error font-bold">ausente</span> : null;
+                        })()}
                       </div>
                       <p className="text-[11px] text-on-surface-variant truncate">{m.email}</p>
                       {m.phone && <p className="text-[10px] text-on-surface-variant">{m.phone}</p>}
@@ -1330,6 +1511,11 @@ export function ConfiguracoesPage() {
                       {/* Botao editar completo */}
                       <button onClick={() => abrirEdicaoMoradorCompleto(m)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg">
                         <span className="material-symbols-outlined text-lg">edit</span>
+                      </button>
+
+                      {/* Botao excluir */}
+                      <button onClick={() => handleExcluirMorador(m)} className="p-1.5 text-error hover:bg-error/10 rounded-lg">
+                        <span className="material-symbols-outlined text-lg">delete</span>
                       </button>
                     </div>
                   </div>
