@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { useApp } from '@/App';
 import { TopAppBar } from '@/components/TopAppBar';
@@ -54,6 +55,8 @@ export function ConfiguracoesPage() {
   const [casaSelecionada, setCasaSelecionada] = useState<Casa | null>(null);
   const [editandoCasaId, setEditandoCasaId] = useState<string | null>(null);
   const [formCasa, setFormCasa] = useState({ nome: '', endereco: '', cidade: '', estado: '', cep: '', senhaCadastro: '', foto: '' });
+  const [uploadingFotoCasa, setUploadingFotoCasa] = useState(false);
+  const fileInputCasaRef = useRef<HTMLInputElement>(null);
 
   // Comodos
   const [comodos, setComodos] = useState<Comodo[]>([]);
@@ -292,14 +295,53 @@ export function ConfiguracoesPage() {
     try {
       if (editandoCasaId) {
         await updateDoc(doc(db, 'casas', editandoCasaId), { ...formCasa, updatedAt: serverTimestamp() });
+        setSucesso('Casa atualizada!');
+        setEditandoCasaId(null);
+        setFormCasa({ nome: '', endereco: '', cidade: '', estado: '', cep: '', senhaCadastro: '', foto: '' });
+        carregarCasas();
       } else {
-        await addDoc(collection(db, 'casas'), { ...formCasa, createdBy: user?.uid, createdAt: serverTimestamp() });
+        const docRef = await addDoc(collection(db, 'casas'), { ...formCasa, createdBy: user?.uid, createdAt: serverTimestamp() });
+        setSucesso('Casa criada! Agora você pode adicionar uma foto.');
+        // Entra em modo de edição da casa recém-criada para permitir upload de foto
+        setEditandoCasaId(docRef.id);
+        setFormCasa({ ...formCasa, foto: '' });
+        carregarCasas();
       }
-      setFormCasa({ nome: '', endereco: '', cidade: '', estado: '', cep: '', senhaCadastro: '', foto: '' });
-      setEditandoCasaId(null);
-      setSucesso('Casa salva!');
-      carregarCasas();
     } catch (e: any) { setErro('Erro: ' + e.message); }
+  }
+
+  function triggerFotoCasaUpload() {
+    fileInputCasaRef.current?.click();
+  }
+
+  async function handleFotoCasaChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !editandoCasaId) return;
+    if (!file.type.startsWith('image/')) {
+      setErro('Selecione uma imagem válida');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setErro('A imagem deve ter no máximo 2MB');
+      return;
+    }
+    setUploadingFotoCasa(true);
+    setErro('');
+    try {
+      const storageRef = ref(storage, `casas/${editandoCasaId}/foto.jpg`);
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+      await updateDoc(doc(db, 'casas', editandoCasaId), { foto: downloadURL, updatedAt: serverTimestamp() });
+      setFormCasa(prev => ({ ...prev, foto: downloadURL }));
+      setSucesso('Foto da casa atualizada!');
+      carregarCasas();
+    } catch (error: any) {
+      console.error('Erro ao fazer upload da foto da casa:', error);
+      setErro('Erro ao enviar foto: ' + error.message);
+    } finally {
+      setUploadingFotoCasa(false);
+      if (fileInputCasaRef.current) fileInputCasaRef.current.value = '';
+    }
   }
 
   async function handleExcluirCasa(id: string) {
@@ -962,9 +1004,56 @@ export function ConfiguracoesPage() {
                 <p className="text-[10px] text-on-surface-variant mt-1">Os novos usuários precisarão digitar esta senha para se associar à casa.</p>
               </div>
               <div>
-                <label className="text-label-sm text-on-surface-variant block mb-1">Foto da casa (URL)</label>
-                <input value={formCasa.foto} onChange={e => setFormCasa({ ...formCasa, foto: e.target.value })} placeholder="https://exemplo.com/foto.jpg" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
-                <p className="text-[10px] text-on-surface-variant mt-1">URL da foto que aparecerá na tela de boas-vindas para novos moradores.</p>
+                <label className="text-label-sm text-on-surface-variant block mb-2">Foto da casa</label>
+                {editandoCasaId ? (
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 ${uploadingFotoCasa ? 'opacity-50' : ''}`}
+                    >
+                      {formCasa.foto ? (
+                        <img src={formCasa.foto} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-surface-container-high flex items-center justify-center">
+                          <span className="material-symbols-outlined text-on-surface-variant text-2xl">home</span>
+                        </div>
+                      )}
+                      {uploadingFotoCasa && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                          <span className="material-symbols-outlined animate-spin text-white text-xl">refresh</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <button
+                        type="button"
+                        onClick={triggerFotoCasaUpload}
+                        disabled={uploadingFotoCasa}
+                        className="px-3 py-2 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-all disabled:opacity-50"
+                      >
+                        {formCasa.foto ? 'Trocar foto' : 'Adicionar foto'}
+                      </button>
+                      <p className="text-[10px] text-on-surface-variant mt-1">
+                        Foto que aparecerá na tela de boas-vindas para novos moradores. Max 2MB.
+                      </p>
+                    </div>
+                    <input
+                      ref={fileInputCasaRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleFotoCasaChange}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="w-20 h-20 rounded-xl bg-surface-container-high flex items-center justify-center flex-shrink-0">
+                      <span className="material-symbols-outlined text-on-surface-variant text-2xl">home</span>
+                    </div>
+                    <p className="text-[10px] text-on-surface-variant">
+                      Salve a casa primeiro para adicionar uma foto.
+                    </p>
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
                 <button onClick={handleSalvarCasa} className="flex-1 bg-primary-container text-on-primary-container font-bold py-2 rounded-lg text-sm hover:brightness-110 transition-all">{editandoCasaId ? 'Atualizar' : 'Criar'}</button>

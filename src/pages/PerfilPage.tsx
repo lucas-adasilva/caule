@@ -278,7 +278,6 @@ export function PerfilPage() {
             isPresent={user?.isPresent}
             isTraveling={isTraveling}
             size={96}
-            className="border-4 border-primary/20"
           />
           <div className="text-center">
             <h2 className="font-bold text-xl text-on-surface">{user?.name || 'Morador'}</h2>
