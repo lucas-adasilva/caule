@@ -6,7 +6,7 @@ import { useApp } from '@/App';
 import { TopAppBar } from '@/components/TopAppBar';
 import { UserAvatar } from '@/components/UserAvatar';
 
-interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; }
+interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; foto?: string; }
 interface Comodo { id: string; nome: string; icone: string; cor: string; tipo: 'coletivo' | 'privado'; casaId: string; ordem: number; createdBy: string; responsavelId?: string; }
 interface Tarefa { id: string; titulo: string; descricao: string; comodoId: string; responsavelId: string; casaId: string; prioridade: 'alta' | 'media' | 'baixa'; frequencia: 'unica' | 'diaria' | 'semanal' | 'quinzenal' | 'mensal'; status: 'aguardando_responsavel' | 'pendente' | 'em_andamento' | 'concluida'; tipo: 'coletiva' | 'privada'; diasSemana: string[]; diaMes: number; createdBy: string; dataUnica?: string; vezesPorSemana?: number; }
 interface UserData {
@@ -53,7 +53,7 @@ export function ConfiguracoesPage() {
   const [casas, setCasas] = useState<Casa[]>([]);
   const [casaSelecionada, setCasaSelecionada] = useState<Casa | null>(null);
   const [editandoCasaId, setEditandoCasaId] = useState<string | null>(null);
-  const [formCasa, setFormCasa] = useState({ nome: '', endereco: '', cidade: '', estado: '', cep: '', senhaCadastro: '' });
+  const [formCasa, setFormCasa] = useState({ nome: '', endereco: '', cidade: '', estado: '', cep: '', senhaCadastro: '', foto: '' });
 
   // Comodos
   const [comodos, setComodos] = useState<Comodo[]>([]);
@@ -295,7 +295,7 @@ export function ConfiguracoesPage() {
       } else {
         await addDoc(collection(db, 'casas'), { ...formCasa, createdBy: user?.uid, createdAt: serverTimestamp() });
       }
-      setFormCasa({ nome: '', endereco: '', cidade: '', estado: '', cep: '', senhaCadastro: '' });
+      setFormCasa({ nome: '', endereco: '', cidade: '', estado: '', cep: '', senhaCadastro: '', foto: '' });
       setEditandoCasaId(null);
       setSucesso('Casa salva!');
       carregarCasas();
@@ -961,9 +961,14 @@ export function ConfiguracoesPage() {
                 <input value={formCasa.senhaCadastro} onChange={e => setFormCasa({ ...formCasa, senhaCadastro: e.target.value })} placeholder="ex: perguntaproabacate" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                 <p className="text-[10px] text-on-surface-variant mt-1">Os novos usuários precisarão digitar esta senha para se associar à casa.</p>
               </div>
+              <div>
+                <label className="text-label-sm text-on-surface-variant block mb-1">Foto da casa (URL)</label>
+                <input value={formCasa.foto} onChange={e => setFormCasa({ ...formCasa, foto: e.target.value })} placeholder="https://exemplo.com/foto.jpg" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                <p className="text-[10px] text-on-surface-variant mt-1">URL da foto que aparecerá na tela de boas-vindas para novos moradores.</p>
+              </div>
               <div className="flex gap-2">
                 <button onClick={handleSalvarCasa} className="flex-1 bg-primary-container text-on-primary-container font-bold py-2 rounded-lg text-sm hover:brightness-110 transition-all">{editandoCasaId ? 'Atualizar' : 'Criar'}</button>
-                {editandoCasaId && <button onClick={() => { setEditandoCasaId(null); setFormCasa({ nome: '', endereco: '', cidade: '', estado: '', cep: '', senhaCadastro: '' }); }} className="px-4 py-2 bg-surface-container text-on-surface rounded-lg text-sm border border-outline-variant">Cancelar</button>}
+                {editandoCasaId && <button onClick={() => { setEditandoCasaId(null); setFormCasa({ nome: '', endereco: '', cidade: '', estado: '', cep: '', senhaCadastro: '', foto: '' }); }} className="px-4 py-2 bg-surface-container text-on-surface rounded-lg text-sm border border-outline-variant">Cancelar</button>}
               </div>
             </div>
 
@@ -984,16 +989,25 @@ export function ConfiguracoesPage() {
                           {isAtiva && <span className="material-symbols-outlined text-on-primary text-sm">check</span>}
                         </button>
                         {/* Info da casa */}
-                        <div onClick={() => setCasaSelecionada(c)} className="flex-1 min-w-0 cursor-pointer">
-                          <div className="flex items-center gap-2">
-                            <h4 className={`font-bold truncate ${isAtiva ? 'text-primary' : 'text-on-surface'}`}>{c.nome}</h4>
-                            {isAtiva && <span className="flex-shrink-0 px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-full uppercase">Ativa</span>}
+                        <div onClick={() => setCasaSelecionada(c)} className="flex-1 min-w-0 cursor-pointer flex items-center gap-3">
+                          {c.foto ? (
+                            <img src={c.foto} alt={c.nome} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center flex-shrink-0">
+                              <span className="material-symbols-outlined text-on-surface-variant">home</span>
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h4 className={`font-bold truncate ${isAtiva ? 'text-primary' : 'text-on-surface'}`}>{c.nome}</h4>
+                              {isAtiva && <span className="flex-shrink-0 px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-full uppercase">Ativa</span>}
+                            </div>
+                            <p className="text-caption text-on-surface-variant truncate">{c.endereco}, {c.cidade} - {c.estado}</p>
                           </div>
-                          <p className="text-caption text-on-surface-variant truncate">{c.endereco}, {c.cidade} - {c.estado}</p>
                         </div>
                         {/* Acoes */}
                         <div className="flex gap-1 flex-shrink-0">
-                          <button onClick={() => { setEditandoCasaId(c.id); setFormCasa({ nome: c.nome, endereco: c.endereco, cidade: c.cidade, estado: c.estado, cep: c.cep, senhaCadastro: c.senhaCadastro || '' }); }} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
+                          <button onClick={() => { setEditandoCasaId(c.id); setFormCasa({ nome: c.nome, endereco: c.endereco, cidade: c.cidade, estado: c.estado, cep: c.cep, senhaCadastro: c.senhaCadastro || '', foto: c.foto || '' }); }} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
                           <button onClick={() => handleExcluirCasa(c.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="material-symbols-outlined text-lg">delete</span></button>
                         </div>
                       </div>
