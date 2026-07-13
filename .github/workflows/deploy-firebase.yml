@@ -3,6 +3,8 @@ name: Deploy to Firebase Hosting
 on:
   push:
     branches: [master, main]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -15,10 +17,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build
         run: npm run build

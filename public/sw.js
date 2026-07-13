@@ -4,7 +4,7 @@
  * Network-first para dados dinâmicos (Firebase)
  */
 
-const CACHE_NAME = 'caule-v1.1.5';
+const CACHE_NAME = 'caule-__APP_VERSION__';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
