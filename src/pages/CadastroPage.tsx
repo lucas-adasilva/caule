@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc, getDoc, query, collection, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { TopAppBar } from '@/components/TopAppBar';
 import { formatPhone, formatCpf, isValidPhone, isValidCpf } from '@/utils/formatters';
@@ -148,7 +148,7 @@ export function CadastroPage() {
     setLoading(false);
   }
 
-  const totalSteps = 4;
+  const steps = [
   const steps = [
     { label: 'Identidade', icon: 'diversity_3' },
     { label: 'Dados', icon: 'badge' },
