@@ -23,8 +23,12 @@ interface VersionCheckState {
 const STORAGE_KEY_PREFIX = 'caule-update-dismissed-';
 
 function semverToNumber(version: string): number {
-  const parts = version.split('.').map(Number);
-  return parts[0] * 10000 + parts[1] * 100 + parts[2];
+  // Remove sufixos não-numéricos (ex: '35b' → '35', '36a' → '36')
+  const parts = version.split('.').map(part => {
+    const match = part.match(/^(\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
+  });
+  return parts[0] * 10000 + parts[1] * 100 + (parts[2] || 0);
 }
 
 function shouldShowDialog(latestVersion: string): boolean {
@@ -61,6 +65,10 @@ export function useVersionCheck() {
     setState(prev => ({ ...prev, checking: true, checkError: null }));
 
     try {
+      console.log('[VersionCheck] Iniciando verificação...');
+      console.log('[VersionCheck] APP_VERSION:', APP_VERSION);
+      console.log('[VersionCheck] isNative:', isNativeRef.current);
+      
       const versionDoc = await getDoc(doc(db, 'appConfig', 'version'));
 
       if (!versionDoc.exists()) {
@@ -71,6 +79,11 @@ export function useVersionCheck() {
       const data = versionDoc.data() as AppVersion;
       const current = semverToNumber(APP_VERSION);
       const latest = semverToNumber(data.latestVersion);
+
+      console.log('[VersionCheck] latestVersion do Firestore:', data.latestVersion);
+      console.log('[VersionCheck] current (numérico):', current);
+      console.log('[VersionCheck] latest (numérico):', latest);
+      console.log('[VersionCheck] hasUpdate:', latest > current);
 
       const hasUpdate = latest > current;
       const showDialog = hasUpdate && (isManual || shouldShowDialog(data.latestVersion));
