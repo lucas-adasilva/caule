@@ -5,7 +5,7 @@ import { doc, setDoc, query, collection, where, getDocs } from 'firebase/firesto
 import { auth, db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { TopAppBar } from '@/components/TopAppBar';
-import { formatPhone, formatPhoneNumberOnly, formatCpf, isValidPhone, isValidCpf } from '@/utils/formatters';
+import { formatPhoneNumberOnly, formatCpf, isValidPhone, isValidCpf } from '@/utils/formatters';
 
 type Pronome = 'ela' | 'ele' | 'elu';
 
