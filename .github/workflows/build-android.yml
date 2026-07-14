@@ -36,7 +36,8 @@ jobs:
             ${{ runner.os }}-gradle-
       - name: Decode keystore
         run: |
-          cat android/app/caule-release.keystore.base64 | base64 -d > android/app/caule-release.keystore
+          base64 -d android/app/caule-release.keystore.base64 > android/app/caule-release.keystore
+          test -f android/app/caule-release.keystore && echo "Keystore decoded OK" || (echo "Keystore decode failed" && exit 1)
       - name: Extract version from tag
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
@@ -50,7 +51,7 @@ jobs:
           echo "export const APP_VERSION = '$VERSION';" > src/version.ts
           cat src/version.ts
       - name: Install dependencies
-        run: npm ci
+        run: npm install
       - name: Build web app
         run: npm run build
       - name: Sync Android
@@ -69,7 +70,7 @@ jobs:
           name: caule-apk
           path: android/app/build/outputs/apk/release/app-release.apk
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: android/app/build/outputs/apk/release/app-release.apk
@@ -88,5 +89,4 @@ jobs:
         env:
           SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CAULE_C064F }}
         run: |
-          npm install firebase-admin --no-save
           node scripts/update-firestore-version.js

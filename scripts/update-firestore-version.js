@@ -19,7 +19,7 @@ try {
 // Lê a versão do package.json
 let version = '0.0.0';
 try {
-  const pkg = await import('../package.json', { assert: { type: 'json' } });
+  const pkg = await import('../package.json', { with: { type: 'json' } });
   version = pkg.default.version || version;
 } catch (e) {
   console.warn('[update-firestore-version] Não conseguiu ler package.json, usando 0.0.0');
