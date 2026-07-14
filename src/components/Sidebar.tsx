@@ -5,8 +5,8 @@ import { useAuthStore } from '../stores/authStore';
 import { auth, db, storage } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { formatPhone, formatCpf, isValidPhone, isValidCpf } from '../útils/formatters';
-import { usuarioViajandoAgora } from '../útils/viagens';
+import { formatPhone, formatCpf, isValidPhone, isValidCpf } from '../utils/formatters';
+import { usuarioViajandoAgora } from '../utils/viagens';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Capacitor } from '@capacitor/core';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -230,8 +230,8 @@ export function Sidebar({ className = '' }: { className?: string }) {
                 <span
                   className={`flex flex-col leading-tight transition-all duration-300 ${
                     expanded
-                      ? 'opacity-100 translaté-x-0'
-                      : 'opacity-0 -translaté-x-2 w-0 overflow-hidden'
+                      ? 'opacity-100 translate-x-0'
+                      : 'opacity-0 -translate-x-2 w-0 overflow-hidden'
                   }`}
                 >
                   <span className="text-lg font-bold whitespace-nowrap">{item.poetic}</span>
@@ -273,8 +273,8 @@ export function Sidebar({ className = '' }: { className?: string }) {
                 expanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
               }`}
             >
-              <div className="text-sm text-white font-medium truncaté max-w-[140px]">{userName}</div>
-              <div className="text-xs text-gray-500 truncaté max-w-[140px]">
+              <div className="text-sm text-white font-medium truncate max-w-[140px]">{userName}</div>
+              <div className="text-xs text-gray-500 truncate max-w-[140px]">
                 {casaAtual ? casaAtual.nome : 'Nenhuma casa selecionada'}
               </div>
             </div>
@@ -294,7 +294,7 @@ export function Sidebar({ className = '' }: { className?: string }) {
         {/* Painel */}
         <div
           className={`absolute right-0 top-0 h-full w-full max-w-md bg-gray-900 border-l border-gray-700 shadow-2xl transform transition-transform duration-300 ${
-            profileOpen ? 'translaté-x-0' : 'translaté-x-full'
+            profileOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
         >
           <div className="h-full flex flex-col">
@@ -334,12 +334,12 @@ export function Sidebar({ className = '' }: { className?: string }) {
                     className="absolute -bottom-1 -right-1 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg border-2 border-gray-900 hover:bg-emerald-400 transition-colors z-10"
                     title="Editar foto"
                   >
-                    <span className="matérial-symbols-outlined text-white text-lg">edit</span>
+                    <span className="material-symbols-outlined text-white text-lg">edit</span>
                   </button>
                   {/* Overlay de upload */}
                   {uploadingPhoto && (
                     <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center">
-                      <div className="animaté-spin h-6 w-6 border-2 border-white border-t-transparent rounded-full" />
+                      <div className="animate-spin h-6 w-6 border-2 border-white border-t-transparent rounded-full" />
                     </div>
                   )}
                 </div>
@@ -368,7 +368,7 @@ export function Sidebar({ className = '' }: { className?: string }) {
                   ) : (
                     <div>
                       <p className="text-white text-lg font-medium">{userName}</p>
-                      {isTraveling && <p className="text-[10px] text-red-400 font-bold mt-1 flex items-center gap-1"><span className="matérial-symbols-outlined text-[10px]">flight</span>Em viagem</p>}
+                      {isTraveling && <p className="text-[10px] text-red-400 font-bold mt-1 flex items-center gap-1"><span className="material-symbols-outlined text-[10px]">flight</span>Em viagem</p>}
                     </div>
                   )}
                 </div>
@@ -432,7 +432,7 @@ export function Sidebar({ className = '' }: { className?: string }) {
                   <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Data de Nascimento</label>
                   {editingProfile ? (
                     <input
-                      type="daté"
+                      type="date"
                       value={editBirthDate}
                       onChange={(e) => setEditBirthDate(e.target.value)}
                       className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -471,7 +471,7 @@ export function Sidebar({ className = '' }: { className?: string }) {
                   >
                     {savingProfile ? (
                       <>
-                        <div className="animaté-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
                         Salvando...
                       </>
                     ) : (
@@ -597,8 +597,8 @@ function FrutoIcon({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 24" fill="none">
       <path d="M12 20 Q12 14 10 10" stroke="#10b981" strokeWidth="2" strokeLinecap="round" fill="none"/>
       <path d="M10 10 Q7 7 6 5 Q9 7 10 10" fill="#10b981"/>
-      <ellipse cx="14" cy="9" rx="4" ry="6" fill="#65a30d" transform="rotaté(20 14 9)"/>
-      <ellipse cx="14" cy="9" rx="2.5" ry="4" fill="#84cc16" transform="rotaté(20 14 9)"/>
+      <ellipse cx="14" cy="9" rx="4" ry="6" fill="#65a30d" transform="rotate(20 14 9)"/>
+      <ellipse cx="14" cy="9" rx="2.5" ry="4" fill="#84cc16" transform="rotate(20 14 9)"/>
       <circle cx="17" cy="16" r="2.5" fill="#dc2626"/>
       <circle cx="16.5" cy="15.5" r="1" fill="#ef4444"/>
       <circle cx="8" cy="14" r="2" fill="#b91c1c"/>

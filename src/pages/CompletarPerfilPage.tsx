@@ -230,7 +230,7 @@ export function CompletarPerfilPage() {
             <div>
               <label className="block text-label-sm text-on-surface-variant mb-1">Data de nascimento</label>
               <input
-                type="daté"
+                type="date"
                 value={form.birthDate}
                 onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
                 className="w-full px-3 py-2.5 rounded-lg bg-surface text-on-surface border border-outline-variant focus:border-primary focus:outline-none"
@@ -264,7 +264,7 @@ export function CompletarPerfilPage() {
             />
           ) : (
             <div className="text-center">
-              <span className="matérial-symbols-outlined text-6xl text-primary">home</span>
+              <span className="material-symbols-outlined text-6xl text-primary">home</span>
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />

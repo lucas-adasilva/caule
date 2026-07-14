@@ -200,7 +200,7 @@ export function ConfiguracoesPage() {
   const [testBody, setTestBody] = useState('');
   const [logs, setLogs] = useState<string[]>([]);
 
-  const addLog = (msg: string) => setLogs(prev => [...prev.slice(-19), `${new Daté().toLocaleTimeString()}: ${msg}`]);
+  const addLog = (msg: string) => setLogs(prev => [...prev.slice(-19), `${new Date().toLocaleTimeString()}: ${msg}`]);
 
   function getSemanaAtual(semanaOffset = 0): string {
     const hoje = new Date();
@@ -232,8 +232,8 @@ export function ConfiguracoesPage() {
       const numSemana = diasDiff + 1;
       const temDiaNoMes = semanaAtual <= ultimoDiaMes && fimSemana >= primeiroDiaMes;
       if (temDiaNoMes || semanas.length === 0) {
-        const inicioStr = `${String(semanaAtual.getDaté()).padStart(2, '0')}/${String(semanaAtual.getMonth() + 1).padStart(2, '0')}`;
-        const fimStr = `${String(fimSemana.getDaté()).padStart(2, '0')}/${String(fimSemana.getMonth() + 1).padStart(2, '0')}`;
+        const inicioStr = `${String(semanaAtual.getDate()).padStart(2, '0')}/${String(semanaAtual.getMonth() + 1).padStart(2, '0')}`;
+        const fimStr = `${String(fimSemana.getDate()).padStart(2, '0')}/${String(fimSemana.getMonth() + 1).padStart(2, '0')}`;
         semanas.push({ weekId: `${ano}-W${String(numSemana).padStart(2, '0')}`, num: numSemana, label: `S${numSemana}`, inicio: inicioStr, fim: fimStr });
       }
       if (semanaAtual > ultimoDiaMes && semanas.length > 0) break;
@@ -845,14 +845,14 @@ export function ConfiguracoesPage() {
       tarefasExpandidas.filter(({ tarefa }) => tarefa.diasSemana?.length > 0).forEach(({ tarefa, dia }) => {
         const result = distribuirTarefa(tarefa, dia);
         if (result) {
-          atribuicoes.push({ id: `${Daté.now()}-${Math.random()}`, tarefaId: tarefa.id, titulo: tarefa.titulo, descricao: tarefa.descricao, prioridade: tarefa.prioridade, responsavelId: result.responsavel.uid, responsavelNome: result.responsavel.name, diaSemana: result.dia, status: 'pendente' });
+          atribuicoes.push({ id: `${Date.now()}-${Math.random()}`, tarefaId: tarefa.id, titulo: tarefa.titulo, descricao: tarefa.descricao, prioridade: tarefa.prioridade, responsavelId: result.responsavel.uid, responsavelNome: result.responsavel.name, diaSemana: result.dia, status: 'pendente' });
         }
       });
       // Aloca tarefas sem dia definido (algoritmo otimiza)
       tarefasExpandidas.filter(({ tarefa }) => !tarefa.diasSemana?.length).forEach(({ tarefa }) => {
         const result = distribuirTarefa(tarefa, null);
         if (result) {
-          atribuicoes.push({ id: `${Daté.now()}-${Math.random()}`, tarefaId: tarefa.id, titulo: tarefa.titulo, descricao: tarefa.descricao, prioridade: tarefa.prioridade, responsavelId: result.responsavel.uid, responsavelNome: result.responsavel.name, diaSemana: result.dia, status: 'pendente' });
+          atribuicoes.push({ id: `${Date.now()}-${Math.random()}`, tarefaId: tarefa.id, titulo: tarefa.titulo, descricao: tarefa.descricao, prioridade: tarefa.prioridade, responsavelId: result.responsavel.uid, responsavelNome: result.responsavel.name, diaSemana: result.dia, status: 'pendente' });
         }
       });
       const distRef = collection(db, 'distribuicoes');
@@ -862,7 +862,7 @@ export function ConfiguracoesPage() {
       if (existente) { await updateDoc(doc(db, 'distribuicoes', existente.id), { atribuicoes }); }
       else { await addDoc(distRef, { casaId, weekId: semanaSelecionada, atribuicoes, createdAt: serverTimestamp() }); }
       const resumo = moradoresPresentes.map(m => `${m.name}: ${tarefasPorMorador[m.uid] || 0}`).join(', ');
-      setSucesso(`${atribuições.length} tarefas distribuídas. ${resumo}`);
+      setSucesso(`${atribuicoes.length} tarefas distribuídas. ${resumo}`);
       setDebugLog(debugLogs);
       await carregarDadosDistribuicao();
     } catch (e: any) { setErro('Erro ao gerar tarefas: ' + e.message); }
@@ -978,12 +978,12 @@ export function ConfiguracoesPage() {
             {casaSelecionada && (
               <div className="bg-primary/10 border border-primary/30 rounded-xl p-4 flex items-center gap-3">
                 <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="matérial-symbols-outlined text-on-primary">check</span>
+                  <span className="material-symbols-outlined text-on-primary">check</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] text-primary font-bold uppercase tracking-wider">Casa Ativa</p>
-                  <h4 className="font-bold text-on-surface truncaté">{casaSelecionada.nome}</h4>
-                  <p className="text-caption text-on-surface-variant truncaté">{casaSelecionada.endereco}, {casaSelecionada.cidade}</p>
+                  <h4 className="font-bold text-on-surface truncate">{casaSelecionada.nome}</h4>
+                  <p className="text-caption text-on-surface-variant truncate">{casaSelecionada.endereco}, {casaSelecionada.cidade}</p>
                 </div>
               </div>
             )}
@@ -1014,12 +1014,12 @@ export function ConfiguracoesPage() {
                         <img src={formCasa.foto} alt="Preview" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full bg-surface-container-high flex items-center justify-center">
-                          <span className="matérial-symbols-outlined text-on-surface-variant text-2xl">home</span>
+                          <span className="material-symbols-outlined text-on-surface-variant text-2xl">home</span>
                         </div>
                       )}
                       {uploadingFotoCasa && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                          <span className="matérial-symbols-outlined animaté-spin text-white text-xl">refresh</span>
+                          <span className="material-symbols-outlined animate-spin text-white text-xl">refresh</span>
                         </div>
                       )}
                     </div>
@@ -1047,7 +1047,7 @@ export function ConfiguracoesPage() {
                 ) : (
                   <div className="flex items-center gap-3">
                     <div className="w-20 h-20 rounded-xl bg-surface-container-high flex items-center justify-center flex-shrink-0">
-                      <span className="matérial-symbols-outlined text-on-surface-variant text-2xl">home</span>
+                      <span className="material-symbols-outlined text-on-surface-variant text-2xl">home</span>
                     </div>
                     <p className="text-[10px] text-on-surface-variant">
                       Salve a casa primeiro para adicionar uma foto.
@@ -1075,7 +1075,7 @@ export function ConfiguracoesPage() {
                           onClick={() => setCasaSelecionada(c)}
                           className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${isAtiva ? 'bg-primary' : 'bg-surface-container-high border-2 border-outline-variant hover:border-primary'}`}
                         >
-                          {isAtiva && <span className="matérial-symbols-outlined text-on-primary text-sm">check</span>}
+                          {isAtiva && <span className="material-symbols-outlined text-on-primary text-sm">check</span>}
                         </button>
                         {/* Info da casa */}
                         <div onClick={() => setCasaSelecionada(c)} className="flex-1 min-w-0 cursor-pointer flex items-center gap-3">
@@ -1083,21 +1083,21 @@ export function ConfiguracoesPage() {
                             <img src={c.foto} alt={c.nome} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
                           ) : (
                             <div className="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center flex-shrink-0">
-                              <span className="matérial-symbols-outlined text-on-surface-variant">home</span>
+                              <span className="material-symbols-outlined text-on-surface-variant">home</span>
                             </div>
                           )}
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <h4 className={`font-bold truncaté ${isAtiva ? 'text-primary' : 'text-on-surface'}`}>{c.nome}</h4>
+                              <h4 className={`font-bold truncate ${isAtiva ? 'text-primary' : 'text-on-surface'}`}>{c.nome}</h4>
                               {isAtiva && <span className="flex-shrink-0 px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-full uppercase">Ativa</span>}
                             </div>
-                            <p className="text-caption text-on-surface-variant truncaté">{c.endereco}, {c.cidade} - {c.estado}</p>
+                            <p className="text-caption text-on-surface-variant truncate">{c.endereco}, {c.cidade} - {c.estado}</p>
                           </div>
                         </div>
                         {/* Acoes */}
                         <div className="flex gap-1 flex-shrink-0">
-                          <button onClick={() => { setEditandoCasaId(c.id); setFormCasa({ nome: c.nome, endereco: c.endereco, cidade: c.cidade, estado: c.estado, cep: c.cep, senhaCadastro: c.senhaCadastro || '', foto: c.foto || '' }); }} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">edit</span></button>
-                          <button onClick={() => handleExcluirCasa(c.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">delete</span></button>
+                          <button onClick={() => { setEditandoCasaId(c.id); setFormCasa({ nome: c.nome, endereco: c.endereco, cidade: c.cidade, estado: c.estado, cep: c.cep, senhaCadastro: c.senhaCadastro || '', foto: c.foto || '' }); }} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
+                          <button onClick={() => handleExcluirCasa(c.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="material-symbols-outlined text-lg">delete</span></button>
                         </div>
                       </div>
                     </div>
@@ -1118,15 +1118,15 @@ export function ConfiguracoesPage() {
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="text-xl">{c.icone}</span>
                     <div className="min-w-0">
-                      <h4 className="font-bold text-on-surface truncaté">{c.nome}</h4>
+                      <h4 className="font-bold text-on-surface truncate">{c.nome}</h4>
                       <span className="text-caption text-on-surface-variant capitalize">
                         {c.tipo}{responsavel ? ` • ${responsavel.name}` : ''}
                       </span>
                     </div>
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
-                    <button onClick={() => abrirModalEditarComodo(c)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">edit</span></button>
-                    <button onClick={() => handleExcluirComodo(c.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">delete</span></button>
+                    <button onClick={() => abrirModalEditarComodo(c)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
+                    <button onClick={() => handleExcluirComodo(c.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="material-symbols-outlined text-lg">delete</span></button>
                   </div>
                 </div>
               );
@@ -1137,7 +1137,7 @@ export function ConfiguracoesPage() {
               onClick={abrirModalNovoComodo}
               className="fixed bottom-20 right-4 w-14 h-14 bg-primary rounded-full shadow-lg flex items-center justify-center text-on-primary z-40 hover:brightness-110 active:scale-90 transition-all"
             >
-              <span className="matérial-symbols-outlined text-3xl">add</span>
+              <span className="material-symbols-outlined text-3xl">add</span>
             </button>
 
             {/* Modal Cômodo */}
@@ -1148,7 +1148,7 @@ export function ConfiguracoesPage() {
                   <div className="flex items-center justify-between">
                     <h3 className="font-section-heading text-section-heading">{editandoComodoId ? 'Editar Cômodo' : 'Novo Cômodo'}</h3>
                     <button onClick={fecharModalComodo} className="p-1 hover:bg-surface-container rounded-full transition-colors">
-                      <span className="matérial-symbols-outlined text-on-surface-variant">close</span>
+                      <span className="material-symbols-outlined text-on-surface-variant">close</span>
                     </button>
                   </div>
                   <input value={formComodo.nome} onChange={e => { const nome = e.target.value; setFormComodo({ ...formComodo, nome, icone: sugerirEmoji(nome) }); }} placeholder="Nome do cômodo" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
@@ -1213,7 +1213,7 @@ export function ConfiguracoesPage() {
               return (
                 <div className="bg-surface-card rounded-xl border border-outline-variant p-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="matérial-symbols-outlined text-primary text-lg">checklist</span>
+                    <span className="material-symbols-outlined text-primary text-lg">checklist</span>
                     <span className="font-bold text-on-surface">Tarefas: {total}</span>
                     <span className="text-[10px] text-on-surface-variant">(Alta {alta} | Média {media} | Baixa {baixa})</span>
                   </div>
@@ -1257,17 +1257,17 @@ export function ConfiguracoesPage() {
                           <div key={t.id} className="bg-surface-card rounded-xl border border-outline-variant p-3">
                             <div className="flex justify-between items-start">
                               <div className="min-w-0">
-                                <h4 className="font-bold text-on-surface truncaté">{t.titulo}</h4>
-                                <p className="text-caption text-on-surface-variant truncaté">{t.descricao}</p>
+                                <h4 className="font-bold text-on-surface truncate">{t.titulo}</h4>
+                                <p className="text-caption text-on-surface-variant truncate">{t.descricao}</p>
                                 <div className="flex gap-2 mt-1">
                                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.prioridade === 'alta' ? 'bg-tertiary-container/20 text-tertiary-container' : t.prioridade === 'media' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-gray-400/10 text-gray-500'}`}>{t.prioridade.toUpperCase()}</span>
                                   <span className="text-[10px] text-text-muted capitalize">{t.frequencia}</span>
                                 </div>
                               </div>
                               <div className="flex gap-1 flex-shrink-0">
-                                <button onClick={() => abrirModalEditarTarefa(t)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">edit</span></button>
-                                <button onClick={() => handleDuplicarTarefa(t)} className="p-1.5 text-[#2196F3] hover:bg-[#2196F3]/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">content_copy</span></button>
-                                <button onClick={() => handleExcluirTarefa(t.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">delete</span></button>
+                                <button onClick={() => abrirModalEditarTarefa(t)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
+                                <button onClick={() => handleDuplicarTarefa(t)} className="p-1.5 text-[#2196F3] hover:bg-[#2196F3]/10 rounded-lg"><span className="material-symbols-outlined text-lg">content_copy</span></button>
+                                <button onClick={() => handleExcluirTarefa(t.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="material-symbols-outlined text-lg">delete</span></button>
                               </div>
                             </div>
                           </div>
@@ -1287,16 +1287,16 @@ export function ConfiguracoesPage() {
                         <div key={t.id} className="bg-surface-card rounded-xl border border-outline-variant p-3">
                           <div className="flex justify-between items-start">
                             <div className="min-w-0">
-                              <h4 className="font-bold text-on-surface truncaté">{t.titulo}</h4>
-                              <p className="text-caption text-on-surface-variant truncaté">{t.descricao}</p>
+                              <h4 className="font-bold text-on-surface truncate">{t.titulo}</h4>
+                              <p className="text-caption text-on-surface-variant truncate">{t.descricao}</p>
                               <div className="flex gap-2 mt-1">
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.prioridade === 'alta' ? 'bg-tertiary-container/20 text-tertiary-container' : t.prioridade === 'media' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-gray-400/10 text-gray-500'}`}>{t.prioridade.toUpperCase()}</span>
                                 <span className="text-[10px] text-text-muted capitalize">{t.frequencia}</span>
                               </div>
                             </div>
                             <div className="flex gap-1 flex-shrink-0">
-                              <button onClick={() => abrirModalEditarTarefa(t)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">edit</span></button>
-                              <button onClick={() => handleExcluirTarefa(t.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">delete</span></button>
+                              <button onClick={() => abrirModalEditarTarefa(t)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
+                              <button onClick={() => handleExcluirTarefa(t.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="material-symbols-outlined text-lg">delete</span></button>
                             </div>
                           </div>
                         </div>
@@ -1312,7 +1312,7 @@ export function ConfiguracoesPage() {
               onClick={abrirModalNovaTarefa}
               className="fixed bottom-20 right-4 w-14 h-14 bg-primary rounded-full shadow-lg flex items-center justify-center text-on-primary z-40 hover:brightness-110 active:scale-90 transition-all"
             >
-              <span className="matérial-symbols-outlined text-3xl">add</span>
+              <span className="material-symbols-outlined text-3xl">add</span>
             </button>
 
             {/* Modal Tarefa */}
@@ -1323,7 +1323,7 @@ export function ConfiguracoesPage() {
                   <div className="flex items-center justify-between">
                     <h3 className="font-section-heading text-section-heading">{editandoTarefaId ? 'Editar Tarefa' : 'Nova Tarefa'}</h3>
                     <button onClick={fecharModalTarefa} className="p-1 hover:bg-surface-container rounded-full transition-colors">
-                      <span className="matérial-symbols-outlined text-on-surface-variant">close</span>
+                      <span className="material-symbols-outlined text-on-surface-variant">close</span>
                     </button>
                   </div>
                   {erro && <div className="p-3 bg-error-container/20 border border-error/30 rounded-lg text-error text-sm">{erro}</div>}
@@ -1342,7 +1342,7 @@ export function ConfiguracoesPage() {
                     <div>
                       <label className="text-label-sm text-on-surface-variant block mb-1">Data da Tarefa</label>
                       <input
-                        type="daté"
+                        type="date"
                         value={formTarefa.dataUnica}
                         onChange={e => setFormTarefa({ ...formTarefa, dataUnica: e.target.value })}
                         min={new Date().toISOString().split('T')[0]}
@@ -1424,7 +1424,7 @@ export function ConfiguracoesPage() {
               <div className="bg-surface-card rounded-xl border border-primary/30 p-4 space-y-3 shadow-lg">
                 <div className="flex justify-between items-center">
                   <h3 className="font-section-heading text-section-heading">Editar Morador</h3>
-                  <button onClick={() => { setEditandoMoradorId(null); setFormMoradorCompleto({}); }} className="p-1 text-on-surface-variant hover:text-on-surface"><span className="matérial-symbols-outlined">close</span></button>
+                  <button onClick={() => { setEditandoMoradorId(null); setFormMoradorCompleto({}); }} className="p-1 text-on-surface-variant hover:text-on-surface"><span className="material-symbols-outlined">close</span></button>
                 </div>
 
                 {/* Dados basicos */}
@@ -1457,7 +1457,7 @@ export function ConfiguracoesPage() {
                   </div>
                   <div>
                     <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Data Nasc.</label>
-                    <input type="daté" value={formMoradorCompleto.birthDate || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, birthDate: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                    <input type="date" value={formMoradorCompleto.birthDate || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, birthDate: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                   </div>
                 </div>
 
@@ -1503,22 +1503,22 @@ export function ConfiguracoesPage() {
                         {viagensMoradorEditando.map(v => (
                           <div key={v.id} className="bg-surface-container-high rounded-lg p-2 flex justify-between items-center">
                             <div className="min-w-0">
-                              <p className="text-sm font-bold text-on-surface truncaté">{v.destino}</p>
+                              <p className="text-sm font-bold text-on-surface truncate">{v.destino}</p>
                               <p className="text-[10px] text-on-surface-variant">{v.dataSaida} → {v.dataRetorno}</p>
-                              {v.motivo && <p className="text-[10px] text-on-surface-variant truncaté">{v.motivo}</p>}
+                              {v.motivo && <p className="text-[10px] text-on-surface-variant truncate">{v.motivo}</p>}
                             </div>
                             <div className="flex gap-1 flex-shrink-0">
                               <button
                                 onClick={() => { setNovaViagem({ destino: v.destino, dataSaida: v.dataSaida, dataRetorno: v.dataRetorno, motivo: v.motivo }); setEditandoViagemId(v.id); }}
                                 className="p-1 text-primary hover:bg-primary/10 rounded-lg"
                               >
-                                <span className="matérial-symbols-outlined text-sm">edit</span>
+                                <span className="material-symbols-outlined text-sm">edit</span>
                               </button>
                               <button
                                 onClick={() => excluirViagem(v.id)}
                                 className="p-1 text-error hover:bg-error/10 rounded-lg"
                               >
-                                <span className="matérial-symbols-outlined text-sm">delete</span>
+                                <span className="material-symbols-outlined text-sm">delete</span>
                               </button>
                             </div>
                           </div>
@@ -1537,11 +1537,11 @@ export function ConfiguracoesPage() {
                       </div>
                       <div>
                         <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Data Saída</label>
-                        <input type="daté" value={novaViagem.dataSaida} onChange={e => setNovaViagem({ ...novaViagem, dataSaida: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                        <input type="date" value={novaViagem.dataSaida} onChange={e => setNovaViagem({ ...novaViagem, dataSaida: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                       </div>
                       <div>
                         <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Data Retorno</label>
-                        <input type="daté" value={novaViagem.dataRetorno} onChange={e => setNovaViagem({ ...novaViagem, dataRetorno: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                        <input type="date" value={novaViagem.dataRetorno} onChange={e => setNovaViagem({ ...novaViagem, dataRetorno: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                       </div>
                     </div>
                     <button onClick={salvarViagem} className="w-full bg-primary-container text-on-primary-container font-bold py-2 rounded-lg text-sm hover:brightness-110 transition-all">
@@ -1554,11 +1554,11 @@ export function ConfiguracoesPage() {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Data Início</label>
-                        <input type="daté" value={formMoradorCompleto.estadiaInicio || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, estadiaInicio: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                        <input type="date" value={formMoradorCompleto.estadiaInicio || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, estadiaInicio: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                       </div>
                       <div>
                         <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Data Fim</label>
-                        <input type="daté" value={formMoradorCompleto.estadiaFim || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, estadiaFim: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                        <input type="date" value={formMoradorCompleto.estadiaFim || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, estadiaFim: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                       </div>
                     </div>
                   </div>
@@ -1588,7 +1588,7 @@ export function ConfiguracoesPage() {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-on-surface text-sm truncaté">{m.name || m.fullName || m.email?.split('@')[0] || 'Sem nome'}</h4>
+                        <h4 className="font-bold text-on-surface text-sm truncate">{m.name || m.fullName || m.email?.split('@')[0] || 'Sem nome'}</h4>
                         <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${m.role === 'admin' ? 'bg-error/10 text-error' : m.role === 'hospede' ? 'bg-blue-500/10 text-blue-500' : 'bg-primary/10 text-primary'}`}>
                           {m.role}
                         </span>
@@ -1600,7 +1600,7 @@ export function ConfiguracoesPage() {
                           return estaAusente ? <span className="flex-shrink-0 px-2 py-0.5 bg-error/10 rounded-full text-[9px] text-error font-bold">ausente</span> : null;
                         })()}
                       </div>
-                      <p className="text-[11px] text-on-surface-variant truncaté">{m.email}</p>
+                      <p className="text-[11px] text-on-surface-variant truncate">{m.email}</p>
                       {m.phone && <p className="text-[10px] text-on-surface-variant">{m.phone}</p>}
                     </div>
 
@@ -1617,12 +1617,12 @@ export function ConfiguracoesPage() {
 
                       {/* Botao editar completo */}
                       <button onClick={() => abrirEdicaoMoradorCompleto(m)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg">
-                        <span className="matérial-symbols-outlined text-lg">edit</span>
+                        <span className="material-symbols-outlined text-lg">edit</span>
                       </button>
 
                       {/* Botao excluir */}
                       <button onClick={() => handleExcluirMorador(m)} className="p-1.5 text-error hover:bg-error/10 rounded-lg">
-                        <span className="matérial-symbols-outlined text-lg">delete</span>
+                        <span className="material-symbols-outlined text-lg">delete</span>
                       </button>
                     </div>
                   </div>
@@ -1670,7 +1670,7 @@ export function ConfiguracoesPage() {
             {/* Toggle: Considerar domingo */}
             <div className="flex items-center justify-between bg-surface-card rounded-lg border border-outline-variant p-3">
               <div className="flex items-center gap-2">
-                <span className="matérial-symbols-outlined text-on-surface-variant">calendar_today</span>
+                <span className="material-symbols-outlined text-on-surface-variant">calendar_today</span>
                 <div>
                   <p className="text-sm font-bold text-on-surface">Considerar domingo</p>
                   <p className="text-[10px] text-on-surface-variant">{considerarDomingo ? 'Tarefas serão distribuídas de domingo a sábado (7 dias)' : 'Tarefas serão distribuídas de segunda a sábado (6 dias) — sem tarefas aos domingos'}</p>
@@ -1680,7 +1680,7 @@ export function ConfiguracoesPage() {
                 onClick={() => setConsiderarDomingo(!considerarDomingo)}
                 className={`w-12 h-7 rounded-full transition-colors relative ${considerarDomingo ? 'bg-primary' : 'bg-surface-variant border border-outline-variant'}`}
               >
-                <div className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-on-primary shadow transition-transform ${considerarDomingo ? 'translaté-x-5' : 'translaté-x-0'}`} />
+                <div className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-on-primary shadow transition-transform ${considerarDomingo ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
             </div>
 
@@ -1699,7 +1699,7 @@ export function ConfiguracoesPage() {
             {/* Aviso quando nenhum morador presente */}
             {moradoresPresentes.length === 0 && (
               <div className="bg-error/10 border border-error/30 rounded-xl p-3 text-center">
-                <span className="matérial-symbols-outlined text-error text-lg">warning</span>
+                <span className="material-symbols-outlined text-error text-lg">warning</span>
                 <p className="text-sm text-error font-bold">Nenhum morador presente</p>
                 <p className="text-[10px] text-error/70">Va em Moradores e marque quem esta presente na casa</p>
               </div>
@@ -1751,7 +1751,7 @@ export function ConfiguracoesPage() {
                     Redistribuir
                   </button>
                   <button onClick={handleExcluirDistribuicao} disabled={distLoading} className="px-3 bg-error/10 border border-error/30 text-error rounded-lg hover:bg-error/20 transition-all disabled:opacity-50" title="Excluir distribuição">
-                    <span className="matérial-symbols-outlined">delete</span>
+                    <span className="material-symbols-outlined">delete</span>
                   </button>
                 </>
               )}
@@ -1796,10 +1796,10 @@ export function ConfiguracoesPage() {
 
             {/* Visão semanal por dia */}
             {distLoading ? (
-              <div className="text-center py-8"><span className="matérial-symbols-outlined animaté-spin text-primary text-3xl">refresh</span></div>
+              <div className="text-center py-8"><span className="material-symbols-outlined animate-spin text-primary text-3xl">refresh</span></div>
             ) : !distribuicao ? (
               <div className="text-center py-8 bg-surface-card rounded-xl border border-outline-variant">
-                <span className="matérial-symbols-outlined text-4xl text-on-surface-variant mb-2">calendar_view_week</span>
+                <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-2">calendar_view_week</span>
                 <p className="text-on-surface-variant">Nenhuma distribuicao para {semanaSelecionada}</p>
                 <p className="text-caption text-text-muted mt-1">Clique em "Gerar Tarefas" para criar</p>
               </div>
@@ -1822,10 +1822,10 @@ export function ConfiguracoesPage() {
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               <button onClick={() => toggleTarefaDistribuicao(a)} className="flex-shrink-0">
                                 <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${a.status === 'concluída' ? 'border-primary bg-primary' : 'border-outline-variant hover:border-primary'}`}>
-                                  {a.status === 'concluída' && <span className="matérial-symbols-outlined text-[12px] text-on-primary">check</span>}
+                                  {a.status === 'concluída' && <span className="material-symbols-outlined text-[12px] text-on-primary">check</span>}
                                 </div>
                               </button>
-                              <span className={`text-sm truncaté ${a.status === 'concluída' ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{a.titulo}</span>
+                              <span className={`text-sm truncate ${a.status === 'concluída' ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{a.titulo}</span>
                             </div>
                             <span className="text-[10px] text-text-muted flex-shrink-0 ml-2">{a.responsavelNome?.split(' ')[0]}</span>
                           </div>
@@ -1855,7 +1855,7 @@ export function ConfiguracoesPage() {
 
         {/* === NOTIFICACOES === */}
         {abaAtiva === 'notificações' && (
-          <NotificaçõesTab user={user} token={notifToken} setToken={setNotifToken} perm={notifPerm} setPerm={setNotifPerm} loading={notifLoading} setLoading={setNotifLoading} testTitle={testTitle} setTestTitle={setTestTitle} testBody={testBody} setTestBody={setTestBody} logs={logs} setLogs={setLogs} addLog={addLog} />
+          <NotificacoesTab user={user} token={notifToken} setToken={setNotifToken} perm={notifPerm} setPerm={setNotifPerm} loading={notifLoading} setLoading={setNotifLoading} testTitle={testTitle} setTestTitle={setTestTitle} testBody={testBody} setTestBody={setTestBody} logs={logs} setLogs={setLogs} addLog={addLog} />
         )}
       </main>
     </div>
@@ -1863,7 +1863,7 @@ export function ConfiguracoesPage() {
 }
 
 /* ===== NOTIFICACOES ===== */
-function NotificaçõesTab({ user, token, setToken, perm, setPerm, loading, setLoading, testTitle, setTestTitle, testBody, setTestBody, logs, addLog }: any) {
+function NotificacoesTab({ user, token, setToken, perm, setPerm, loading, setLoading, testTitle, setTestTitle, testBody, setTestBody, logs, addLog }: any) {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   return (
@@ -1877,7 +1877,7 @@ function NotificaçõesTab({ user, token, setToken, perm, setPerm, loading, setL
       {/* Status */}
       <div className="p-4 bg-surface-card rounded-xl border border-outline-variant flex items-center gap-4">
         <div className="w-10 h-10 bg-primary-container/20 rounded-full flex items-center justify-center">
-          <span className="matérial-symbols-outlined text-primary text-xl">notifications</span>
+          <span className="material-symbols-outlined text-primary text-xl">notifications</span>
         </div>
         <div>
           <h3 className="font-bold text-on-surface">Status</h3>

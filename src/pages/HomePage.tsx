@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useApp } from '@/App';
 import { TopAppBar } from '@/components/TopAppBar';
 import { UserAvatar } from '@/components/UserAvatar';
-import { buscarMoradoresEmViagem } from '@/útils/viagens';
+import { buscarMoradoresEmViagem } from '@/utils/viagens';
 
 interface FirestoreUser {
   uid: string;
@@ -208,7 +208,7 @@ export function HomePage() {
           <p className="text-primary text-label-sm font-label-sm tracking-widest uppercase">Bem-vindo a Copa</p>
           <h2 className="text-primary font-headline-lg-mobile text-4xl leading-tight">Casa Abacateira</h2>
           <div className="flex items-center gap-2 text-on-surface-variant text-body-md">
-            <span className="matérial-symbols-outlined text-sm">potted_plant</span>
+            <span className="material-symbols-outlined text-sm">potted_plant</span>
             <span>Ecossistema em pleno crescimento</span>
           </div>
         </section>
@@ -226,10 +226,10 @@ export function HomePage() {
               className="bg-surface-card p-5 rounded-xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group hover:border-primary/30 transition-all"
             >
               <div className="absolute -right-2 -top-2 opacity-5">
-                <span className="matérial-symbols-outlined text-6xl">{stat.icon}</span>
+                <span className="material-symbols-outlined text-6xl">{stat.icon}</span>
               </div>
               <div className={`w-10 h-10 rounded-lg ${stat.bg} flex items-center justify-center`}>
-                <span className={`matérial-symbols-outlined ${stat.color}`}>{stat.icon}</span>
+                <span className={`material-symbols-outlined ${stat.color}`}>{stat.icon}</span>
               </div>
               <div>
                 <p className="text-on-surface-variant text-label-sm">{stat.label}</p>
@@ -247,7 +247,7 @@ export function HomePage() {
           </div>
           {loading ? (
             <div className="flex justify-center py-8">
-              <span className="matérial-symbols-outlined animaté-spin text-primary text-3xl">refresh</span>
+              <span className="material-symbols-outlined animate-spin text-primary text-3xl">refresh</span>
             </div>
           ) : (
             <div className="flex flex-wrap gap-6 px-2">
@@ -285,8 +285,8 @@ export function HomePage() {
               <div className="flex justify-between items-center mb-4">
                 <p className="font-bold text-lg">{new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</p>
                 <div className="flex gap-2">
-                  <span className="matérial-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-colors">chevron_left</span>
-                  <span className="matérial-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-colors">chevron_right</span>
+                  <span className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-colors">chevron_left</span>
+                  <span className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-colors">chevron_right</span>
                 </div>
               </div>
               <div className="grid grid-cols-7 gap-2 text-center text-caption font-medium text-on-surface-variant mb-2">
@@ -323,14 +323,14 @@ export function HomePage() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-section-heading text-section-heading flex items-center gap-2">
-                <span className="matérial-symbols-outlined text-primary">task_alt</span>
+                <span className="material-symbols-outlined text-primary">task_alt</span>
                 Tarefas Pendentes
               </h3>
               <span className="text-primary text-label-sm">{weekDays[selectedDay]?.label}</span>
             </div>
             {Object.keys(tarefasPorComodo).length === 0 ? (
               <div className="bg-surface-card p-6 rounded-xl border border-white/5 text-center">
-                <span className="matérial-symbols-outlined text-4xl text-on-surface-variant mb-2">check_circle</span>
+                <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-2">check_circle</span>
                 <p className="text-on-surface-variant">Nenhuma tarefa pendente para este dia</p>
               </div>
             ) : (
@@ -346,16 +346,16 @@ export function HomePage() {
                       {tarefas.map(({ atribuicao, tarefa }) => (
                         <div key={atribuicao.id} className="flex items-center gap-3 p-2 bg-surface-container-low rounded-lg">
                           <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                            atribuição.prioridade === 'alta' ? 'bg-error' :
-                            atribuição.prioridade === 'media' ? 'bg-tertiary' : 'bg-secondary'
+                            atribuicao.prioridade === 'alta' ? 'bg-error' :
+                            atribuicao.prioridade === 'media' ? 'bg-tertiary' : 'bg-secondary'
                           }`} />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-on-surface truncaté">{atribuicao.titulo}</p>
+                            <p className="text-sm font-medium text-on-surface truncate">{atribuicao.titulo}</p>
                             {tarefa && <p className="text-[10px] text-on-surface-variant">{tarefa.titulo}</p>}
                           </div>
                           <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                            atribuição.prioridade === 'alta' ? 'bg-error/10 text-error' :
-                            atribuição.prioridade === 'media' ? 'bg-tertiary/10 text-tertiary' : 'bg-secondary/10 text-secondary'
+                            atribuicao.prioridade === 'alta' ? 'bg-error/10 text-error' :
+                            atribuicao.prioridade === 'media' ? 'bg-tertiary/10 text-tertiary' : 'bg-secondary/10 text-secondary'
                           }`}>
                             {atribuicao.prioridade}
                           </span>

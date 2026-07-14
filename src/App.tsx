@@ -14,18 +14,18 @@ import { TarefasPage } from './pages/TarefasPage';
 import { ConquistasPage } from './pages/ConquistasPage';
 import { EventosPage } from './pages/EventosPage';
 import { CalendarioPage } from './pages/CalendarioPage';
-import { ConfiguracoesPage } from './pages/ConfiguraçõesPage';
-import { ComunicacaoPage } from './pages/ComunicaçãoPage';
+import { ConfiguracoesPage } from './pages/ConfiguracoesPage';
+import { ComunicacaoPage } from './pages/ComunicacaoPage';
 import { ConvitePage } from './pages/ConvitePage';
 import { CadastroPage } from './pages/CadastroPage';
 import { VincularCasaPage } from './pages/VincularCasaPage';
-import { NotificacoesPage } from './pages/NotificaçõesPage';
+import { NotificacoesPage } from './pages/NotificacoesPage';
 import { PerfilPage } from './pages/PerfilPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { ProjetosPage } from './pages/ProjetosPage';
 import { EstadiaPage } from './pages/EstadiaPage';
 import { CompletarPerfilPage } from './pages/CompletarPerfilPage';
-import { UpdateDialog } from './components/UpdatéDialog';
+import { UpdateDialog } from './components/UpdateDialog';
 import { usePushNotifications } from './hooks/usePushNotifications';
 
 // Contexto para handlers globais (menu, notificacoes)
@@ -45,7 +45,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <AppContext.Provider value={{
       openMenu: () => setMenuOpen(true),
-      openNotifications: () => navigate('/notificações'),
+      openNotifications: () => navigate('/notificacoes'),
     }}>
       <div className="min-h-screen bg-surface text-on-surface font-body-md">
         <MenuDrawer isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -181,13 +181,13 @@ function AppRoutes() {
         <Route path="/projetos" element={<ProtectedRoute><ProjetosPage /></ProtectedRoute>} />
         <Route path="/eventos" element={<ProtectedRoute><EventosPage /></ProtectedRoute>} />
         <Route path="/calendario" element={<ProtectedRoute><CalendarioPage /></ProtectedRoute>} />
-        <Route path="/comunicação" element={<ProtectedRoute><ComunicacaoPage /></ProtectedRoute>} />
-        <Route path="/notificações" element={<ProtectedRoute><NotificacoesPage /></ProtectedRoute>} />
+        <Route path="/comunicacao" element={<ProtectedRoute><ComunicacaoPage /></ProtectedRoute>} />
+        <Route path="/notificacoes" element={<ProtectedRoute><NotificacoesPage /></ProtectedRoute>} />
         <Route path="/perfil" element={<ProtectedRoute><PerfilPage /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
         <Route path="/estadia" element={<ProtectedRoute><EstadiaPage /></ProtectedRoute>} />
         <Route path="/completar-perfil" element={<ProtectedRoute><CompletarPerfilPage /></ProtectedRoute>} />
-        <Route path="/configurações" element={<ProtectedRoute adminOnly><ConfiguracoesPage /></ProtectedRoute>} />
+        <Route path="/configuracoes" element={<ProtectedRoute adminOnly><ConfiguracoesPage /></ProtectedRoute>} />
       </Routes>
     </AppLayout>
   );

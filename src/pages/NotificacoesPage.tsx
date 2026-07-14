@@ -18,9 +18,9 @@ export function NotificacoesPage() {
   const [notifs, setNotifs] = useState<Notificacao[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { carregarNotificações(); }, [user?.uid]);
+  useEffect(() => { carregarNotificacoes(); }, [user?.uid]);
 
-  async function carregarNotificações() {
+  async function carregarNotificacoes() {
     if (!user?.uid) { setLoading(false); return; }
     try {
       const q = query(collection(db, 'notificacoes'), where('destinatarioId', '==', user.uid));
