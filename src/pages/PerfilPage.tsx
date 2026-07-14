@@ -92,7 +92,7 @@ export function PerfilPage() {
   useEffect(() => {
     async function checkTraveling() {
       if (!user?.uid) return;
-      const { usuarioViajandoAgora } = await import('@/utils/viagens');
+      const { usuarioViajandoAgora } = await import('@/útils/viagens');
       const traveling = await usuarioViajandoAgora(user.uid);
       setIsTraveling(traveling);
     }
@@ -153,7 +153,7 @@ export function PerfilPage() {
       if (user.houseId) {
         await redistribuirTarefasPorViagem(formViagem.dataSaida, formViagem.dataRetorno);
       } else {
-        console.log('[VIAGEM] user.houseId ausente, nao redistribui');
+        console.log('[VIAGEM] user.houseId ausente, não redistribui');
       }
     } catch (e: any) { setErro('Erro: ' + e.message); }
   }
@@ -163,7 +163,7 @@ export function PerfilPage() {
       console.log('[REDIST] user.uid ou user.houseId ausente', { uid: user?.uid, houseId: user?.houseId });
       return;
     }
-    console.log('[REDIST] Iniciando redistribuicao', { dataSaida, dataRetorno, houseId: user.houseId });
+    console.log('[REDIST] Iniciando redistribuição', { dataSaida, dataRetorno, houseId: user.houseId });
     try {
       const qd = query(collection(db, 'distribuicoes'), where('casaId', '==', user.houseId));
       const sd = await getDocs(qd);
@@ -179,7 +179,7 @@ export function PerfilPage() {
           console.log(`[REDIST] Doc ${distDoc.id} sem weekId, ignorando`);
           continue;
         }
-        console.log(`[REDIST] Verificando distribuicao ${weekId}`);
+        console.log(`[REDIST] Verificando distribuição ${weekId}`);
         const match = weekId.match(/(\d+)-W(\d+)/);
         if (!match) { console.log(`[REDIST] weekId invalido: ${weekId}`); continue; }
         const ano = parseInt(match[1], 10);
@@ -190,16 +190,16 @@ export function PerfilPage() {
         const fimSemana = new Date(inicioSemana.getTime() + 6 * 24 * 60 * 60 * 1000);
         const inicioStr = inicioSemana.toISOString().split('T')[0];
         const fimStr = fimSemana.toISOString().split('T')[0];
-        console.log(`[REDIST] Semana ${weekId}: ${inicioStr} a ${fimStr}. Viagem: ${dataSaida} a ${dataRetorno}`);
+        console.log(`[REDIST] Semana ${weekId}: ${inicioStr} a ${fimStr}. Viagem: ${dataSaída} a ${dataRetorno}`);
         if (dataRetorno < inicioStr || dataSaida > fimStr) {
-          console.log(`[REDIST] Viagem nao afeta esta semana`);
+          console.log(`[REDIST] Viagem não afeta está semana`);
           continue;
         }
         const atribuicoes: any[] = distData.atribuicoes || [];
-        console.log(`[REDIST] Total atribuicoes: ${atribuicoes.length}`);
-        const outrasAtribuicoes = atribuicoes.filter((a: any) => a.responsavelId !== user.uid || a.status === 'concluida');
+        console.log(`[REDIST] Total atribuições: ${atribuições.length}`);
+        const outrasAtribuicoes = atribuicoes.filter((a: any) => a.responsavelId !== user.uid || a.status === 'concluída');
         const tarefasDoViajante = atribuicoes.filter((a: any) => a.responsavelId === user.uid && a.status === 'pendente');
-        console.log(`[REDIST] Tarefas do viajante: ${tarefasDoViajante.length}`);
+        console.log(`[REDIST] Tarefas do viajánte: ${tarefasDoViajánte.length}`);
         if (tarefasDoViajante.length === 0) continue;
         distribuicoesAfetadas++;
         const qu = query(collection(db, 'users'), where('houseId', '==', user.houseId));
@@ -222,7 +222,7 @@ export function PerfilPage() {
               tarefasRealocadasAlta.push(tarefa.titulo);
               console.log(`[REDIST] Realocada para ${substituto.name}`);
             } else {
-              console.log(`[REDIST] Nenhum morador disponivel para realocar`);
+              console.log(`[REDIST] Nenhum morador disponível para realocar`);
             }
           } else {
             tarefasAdiadasMediaBaixa.push(tarefa.titulo);
@@ -230,21 +230,21 @@ export function PerfilPage() {
           }
         }
         await updateDoc(doc(db, 'distribuicoes', distDoc.id), { atribuicoes: novasAtribuicoes });
-        console.log(`[REDIST] Distribuicao ${weekId} atualizada`);
+        console.log(`[REDIST] Distribuição ${weekId} atualizada`);
       }
       console.log(`[REDIST] Resumo: ${tarefasRealocadasAlta.length} alta, ${tarefasAdiadasMediaBaixa.length} media/baixa, ${distribuicoesAfetadas} semanas afetadas`);
       if (tarefasRealocadasAlta.length > 0 || tarefasAdiadasMediaBaixa.length > 0) {
         await notificarAdminRealocacao(tarefasRealocadasAlta, tarefasAdiadasMediaBaixa);
-        const resumoMsg = `Redistribuicao completa: ${tarefasRealocadasAlta.length} tarefa(s) alta prioridade realocadas, ${tarefasAdiadasMediaBaixa.length} tarefa(s) media/baixa adiadas.`;
+        const resumoMsg = `Redistribuição completa: ${tarefasRealocadasAlta.length} tarefa(s) alta prioridade realocadas, ${tarefasAdiadasMediaBaixa.length} tarefa(s) media/baixa adiadas.`;
         setSucesso(prev => prev ? prev + ' ' + resumoMsg : resumoMsg);
       } else if (distribuicoesAfetadas > 0) {
         setSucesso(prev => prev ? prev + ' Nenhuma tarefa pendente afetada.' : 'Nenhuma tarefa pendente afetada.');
       } else {
-        setSucesso(prev => prev ? prev + ' Nenhuma distribuicao afetada pela viagem.' : 'Nenhuma distribuicao afetada pela viagem.');
+        setSucesso(prev => prev ? prev + ' Nenhuma distribuição afetada pela viagem.' : 'Nenhuma distribuição afetada pela viagem.');
       }
     } catch (e: any) {
       console.error('[REDIST] Erro ao redistribuir:', e);
-      setErro('Erro na redistribuicao: ' + e.message);
+      setErro('Erro na redistribuição: ' + e.message);
     }
   }
 
@@ -260,11 +260,11 @@ export function PerfilPage() {
         (tarefasAlta.length > 0 ? `Tarefas alta prioridade realocadas: ${tarefasAlta.join(', ')}. ` : '') +
         (tarefasMediaBaixa.length > 0 ? `Tarefas média/baixa adiadas: ${tarefasMediaBaixa.join(', ')}.` : '');
       for (const adminId of admins) {
-        await addDoc(collection(db, 'notificacoes'), {
+        await addDoc(collection(db, 'notificações'), {
           destinatarioId: adminId,
           titulo: 'Realocação de tarefas por viagem',
           mensagem,
-          tipo: 'realocacao',
+          tipo: 'realocação',
           lida: false,
           createdAt: serverTimestamp(),
         });
@@ -328,11 +328,11 @@ export function PerfilPage() {
               className="absolute -bottom-1 -left-1 w-9 h-9 bg-primary rounded-full flex items-center justify-center shadow-lg border-2 border-surface hover:brightness-110 transition-all disabled:opacity-50 z-10"
               title="Tirar foto ou escolher da galeria"
             >
-              <span className="material-symbols-outlined text-on-primary text-lg">photo_camera</span>
+              <span className="matérial-symbols-outlined text-on-primary text-lg">photo_camera</span>
             </button>
             {uploadingPhoto && (
               <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center">
-                <div className="animate-spin h-6 w-6 border-2 border-white border-t-transparent rounded-full" />
+                <div className="animaté-spin h-6 w-6 border-2 border-white border-t-transparent rounded-full" />
               </div>
             )}
           </div>
@@ -346,7 +346,7 @@ export function PerfilPage() {
           <div className="text-center">
             <h2 className="font-bold text-xl text-on-surface">{user?.name || 'Morador'}</h2>
             <p className="text-caption text-on-surface-variant">{user?.email}</p>
-            {isTraveling && <p className="text-[10px] text-red-500 font-bold mt-1 flex items-center justify-center gap-1"><span className="material-symbols-outlined text-[10px]">flight</span>Em viagem</p>}
+            {isTraveling && <p className="text-[10px] text-red-500 font-bold mt-1 flex items-center justify-center gap-1"><span className="matérial-symbols-outlined text-[10px]">flight</span>Em viagem</p>}
           </div>
         </div>
 
@@ -355,11 +355,11 @@ export function PerfilPage() {
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-on-surface">Dados Pessoais</h3>
             {!editando ? (
-              <button onClick={() => setEditando(true)} className="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors"><span className="material-symbols-outlined">edit</span></button>
+              <button onClick={() => setEditando(true)} className="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors"><span className="matérial-symbols-outlined">edit</span></button>
             ) : (
               <div className="flex gap-1">
-                <button onClick={salvarPerfil} disabled={loading} className="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors"><span className="material-symbols-outlined">check</span></button>
-                <button onClick={() => { setEditando(false); setForm({ name: user?.name || '', fullName: user?.fullName || '', phone: user?.phone || '', birthDate: user?.birthDate || '', cpf: user?.cpf || '', pixKey: user?.pixKey || '' }); }} className="p-2 text-error hover:bg-error/10 rounded-full transition-colors"><span className="material-symbols-outlined">close</span></button>
+                <button onClick={salvarPerfil} disabled={loading} className="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors"><span className="matérial-symbols-outlined">check</span></button>
+                <button onClick={() => { setEditando(false); setForm({ name: user?.name || '', fullName: user?.fullName || '', phone: user?.phone || '', birthDate: user?.birthDate || '', cpf: user?.cpf || '', pixKey: user?.pixKey || '' }); }} className="p-2 text-error hover:bg-error/10 rounded-full transition-colors"><span className="matérial-symbols-outlined">close</span></button>
               </div>
             )}
           </div>
@@ -372,7 +372,7 @@ export function PerfilPage() {
               <div><label className="text-label-sm text-on-surface-variant block mb-1">Nome</label><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
               <div><label className="text-label-sm text-on-surface-variant block mb-1">Nome Completo</label><input value={form.fullName} onChange={e => setForm({ ...form, fullName: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
               <div><label className="text-label-sm text-on-surface-variant block mb-1">Telefone</label><input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
-              <div><label className="text-label-sm text-on-surface-variant block mb-1">Data de Nascimento</label><input type="date" value={form.birthDate} onChange={e => setForm({ ...form, birthDate: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
+              <div><label className="text-label-sm text-on-surface-variant block mb-1">Data de Nascimento</label><input type="daté" value={form.birthDate} onChange={e => setForm({ ...form, birthDate: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
               <div><label className="text-label-sm text-on-surface-variant block mb-1">CPF</label><input value={form.cpf} onChange={e => setForm({ ...form, cpf: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
               <div><label className="text-label-sm text-on-surface-variant block mb-1">Chave Pix</label><input value={form.pixKey} onChange={e => setForm({ ...form, pixKey: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
             </div>
@@ -399,7 +399,7 @@ export function PerfilPage() {
             <div className="space-y-3">
               {viagens.map(v => {
                 const hoje = new Date().toISOString().split('T')[0];
-                const status = v.dataRetorno < hoje ? 'Concluída' : v.dataSaida > hoje ? 'Planejada' : 'Em andamento';
+                const status = v.dataRetorno < hoje ? 'Concluída' : v.dataSaida > hoje ? 'Planejáda' : 'Em andamento';
                 const statusColor = status === 'Concluída' ? 'bg-secondary/10 text-secondary' : status === 'Em andamento' ? 'bg-tertiary/10 text-tertiary' : 'bg-primary/10 text-primary';
                 return (
                   <div key={v.id} className="bg-surface-container-low rounded-lg p-3 border border-outline-variant/30">
@@ -407,15 +407,15 @@ export function PerfilPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${statusColor}`}>{status}</span>
-                          <h4 className="font-bold text-sm text-on-surface truncate">{v.destino}</h4>
+                          <h4 className="font-bold text-sm text-on-surface truncaté">{v.destino}</h4>
                         </div>
                         <p className="text-[10px] text-on-surface-variant mt-1">{v.dataSaida} → {v.dataRetorno}</p>
                         {v.motivo && <p className="text-[10px] text-on-surface-variant mt-1">{v.motivo}</p>}
                       </div>
                       <div className="flex gap-1 flex-shrink-0">
-                        <button onClick={() => abrirModalEditarViagem(v)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
-                        <button onClick={() => handleDuplicarViagem(v)} className="p-1.5 text-[#2196F3] hover:bg-[#2196F3]/10 rounded-lg"><span className="material-symbols-outlined text-lg">content_copy</span></button>
-                        <button onClick={() => handleExcluirViagem(v.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="material-symbols-outlined text-lg">delete</span></button>
+                        <button onClick={() => abrirModalEditarViagem(v)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">edit</span></button>
+                        <button onClick={() => handleDuplicarViagem(v)} className="p-1.5 text-[#2196F3] hover:bg-[#2196F3]/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">content_copy</span></button>
+                        <button onClick={() => handleExcluirViagem(v.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">delete</span></button>
                       </div>
                     </div>
                   </div>
@@ -427,7 +427,7 @@ export function PerfilPage() {
 
         {/* Botao Cadastrar Viagem */}
         <button onClick={abrirModalNovaViagem} className="w-full bg-primary/10 text-primary border border-primary/30 font-bold py-3 rounded-xl hover:bg-primary/20 transition-all flex items-center justify-center gap-2">
-          <span className="material-symbols-outlined">flight</span>
+          <span className="matérial-symbols-outlined">flight</span>
           Cadastrar Viagem
         </button>
       </main>
@@ -439,20 +439,20 @@ export function PerfilPage() {
           <div className="relative bg-surface rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-outline-variant space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <button onClick={fecharModalViagem} className="flex items-center gap-1 text-on-surface-variant hover:text-on-surface transition-colors py-1 px-2 -ml-2 rounded-lg hover:bg-surface-container">
-                <span className="material-symbols-outlined text-xl">arrow_back</span>
+                <span className="matérial-symbols-outlined text-xl">arrow_back</span>
                 <span className="text-sm font-medium">Voltar</span>
               </button>
               <h3 className="font-section-heading text-section-heading text-sm">{editandoViagemId ? 'Editar Viagem' : 'Nova Viagem'}</h3>
               <button onClick={fecharModalViagem} className="p-2 hover:bg-surface-container rounded-full transition-colors">
-                <span className="material-symbols-outlined text-on-surface-variant text-xl">close</span>
+                <span className="matérial-symbols-outlined text-on-surface-variant text-xl">close</span>
               </button>
             </div>
             {erro && <div className="p-3 bg-error-container/20 border border-error/30 rounded-lg text-error text-sm">{erro}</div>}
             {sucesso && <div className="p-3 bg-primary-container/20 border border-primary/30 rounded-lg text-primary text-sm">{sucesso}</div>}
             <input value={formViagem.destino} onChange={e => setFormViagem({ ...formViagem, destino: e.target.value })} placeholder="Destino" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
             <div className="grid grid-cols-2 gap-2">
-              <div><label className="text-label-sm text-on-surface-variant block mb-1">Saída</label><input type="date" value={formViagem.dataSaida} onChange={e => setFormViagem({ ...formViagem, dataSaida: e.target.value })} min={new Date().toISOString().split('T')[0]} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
-              <div><label className="text-label-sm text-on-surface-variant block mb-1">Retorno</label><input type="date" value={formViagem.dataRetorno} onChange={e => setFormViagem({ ...formViagem, dataRetorno: e.target.value })} min={formViagem.dataSaida || new Date().toISOString().split('T')[0]} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
+              <div><label className="text-label-sm text-on-surface-variant block mb-1">Saída</label><input type="daté" value={formViagem.dataSaida} onChange={e => setFormViagem({ ...formViagem, dataSaida: e.target.value })} min={new Date().toISOString().split('T')[0]} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
+              <div><label className="text-label-sm text-on-surface-variant block mb-1">Retorno</label><input type="daté" value={formViagem.dataRetorno} onChange={e => setFormViagem({ ...formViagem, dataRetorno: e.target.value })} min={formViagem.dataSaida || new Date().toISOString().split('T')[0]} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
             </div>
             <textarea value={formViagem.motivo} onChange={e => setFormViagem({ ...formViagem, motivo: e.target.value })} placeholder="Motivo (opcional)" rows={2} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm resize-none" />
             <div className="flex gap-2">

@@ -9,7 +9,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 
 interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; foto?: string; }
 interface Comodo { id: string; nome: string; icone: string; cor: string; tipo: 'coletivo' | 'privado'; casaId: string; ordem: number; createdBy: string; responsavelId?: string; }
-interface Tarefa { id: string; titulo: string; descricao: string; comodoId: string; responsavelId: string; casaId: string; prioridade: 'alta' | 'media' | 'baixa'; frequencia: 'unica' | 'diaria' | 'semanal' | 'quinzenal' | 'mensal'; status: 'aguardando_responsavel' | 'pendente' | 'em_andamento' | 'concluida'; tipo: 'coletiva' | 'privada'; diasSemana: string[]; diaMes: number; createdBy: string; dataUnica?: string; vezesPorSemana?: number; }
+interface Tarefa { id: string; titulo: string; descricao: string; comodoId: string; responsavelId: string; casaId: string; prioridade: 'alta' | 'media' | 'baixa'; frequencia: 'unica' | 'diaria' | 'semanal' | 'quinzenal' | 'mensal'; status: 'aguardando_responsavel' | 'pendente' | 'em_andamento' | 'concluída'; tipo: 'coletiva' | 'privada'; diasSemana: string[]; diaMes: number; createdBy: string; dataUnica?: string; vezesPorSemana?: number; }
 interface UserData {
   uid: string;
   name: string;
@@ -29,9 +29,9 @@ interface UserData {
   pixKey?: string;
   [key: string]: any;
 }
-type Aba = 'casas' | 'comodos' | 'tarefas' | 'moradores' | 'distribuicao' | 'notificacoes';
+type Aba = 'casas' | 'comodos' | 'tarefas' | 'moradores' | 'distribuição' | 'notificações';
 
-interface Atribuicao { id: string; tarefaId: string; titulo: string; descricao: string; prioridade: 'alta' | 'media' | 'baixa'; responsavelId: string; responsavelNome: string; diaSemana: number; status: 'pendente' | 'concluida'; dataConclusao?: string; }
+interface Atribuicao { id: string; tarefaId: string; titulo: string; descricao: string; prioridade: 'alta' | 'media' | 'baixa'; responsavelId: string; responsavelNome: string; diaSemana: number; status: 'pendente' | 'concluída'; dataConclusao?: string; }
 interface Distribuicao { id: string; weekId: string; houseId: string; atribuicoes: Atribuicao[]; }
 interface TarefaBase { id: string; titulo: string; descricao: string; frequencia: string; prioridade: 'alta' | 'media' | 'baixa'; diasSemana: string[]; horarioLimite: string; houseId: string; ativo: boolean; }
 interface Execucao { id: string; tarefaId: string; executorId: string; data: string; houseId: string; }
@@ -200,7 +200,7 @@ export function ConfiguracoesPage() {
   const [testBody, setTestBody] = useState('');
   const [logs, setLogs] = useState<string[]>([]);
 
-  const addLog = (msg: string) => setLogs(prev => [...prev.slice(-19), `${new Date().toLocaleTimeString()}: ${msg}`]);
+  const addLog = (msg: string) => setLogs(prev => [...prev.slice(-19), `${new Daté().toLocaleTimeString()}: ${msg}`]);
 
   function getSemanaAtual(semanaOffset = 0): string {
     const hoje = new Date();
@@ -232,8 +232,8 @@ export function ConfiguracoesPage() {
       const numSemana = diasDiff + 1;
       const temDiaNoMes = semanaAtual <= ultimoDiaMes && fimSemana >= primeiroDiaMes;
       if (temDiaNoMes || semanas.length === 0) {
-        const inicioStr = `${String(semanaAtual.getDate()).padStart(2, '0')}/${String(semanaAtual.getMonth() + 1).padStart(2, '0')}`;
-        const fimStr = `${String(fimSemana.getDate()).padStart(2, '0')}/${String(fimSemana.getMonth() + 1).padStart(2, '0')}`;
+        const inicioStr = `${String(semanaAtual.getDaté()).padStart(2, '0')}/${String(semanaAtual.getMonth() + 1).padStart(2, '0')}`;
+        const fimStr = `${String(fimSemana.getDaté()).padStart(2, '0')}/${String(fimSemana.getMonth() + 1).padStart(2, '0')}`;
         semanas.push({ weekId: `${ano}-W${String(numSemana).padStart(2, '0')}`, num: numSemana, label: `S${numSemana}`, inicio: inicioStr, fim: fimStr });
       }
       if (semanaAtual > ultimoDiaMes && semanas.length > 0) break;
@@ -276,7 +276,7 @@ export function ConfiguracoesPage() {
 
   useEffect(() => { if (user?.uid) { carregarCasas(); } }, [user?.uid]);
   useEffect(() => { if (casaSelecionada?.id) { carregarComodos(); carregarTarefas(); carregarMoradores(); } }, [casaSelecionada?.id]);
-  useEffect(() => { if (abaAtiva === 'distribuicao' && casaSelecionada?.id) { carregarDadosDistribuicao(); } }, [abaAtiva, casaSelecionada?.id, semanaSelecionada]);
+  useEffect(() => { if (abaAtiva === 'distribuição' && casaSelecionada?.id) { carregarDadosDistribuicao(); } }, [abaAtiva, casaSelecionada?.id, semanaSelecionada]);
   useEffect(() => { if (abaAtiva === 'moradores' && moradores.length > 0) { carregarViagensMoradores(); } }, [abaAtiva, moradores]);
 
   async function carregarCasas() {
@@ -291,7 +291,7 @@ export function ConfiguracoesPage() {
   }
 
   async function handleSalvarCasa() {
-    if (!formCasa.nome.trim()) { setErro('Nome obrigatorio'); return; }
+    if (!formCasa.nome.trim()) { setErro('Nome obrigatório'); return; }
     try {
       if (editandoCasaId) {
         await updateDoc(doc(db, 'casas', editandoCasaId), { ...formCasa, updatedAt: serverTimestamp() });
@@ -345,7 +345,7 @@ export function ConfiguracoesPage() {
   }
 
   async function handleExcluirCasa(id: string) {
-    if (!confirm('Ao excluir esta casa, os cômodos, tarefas e distribuições vinculados a ela permanecerão no sistema, mas não ficarão mais visíveis.\n\nTem certeza que deseja excluir?')) return;
+    if (!confirm('Ao excluir esta casa, os cômodos, tarefas e distribuições vinculados a ela permanecerão no sistema, mas não ficarão mais visíveis.\n\nTem certeza que desejá excluir?')) return;
     try { await deleteDoc(doc(db, 'casas', id)); setSucesso('Casa excluída!'); carregarCasas(); if (casaSelecionada?.id === id) setCasaSelecionada(null); }
     catch (e: any) { setErro('Erro: ' + e.message); }
   }
@@ -485,7 +485,7 @@ export function ConfiguracoesPage() {
 
   async function handleExcluirTarefa(id: string) {
     if (!confirm('Excluir esta tarefa?')) return;
-    try { await deleteDoc(doc(db, 'tarefas', id)); setSucesso('Tarefa excluida!'); carregarTarefas(); }
+    try { await deleteDoc(doc(db, 'tarefas', id)); setSucesso('Tarefa excluída!'); carregarTarefas(); }
     catch (e: any) { setErro('Erro: ' + e.message); }
   }
 
@@ -580,7 +580,7 @@ export function ConfiguracoesPage() {
   }
 
   async function handleExcluirMorador(morador: UserData) {
-    if (!confirm('Tem certeza que deseja excluir ' + morador.name + '? Esta acao nao pode ser desfeita.')) return;
+    if (!confirm('Tem certeza que desejá excluir ' + morador.name + '? Esta ação não pode ser desfeita.')) return;
     try {
       // Soft delete - desativa o usuario e remove da casa (evita permissao de deleteDoc no doc de outro user)
       await updateDoc(doc(db, 'users', morador.uid), {
@@ -589,7 +589,7 @@ export function ConfiguracoesPage() {
         updatedAt: serverTimestamp(),
       });
       setMoradores(prev => prev.filter(m => m.uid !== morador.uid));
-      setSucesso(morador.name + ' excluido');
+      setSucesso(morador.name + ' excluído');
     } catch (e: any) { setErro('Erro ao excluir: ' + e.message); }
   }
 
@@ -626,8 +626,8 @@ export function ConfiguracoesPage() {
 
   async function salvarViagem() {
     if (!editandoMoradorId) return;
-    if (!novaViagem.destino.trim() || !novaViagem.dataSaida || !novaViagem.dataRetorno) { setErro('Preencha destino, data de saida e retorno'); return; }
-    if (novaViagem.dataSaida > novaViagem.dataRetorno) { setErro('Data de retorno deve ser apos a data de saida'); return; }
+    if (!novaViagem.destino.trim() || !novaViagem.dataSaida || !novaViagem.dataRetorno) { setErro('Preencha destino, data de saída e retorno'); return; }
+    if (novaViagem.dataSaida > novaViagem.dataRetorno) { setErro('Data de retorno deve ser após a data de saída'); return; }
     try {
       if (editandoViagemId) {
         await updateDoc(doc(db, 'viagens', editandoViagemId), { ...novaViagem, updatedAt: serverTimestamp() });
@@ -647,7 +647,7 @@ export function ConfiguracoesPage() {
     try {
       await deleteDoc(doc(db, 'viagens', viagemId));
       setViagensMoradorEditando(prev => prev.filter(v => v.id !== viagemId));
-      setSucesso('Viagem excluida!');
+      setSucesso('Viagem excluída!');
       await carregarViagensMoradores();
     } catch (e: any) { setErro('Erro ao excluir viagem: ' + e.message); }
   }
@@ -705,7 +705,7 @@ export function ConfiguracoesPage() {
       let encontrou = false;
       s4.forEach(d => { const data = d.data() as Omit<Distribuicao, 'id'>; if (data.weekId === semanaSelecionada && !encontrou) { encontrou = true; setDistribuicao({ id: d.id, ...data }); } });
       if (!encontrou) setDistribuicao(null);
-    } catch (e: any) { setErro('Erro ao carregar distribuicao: ' + e.message); }
+    } catch (e: any) { setErro('Erro ao carregar distribuição: ' + e.message); }
     setDistLoading(false);
   }
 
@@ -845,14 +845,14 @@ export function ConfiguracoesPage() {
       tarefasExpandidas.filter(({ tarefa }) => tarefa.diasSemana?.length > 0).forEach(({ tarefa, dia }) => {
         const result = distribuirTarefa(tarefa, dia);
         if (result) {
-          atribuicoes.push({ id: `${Date.now()}-${Math.random()}`, tarefaId: tarefa.id, titulo: tarefa.titulo, descricao: tarefa.descricao, prioridade: tarefa.prioridade, responsavelId: result.responsavel.uid, responsavelNome: result.responsavel.name, diaSemana: result.dia, status: 'pendente' });
+          atribuicoes.push({ id: `${Daté.now()}-${Math.random()}`, tarefaId: tarefa.id, titulo: tarefa.titulo, descricao: tarefa.descricao, prioridade: tarefa.prioridade, responsavelId: result.responsavel.uid, responsavelNome: result.responsavel.name, diaSemana: result.dia, status: 'pendente' });
         }
       });
       // Aloca tarefas sem dia definido (algoritmo otimiza)
       tarefasExpandidas.filter(({ tarefa }) => !tarefa.diasSemana?.length).forEach(({ tarefa }) => {
         const result = distribuirTarefa(tarefa, null);
         if (result) {
-          atribuicoes.push({ id: `${Date.now()}-${Math.random()}`, tarefaId: tarefa.id, titulo: tarefa.titulo, descricao: tarefa.descricao, prioridade: tarefa.prioridade, responsavelId: result.responsavel.uid, responsavelNome: result.responsavel.name, diaSemana: result.dia, status: 'pendente' });
+          atribuicoes.push({ id: `${Daté.now()}-${Math.random()}`, tarefaId: tarefa.id, titulo: tarefa.titulo, descricao: tarefa.descricao, prioridade: tarefa.prioridade, responsavelId: result.responsavel.uid, responsavelNome: result.responsavel.name, diaSemana: result.dia, status: 'pendente' });
         }
       });
       const distRef = collection(db, 'distribuicoes');
@@ -862,7 +862,7 @@ export function ConfiguracoesPage() {
       if (existente) { await updateDoc(doc(db, 'distribuicoes', existente.id), { atribuicoes }); }
       else { await addDoc(distRef, { casaId, weekId: semanaSelecionada, atribuicoes, createdAt: serverTimestamp() }); }
       const resumo = moradoresPresentes.map(m => `${m.name}: ${tarefasPorMorador[m.uid] || 0}`).join(', ');
-      setSucesso(`${atribuicoes.length} tarefas distribuidas. ${resumo}`);
+      setSucesso(`${atribuições.length} tarefas distribuídas. ${resumo}`);
       setDebugLog(debugLogs);
       await carregarDadosDistribuicao();
     } catch (e: any) { setErro('Erro ao gerar tarefas: ' + e.message); }
@@ -873,7 +873,7 @@ export function ConfiguracoesPage() {
     if (!distribuicao || moradoresPresentes.length === 0) return;
     setDistLoading(true); setErro(''); setSucesso('');
     try {
-      const concluidas = distribuicao.atribuicoes.filter(a => a.status === 'concluida');
+      const concluidas = distribuicao.atribuicoes.filter(a => a.status === 'concluída');
       const pendentes = distribuicao.atribuicoes.filter(a => a.status === 'pendente');
       const concluidasPorMorador: Record<string, number> = {};
       concluidas.forEach(a => { concluidasPorMorador[a.responsavelId] = (concluidasPorMorador[a.responsavelId] || 0) + 1; });
@@ -889,7 +889,7 @@ export function ConfiguracoesPage() {
         if (sortedMoradores.length > 0) { const r = sortedMoradores[0]; tarefasPorMorador[r.uid] = (tarefasPorMorador[r.uid] || 0) + 1; novasAtribuicoes.push({ ...p, responsavelId: r.uid, responsavelNome: r.name }); }
       });
       await updateDoc(doc(db, 'distribuicoes', distribuicao.id), { atribuicoes: novasAtribuicoes });
-      setSucesso('Tarefas redistribuidas!');
+      setSucesso('Tarefas redistribuídas!');
       await carregarDadosDistribuicao();
     } catch (e: any) { setErro('Erro ao redistribuir: ' + e.message); }
     setDistLoading(false);
@@ -899,7 +899,7 @@ export function ConfiguracoesPage() {
     if (!distribuicao || !user?.uid || !casaSelecionada?.id) return;
     try {
       const novasAtribuicoes = distribuicao.atribuicoes.map(a => {
-        if (a.id === atribuicao.id) { const novoStatus: 'pendente' | 'concluida' = a.status === 'concluida' ? 'pendente' : 'concluida'; return { ...a, status: novoStatus, dataConclusao: novoStatus === 'concluida' ? new Date().toISOString() : undefined }; }
+        if (a.id === atribuicao.id) { const novoStatus: 'pendente' | 'concluída' = a.status === 'concluída' ? 'pendente' : 'concluída'; return { ...a, status: novoStatus, dataConclusao: novoStatus === 'concluída' ? new Date().toISOString() : undefined }; }
         return a;
       });
       await updateDoc(doc(db, 'distribuicoes', distribuicao.id), { atribuicoes: novasAtribuicoes });
@@ -910,12 +910,12 @@ export function ConfiguracoesPage() {
 
   async function handleExcluirDistribuicao() {
     if (!distribuicao) return;
-    if (!confirm(`Excluir a distribuicao da semana ${semanaSelecionada}?\n\nTodas as atribuicoes serao perdidas.`)) return;
+    if (!confirm(`Excluir a distribuição da semana ${semanaSelecionada}?\n\nTodas as atribuições serão perdidas.`)) return;
     setDistLoading(true);
     try {
       await deleteDoc(doc(db, 'distribuicoes', distribuicao.id));
       setDistribuicao(null);
-      setSucesso('Distribuicao excluida!');
+      setSucesso('Distribuição excluída!');
     } catch (e: any) { setErro('Erro ao excluir: ' + e.message); }
     setDistLoading(false);
   }
@@ -925,8 +925,8 @@ export function ConfiguracoesPage() {
     { key: 'comodos', label: 'Cômodos', icon: '🚪' },
     { key: 'tarefas', label: 'Tarefas', icon: '✅' },
     { key: 'moradores', label: 'Moradores', icon: '👥' },
-    { key: 'distribuicao', label: 'Distribuição', icon: '📊' },
-    { key: 'notificacoes', label: 'Notificações', icon: '🔔' },
+    { key: 'distribuição', label: 'Distribuição', icon: '📊' },
+    { key: 'notificações', label: 'Notificações', icon: '🔔' },
   ];
 
   return (
@@ -958,7 +958,7 @@ export function ConfiguracoesPage() {
         </div>
 
         {/* Casa seletor */}
-        {abaAtiva !== 'casas' && abaAtiva !== 'notificacoes' && (
+        {abaAtiva !== 'casas' && abaAtiva !== 'notificações' && (
           <div className="mb-4">
             <label className="text-label-sm text-on-surface-variant block mb-1">Casa</label>
             <select value={casaSelecionada?.id || ''} onChange={e => { const c = casas.find(x => x.id === e.target.value); setCasaSelecionada(c || null); }} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm">
@@ -978,12 +978,12 @@ export function ConfiguracoesPage() {
             {casaSelecionada && (
               <div className="bg-primary/10 border border-primary/30 rounded-xl p-4 flex items-center gap-3">
                 <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-on-primary">check</span>
+                  <span className="matérial-symbols-outlined text-on-primary">check</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] text-primary font-bold uppercase tracking-wider">Casa Ativa</p>
-                  <h4 className="font-bold text-on-surface truncate">{casaSelecionada.nome}</h4>
-                  <p className="text-caption text-on-surface-variant truncate">{casaSelecionada.endereco}, {casaSelecionada.cidade}</p>
+                  <h4 className="font-bold text-on-surface truncaté">{casaSelecionada.nome}</h4>
+                  <p className="text-caption text-on-surface-variant truncaté">{casaSelecionada.endereco}, {casaSelecionada.cidade}</p>
                 </div>
               </div>
             )}
@@ -992,7 +992,7 @@ export function ConfiguracoesPage() {
             <div className="bg-surface-card rounded-xl border border-outline-variant p-4 space-y-3">
               <h3 className="font-section-heading text-section-heading">{editandoCasaId ? 'Editar Casa' : 'Nova Casa'}</h3>
               <input value={formCasa.nome} onChange={e => setFormCasa({ ...formCasa, nome: e.target.value })} placeholder="Nome" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
-              <input value={formCasa.endereco} onChange={e => setFormCasa({ ...formCasa, endereco: e.target.value })} placeholder="Endereco" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+              <input value={formCasa.endereco} onChange={e => setFormCasa({ ...formCasa, endereco: e.target.value })} placeholder="Endereço" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
               <div className="flex flex-wrap gap-2">
                 <input value={formCasa.cidade} onChange={e => setFormCasa({ ...formCasa, cidade: e.target.value })} placeholder="Cidade" className="flex-1 min-w-0 bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                 <input value={formCasa.estado} onChange={e => setFormCasa({ ...formCasa, estado: e.target.value })} placeholder="UF" className="w-14 bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
@@ -1000,7 +1000,7 @@ export function ConfiguracoesPage() {
               </div>
               <div>
                 <label className="text-label-sm text-on-surface-variant block mb-1">Senha de cadastro</label>
-                <input value={formCasa.senhaCadastro} onChange={e => setFormCasa({ ...formCasa, senhaCadastro: e.target.value })} placeholder="ex: perguntaproabacate" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                <input value={formCasa.senhaCadastro} onChange={e => setFormCasa({ ...formCasa, senhaCadastro: e.target.value })} placeholder="ex: perguntaproabacaté" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                 <p className="text-[10px] text-on-surface-variant mt-1">Os novos usuários precisarão digitar esta senha para se associar à casa.</p>
               </div>
               <div>
@@ -1014,12 +1014,12 @@ export function ConfiguracoesPage() {
                         <img src={formCasa.foto} alt="Preview" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full bg-surface-container-high flex items-center justify-center">
-                          <span className="material-symbols-outlined text-on-surface-variant text-2xl">home</span>
+                          <span className="matérial-symbols-outlined text-on-surface-variant text-2xl">home</span>
                         </div>
                       )}
                       {uploadingFotoCasa && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                          <span className="material-symbols-outlined animate-spin text-white text-xl">refresh</span>
+                          <span className="matérial-symbols-outlined animaté-spin text-white text-xl">refresh</span>
                         </div>
                       )}
                     </div>
@@ -1047,7 +1047,7 @@ export function ConfiguracoesPage() {
                 ) : (
                   <div className="flex items-center gap-3">
                     <div className="w-20 h-20 rounded-xl bg-surface-container-high flex items-center justify-center flex-shrink-0">
-                      <span className="material-symbols-outlined text-on-surface-variant text-2xl">home</span>
+                      <span className="matérial-symbols-outlined text-on-surface-variant text-2xl">home</span>
                     </div>
                     <p className="text-[10px] text-on-surface-variant">
                       Salve a casa primeiro para adicionar uma foto.
@@ -1075,7 +1075,7 @@ export function ConfiguracoesPage() {
                           onClick={() => setCasaSelecionada(c)}
                           className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${isAtiva ? 'bg-primary' : 'bg-surface-container-high border-2 border-outline-variant hover:border-primary'}`}
                         >
-                          {isAtiva && <span className="material-symbols-outlined text-on-primary text-sm">check</span>}
+                          {isAtiva && <span className="matérial-symbols-outlined text-on-primary text-sm">check</span>}
                         </button>
                         {/* Info da casa */}
                         <div onClick={() => setCasaSelecionada(c)} className="flex-1 min-w-0 cursor-pointer flex items-center gap-3">
@@ -1083,21 +1083,21 @@ export function ConfiguracoesPage() {
                             <img src={c.foto} alt={c.nome} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
                           ) : (
                             <div className="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center flex-shrink-0">
-                              <span className="material-symbols-outlined text-on-surface-variant">home</span>
+                              <span className="matérial-symbols-outlined text-on-surface-variant">home</span>
                             </div>
                           )}
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <h4 className={`font-bold truncate ${isAtiva ? 'text-primary' : 'text-on-surface'}`}>{c.nome}</h4>
+                              <h4 className={`font-bold truncaté ${isAtiva ? 'text-primary' : 'text-on-surface'}`}>{c.nome}</h4>
                               {isAtiva && <span className="flex-shrink-0 px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-full uppercase">Ativa</span>}
                             </div>
-                            <p className="text-caption text-on-surface-variant truncate">{c.endereco}, {c.cidade} - {c.estado}</p>
+                            <p className="text-caption text-on-surface-variant truncaté">{c.endereco}, {c.cidade} - {c.estado}</p>
                           </div>
                         </div>
                         {/* Acoes */}
                         <div className="flex gap-1 flex-shrink-0">
-                          <button onClick={() => { setEditandoCasaId(c.id); setFormCasa({ nome: c.nome, endereco: c.endereco, cidade: c.cidade, estado: c.estado, cep: c.cep, senhaCadastro: c.senhaCadastro || '', foto: c.foto || '' }); }} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
-                          <button onClick={() => handleExcluirCasa(c.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="material-symbols-outlined text-lg">delete</span></button>
+                          <button onClick={() => { setEditandoCasaId(c.id); setFormCasa({ nome: c.nome, endereco: c.endereco, cidade: c.cidade, estado: c.estado, cep: c.cep, senhaCadastro: c.senhaCadastro || '', foto: c.foto || '' }); }} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">edit</span></button>
+                          <button onClick={() => handleExcluirCasa(c.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">delete</span></button>
                         </div>
                       </div>
                     </div>
@@ -1118,15 +1118,15 @@ export function ConfiguracoesPage() {
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="text-xl">{c.icone}</span>
                     <div className="min-w-0">
-                      <h4 className="font-bold text-on-surface truncate">{c.nome}</h4>
+                      <h4 className="font-bold text-on-surface truncaté">{c.nome}</h4>
                       <span className="text-caption text-on-surface-variant capitalize">
                         {c.tipo}{responsavel ? ` • ${responsavel.name}` : ''}
                       </span>
                     </div>
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
-                    <button onClick={() => abrirModalEditarComodo(c)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
-                    <button onClick={() => handleExcluirComodo(c.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="material-symbols-outlined text-lg">delete</span></button>
+                    <button onClick={() => abrirModalEditarComodo(c)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">edit</span></button>
+                    <button onClick={() => handleExcluirComodo(c.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">delete</span></button>
                   </div>
                 </div>
               );
@@ -1137,7 +1137,7 @@ export function ConfiguracoesPage() {
               onClick={abrirModalNovoComodo}
               className="fixed bottom-20 right-4 w-14 h-14 bg-primary rounded-full shadow-lg flex items-center justify-center text-on-primary z-40 hover:brightness-110 active:scale-90 transition-all"
             >
-              <span className="material-symbols-outlined text-3xl">add</span>
+              <span className="matérial-symbols-outlined text-3xl">add</span>
             </button>
 
             {/* Modal Cômodo */}
@@ -1148,7 +1148,7 @@ export function ConfiguracoesPage() {
                   <div className="flex items-center justify-between">
                     <h3 className="font-section-heading text-section-heading">{editandoComodoId ? 'Editar Cômodo' : 'Novo Cômodo'}</h3>
                     <button onClick={fecharModalComodo} className="p-1 hover:bg-surface-container rounded-full transition-colors">
-                      <span className="material-symbols-outlined text-on-surface-variant">close</span>
+                      <span className="matérial-symbols-outlined text-on-surface-variant">close</span>
                     </button>
                   </div>
                   <input value={formComodo.nome} onChange={e => { const nome = e.target.value; setFormComodo({ ...formComodo, nome, icone: sugerirEmoji(nome) }); }} placeholder="Nome do cômodo" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
@@ -1213,7 +1213,7 @@ export function ConfiguracoesPage() {
               return (
                 <div className="bg-surface-card rounded-xl border border-outline-variant p-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary text-lg">checklist</span>
+                    <span className="matérial-symbols-outlined text-primary text-lg">checklist</span>
                     <span className="font-bold text-on-surface">Tarefas: {total}</span>
                     <span className="text-[10px] text-on-surface-variant">(Alta {alta} | Média {media} | Baixa {baixa})</span>
                   </div>
@@ -1257,17 +1257,17 @@ export function ConfiguracoesPage() {
                           <div key={t.id} className="bg-surface-card rounded-xl border border-outline-variant p-3">
                             <div className="flex justify-between items-start">
                               <div className="min-w-0">
-                                <h4 className="font-bold text-on-surface truncate">{t.titulo}</h4>
-                                <p className="text-caption text-on-surface-variant truncate">{t.descricao}</p>
+                                <h4 className="font-bold text-on-surface truncaté">{t.titulo}</h4>
+                                <p className="text-caption text-on-surface-variant truncaté">{t.descricao}</p>
                                 <div className="flex gap-2 mt-1">
                                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.prioridade === 'alta' ? 'bg-tertiary-container/20 text-tertiary-container' : t.prioridade === 'media' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-gray-400/10 text-gray-500'}`}>{t.prioridade.toUpperCase()}</span>
                                   <span className="text-[10px] text-text-muted capitalize">{t.frequencia}</span>
                                 </div>
                               </div>
                               <div className="flex gap-1 flex-shrink-0">
-                                <button onClick={() => abrirModalEditarTarefa(t)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
-                                <button onClick={() => handleDuplicarTarefa(t)} className="p-1.5 text-[#2196F3] hover:bg-[#2196F3]/10 rounded-lg"><span className="material-symbols-outlined text-lg">content_copy</span></button>
-                                <button onClick={() => handleExcluirTarefa(t.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="material-symbols-outlined text-lg">delete</span></button>
+                                <button onClick={() => abrirModalEditarTarefa(t)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">edit</span></button>
+                                <button onClick={() => handleDuplicarTarefa(t)} className="p-1.5 text-[#2196F3] hover:bg-[#2196F3]/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">content_copy</span></button>
+                                <button onClick={() => handleExcluirTarefa(t.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">delete</span></button>
                               </div>
                             </div>
                           </div>
@@ -1287,16 +1287,16 @@ export function ConfiguracoesPage() {
                         <div key={t.id} className="bg-surface-card rounded-xl border border-outline-variant p-3">
                           <div className="flex justify-between items-start">
                             <div className="min-w-0">
-                              <h4 className="font-bold text-on-surface truncate">{t.titulo}</h4>
-                              <p className="text-caption text-on-surface-variant truncate">{t.descricao}</p>
+                              <h4 className="font-bold text-on-surface truncaté">{t.titulo}</h4>
+                              <p className="text-caption text-on-surface-variant truncaté">{t.descricao}</p>
                               <div className="flex gap-2 mt-1">
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.prioridade === 'alta' ? 'bg-tertiary-container/20 text-tertiary-container' : t.prioridade === 'media' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-gray-400/10 text-gray-500'}`}>{t.prioridade.toUpperCase()}</span>
                                 <span className="text-[10px] text-text-muted capitalize">{t.frequencia}</span>
                               </div>
                             </div>
                             <div className="flex gap-1 flex-shrink-0">
-                              <button onClick={() => abrirModalEditarTarefa(t)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
-                              <button onClick={() => handleExcluirTarefa(t.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="material-symbols-outlined text-lg">delete</span></button>
+                              <button onClick={() => abrirModalEditarTarefa(t)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">edit</span></button>
+                              <button onClick={() => handleExcluirTarefa(t.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="matérial-symbols-outlined text-lg">delete</span></button>
                             </div>
                           </div>
                         </div>
@@ -1312,7 +1312,7 @@ export function ConfiguracoesPage() {
               onClick={abrirModalNovaTarefa}
               className="fixed bottom-20 right-4 w-14 h-14 bg-primary rounded-full shadow-lg flex items-center justify-center text-on-primary z-40 hover:brightness-110 active:scale-90 transition-all"
             >
-              <span className="material-symbols-outlined text-3xl">add</span>
+              <span className="matérial-symbols-outlined text-3xl">add</span>
             </button>
 
             {/* Modal Tarefa */}
@@ -1323,7 +1323,7 @@ export function ConfiguracoesPage() {
                   <div className="flex items-center justify-between">
                     <h3 className="font-section-heading text-section-heading">{editandoTarefaId ? 'Editar Tarefa' : 'Nova Tarefa'}</h3>
                     <button onClick={fecharModalTarefa} className="p-1 hover:bg-surface-container rounded-full transition-colors">
-                      <span className="material-symbols-outlined text-on-surface-variant">close</span>
+                      <span className="matérial-symbols-outlined text-on-surface-variant">close</span>
                     </button>
                   </div>
                   {erro && <div className="p-3 bg-error-container/20 border border-error/30 rounded-lg text-error text-sm">{erro}</div>}
@@ -1342,7 +1342,7 @@ export function ConfiguracoesPage() {
                     <div>
                       <label className="text-label-sm text-on-surface-variant block mb-1">Data da Tarefa</label>
                       <input
-                        type="date"
+                        type="daté"
                         value={formTarefa.dataUnica}
                         onChange={e => setFormTarefa({ ...formTarefa, dataUnica: e.target.value })}
                         min={new Date().toISOString().split('T')[0]}
@@ -1424,7 +1424,7 @@ export function ConfiguracoesPage() {
               <div className="bg-surface-card rounded-xl border border-primary/30 p-4 space-y-3 shadow-lg">
                 <div className="flex justify-between items-center">
                   <h3 className="font-section-heading text-section-heading">Editar Morador</h3>
-                  <button onClick={() => { setEditandoMoradorId(null); setFormMoradorCompleto({}); }} className="p-1 text-on-surface-variant hover:text-on-surface"><span className="material-symbols-outlined">close</span></button>
+                  <button onClick={() => { setEditandoMoradorId(null); setFormMoradorCompleto({}); }} className="p-1 text-on-surface-variant hover:text-on-surface"><span className="matérial-symbols-outlined">close</span></button>
                 </div>
 
                 {/* Dados basicos */}
@@ -1457,14 +1457,14 @@ export function ConfiguracoesPage() {
                   </div>
                   <div>
                     <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Data Nasc.</label>
-                    <input type="date" value={formMoradorCompleto.birthDate || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, birthDate: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                    <input type="daté" value={formMoradorCompleto.birthDate || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, birthDate: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                   </div>
                 </div>
 
                 {/* Bio e emergencia */}
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Bio / Observacoes</label>
-                  <textarea value={formMoradorCompleto.bio || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, bio: e.target.value })} placeholder="Informacoes sobre o morador..." rows={2} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm resize-none" />
+                  <textarea value={formMoradorCompleto.bio || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, bio: e.target.value })} placeholder="Informações sobre o morador..." rows={2} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm resize-none" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -1503,22 +1503,22 @@ export function ConfiguracoesPage() {
                         {viagensMoradorEditando.map(v => (
                           <div key={v.id} className="bg-surface-container-high rounded-lg p-2 flex justify-between items-center">
                             <div className="min-w-0">
-                              <p className="text-sm font-bold text-on-surface truncate">{v.destino}</p>
+                              <p className="text-sm font-bold text-on-surface truncaté">{v.destino}</p>
                               <p className="text-[10px] text-on-surface-variant">{v.dataSaida} → {v.dataRetorno}</p>
-                              {v.motivo && <p className="text-[10px] text-on-surface-variant truncate">{v.motivo}</p>}
+                              {v.motivo && <p className="text-[10px] text-on-surface-variant truncaté">{v.motivo}</p>}
                             </div>
                             <div className="flex gap-1 flex-shrink-0">
                               <button
                                 onClick={() => { setNovaViagem({ destino: v.destino, dataSaida: v.dataSaida, dataRetorno: v.dataRetorno, motivo: v.motivo }); setEditandoViagemId(v.id); }}
                                 className="p-1 text-primary hover:bg-primary/10 rounded-lg"
                               >
-                                <span className="material-symbols-outlined text-sm">edit</span>
+                                <span className="matérial-symbols-outlined text-sm">edit</span>
                               </button>
                               <button
                                 onClick={() => excluirViagem(v.id)}
                                 className="p-1 text-error hover:bg-error/10 rounded-lg"
                               >
-                                <span className="material-symbols-outlined text-sm">delete</span>
+                                <span className="matérial-symbols-outlined text-sm">delete</span>
                               </button>
                             </div>
                           </div>
@@ -1537,11 +1537,11 @@ export function ConfiguracoesPage() {
                       </div>
                       <div>
                         <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Data Saída</label>
-                        <input type="date" value={novaViagem.dataSaida} onChange={e => setNovaViagem({ ...novaViagem, dataSaida: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                        <input type="daté" value={novaViagem.dataSaida} onChange={e => setNovaViagem({ ...novaViagem, dataSaida: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                       </div>
                       <div>
                         <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Data Retorno</label>
-                        <input type="date" value={novaViagem.dataRetorno} onChange={e => setNovaViagem({ ...novaViagem, dataRetorno: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                        <input type="daté" value={novaViagem.dataRetorno} onChange={e => setNovaViagem({ ...novaViagem, dataRetorno: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                       </div>
                     </div>
                     <button onClick={salvarViagem} className="w-full bg-primary-container text-on-primary-container font-bold py-2 rounded-lg text-sm hover:brightness-110 transition-all">
@@ -1554,11 +1554,11 @@ export function ConfiguracoesPage() {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Data Início</label>
-                        <input type="date" value={formMoradorCompleto.estadiaInicio || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, estadiaInicio: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                        <input type="daté" value={formMoradorCompleto.estadiaInicio || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, estadiaInicio: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                       </div>
                       <div>
                         <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Data Fim</label>
-                        <input type="date" value={formMoradorCompleto.estadiaFim || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, estadiaFim: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                        <input type="daté" value={formMoradorCompleto.estadiaFim || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, estadiaFim: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                       </div>
                     </div>
                   </div>
@@ -1588,7 +1588,7 @@ export function ConfiguracoesPage() {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-on-surface text-sm truncate">{m.name || m.fullName || m.email?.split('@')[0] || 'Sem nome'}</h4>
+                        <h4 className="font-bold text-on-surface text-sm truncaté">{m.name || m.fullName || m.email?.split('@')[0] || 'Sem nome'}</h4>
                         <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${m.role === 'admin' ? 'bg-error/10 text-error' : m.role === 'hospede' ? 'bg-blue-500/10 text-blue-500' : 'bg-primary/10 text-primary'}`}>
                           {m.role}
                         </span>
@@ -1600,7 +1600,7 @@ export function ConfiguracoesPage() {
                           return estaAusente ? <span className="flex-shrink-0 px-2 py-0.5 bg-error/10 rounded-full text-[9px] text-error font-bold">ausente</span> : null;
                         })()}
                       </div>
-                      <p className="text-[11px] text-on-surface-variant truncate">{m.email}</p>
+                      <p className="text-[11px] text-on-surface-variant truncaté">{m.email}</p>
                       {m.phone && <p className="text-[10px] text-on-surface-variant">{m.phone}</p>}
                     </div>
 
@@ -1617,12 +1617,12 @@ export function ConfiguracoesPage() {
 
                       {/* Botao editar completo */}
                       <button onClick={() => abrirEdicaoMoradorCompleto(m)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg">
-                        <span className="material-symbols-outlined text-lg">edit</span>
+                        <span className="matérial-symbols-outlined text-lg">edit</span>
                       </button>
 
                       {/* Botao excluir */}
                       <button onClick={() => handleExcluirMorador(m)} className="p-1.5 text-error hover:bg-error/10 rounded-lg">
-                        <span className="material-symbols-outlined text-lg">delete</span>
+                        <span className="matérial-symbols-outlined text-lg">delete</span>
                       </button>
                     </div>
                   </div>
@@ -1633,7 +1633,7 @@ export function ConfiguracoesPage() {
         )}
 
         {/* === DISTRIBUICAO === */}
-        {abaAtiva === 'distribuicao' && (
+        {abaAtiva === 'distribuição' && (
           <div className="space-y-4">
             {/* Seletor de ano e mes */}
             <div className="flex gap-2">
@@ -1641,7 +1641,7 @@ export function ConfiguracoesPage() {
                 {[anoSelecionado - 2, anoSelecionado - 1, anoSelecionado, anoSelecionado + 1, anoSelecionado + 2].map(a => <option key={a} value={a}>{a}</option>)}
               </select>
               <select value={mesSelecionado} onChange={e => { const m = parseInt(e.target.value); setMesSelecionado(m); const semanas = getSemanasDoMes(anoSelecionado, m); if (semanas.length > 0) setSemanaSelecionada(semanas[0].weekId); }} className="flex-1 bg-surface-card border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm">
-                {['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'].map((nome, i) => <option key={i} value={i}>{nome}</option>)}
+                {['Jáneiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'].map((nome, i) => <option key={i} value={i}>{nome}</option>)}
               </select>
               <button onClick={() => { const hoje = new Date(); setAnoSelecionado(hoje.getFullYear()); setMesSelecionado(hoje.getMonth()); const s = getSemanaDaData(hoje); setSemanaSelecionada(s.weekId); }} className="px-3 bg-primary/10 border border-primary/30 rounded-lg text-primary text-xs font-bold whitespace-nowrap">HOJE</button>
             </div>
@@ -1649,7 +1649,7 @@ export function ConfiguracoesPage() {
             {/* Grade de semanas do mes */}
             <div>
               <div className="flex justify-between items-center mb-2">
-                <p className="text-label-sm text-on-surface-variant">Semanas de {['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][mesSelecionado]} {anoSelecionado}</p>
+                <p className="text-label-sm text-on-surface-variant">Semanas de {['Jáneiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][mesSelecionado]} {anoSelecionado}</p>
                 <span className="text-xs text-primary font-bold bg-primary/10 px-2 py-1 rounded-md">{semanaSelecionada}</span>
               </div>
               <div className="grid grid-cols-4 gap-2">
@@ -1670,7 +1670,7 @@ export function ConfiguracoesPage() {
             {/* Toggle: Considerar domingo */}
             <div className="flex items-center justify-between bg-surface-card rounded-lg border border-outline-variant p-3">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-on-surface-variant">calendar_today</span>
+                <span className="matérial-symbols-outlined text-on-surface-variant">calendar_today</span>
                 <div>
                   <p className="text-sm font-bold text-on-surface">Considerar domingo</p>
                   <p className="text-[10px] text-on-surface-variant">{considerarDomingo ? 'Tarefas serão distribuídas de domingo a sábado (7 dias)' : 'Tarefas serão distribuídas de segunda a sábado (6 dias) — sem tarefas aos domingos'}</p>
@@ -1680,7 +1680,7 @@ export function ConfiguracoesPage() {
                 onClick={() => setConsiderarDomingo(!considerarDomingo)}
                 className={`w-12 h-7 rounded-full transition-colors relative ${considerarDomingo ? 'bg-primary' : 'bg-surface-variant border border-outline-variant'}`}
               >
-                <div className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-on-primary shadow transition-transform ${considerarDomingo ? 'translate-x-5' : 'translate-x-0'}`} />
+                <div className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-on-primary shadow transition-transform ${considerarDomingo ? 'translaté-x-5' : 'translaté-x-0'}`} />
               </button>
             </div>
 
@@ -1699,7 +1699,7 @@ export function ConfiguracoesPage() {
             {/* Aviso quando nenhum morador presente */}
             {moradoresPresentes.length === 0 && (
               <div className="bg-error/10 border border-error/30 rounded-xl p-3 text-center">
-                <span className="material-symbols-outlined text-error text-lg">warning</span>
+                <span className="matérial-symbols-outlined text-error text-lg">warning</span>
                 <p className="text-sm text-error font-bold">Nenhum morador presente</p>
                 <p className="text-[10px] text-error/70">Va em Moradores e marque quem esta presente na casa</p>
               </div>
@@ -1750,8 +1750,8 @@ export function ConfiguracoesPage() {
                   <button onClick={redistribuirTarefas} disabled={distLoading} className="flex-1 bg-surface-container text-on-surface border border-outline-variant font-bold py-3 rounded-lg text-sm hover:bg-surface-container-highest transition-all disabled:opacity-50">
                     Redistribuir
                   </button>
-                  <button onClick={handleExcluirDistribuicao} disabled={distLoading} className="px-3 bg-error/10 border border-error/30 text-error rounded-lg hover:bg-error/20 transition-all disabled:opacity-50" title="Excluir distribuicao">
-                    <span className="material-symbols-outlined">delete</span>
+                  <button onClick={handleExcluirDistribuicao} disabled={distLoading} className="px-3 bg-error/10 border border-error/30 text-error rounded-lg hover:bg-error/20 transition-all disabled:opacity-50" title="Excluir distribuição">
+                    <span className="matérial-symbols-outlined">delete</span>
                   </button>
                 </>
               )}
@@ -1788,7 +1788,7 @@ export function ConfiguracoesPage() {
                   <p className="text-[10px] text-on-surface-variant uppercase">Pendentes</p>
                 </div>
                 <div className="bg-surface-card rounded-xl border border-outline-variant p-3 text-center">
-                  <p className="text-2xl font-bold text-secondary">{distribuicao.atribuicoes.filter(a => a.status === 'concluida').length}</p>
+                  <p className="text-2xl font-bold text-secondary">{distribuicao.atribuicoes.filter(a => a.status === 'concluída').length}</p>
                   <p className="text-[10px] text-on-surface-variant uppercase">Concluidas</p>
                 </div>
               </div>
@@ -1796,10 +1796,10 @@ export function ConfiguracoesPage() {
 
             {/* Visão semanal por dia */}
             {distLoading ? (
-              <div className="text-center py-8"><span className="material-symbols-outlined animate-spin text-primary text-3xl">refresh</span></div>
+              <div className="text-center py-8"><span className="matérial-symbols-outlined animaté-spin text-primary text-3xl">refresh</span></div>
             ) : !distribuicao ? (
               <div className="text-center py-8 bg-surface-card rounded-xl border border-outline-variant">
-                <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-2">calendar_view_week</span>
+                <span className="matérial-symbols-outlined text-4xl text-on-surface-variant mb-2">calendar_view_week</span>
                 <p className="text-on-surface-variant">Nenhuma distribuicao para {semanaSelecionada}</p>
                 <p className="text-caption text-text-muted mt-1">Clique em "Gerar Tarefas" para criar</p>
               </div>
@@ -1809,7 +1809,7 @@ export function ConfiguracoesPage() {
                   const atribDoDia = distribuicao.atribuicoes.filter(a => a.diaSemana === idx);
                   if (atribDoDia.length === 0) return null;
                   const pendentes = atribDoDia.filter(a => a.status === 'pendente');
-                  const concluidas = atribDoDia.filter(a => a.status === 'concluida');
+                  const concluidas = atribDoDia.filter(a => a.status === 'concluída');
                   return (
                     <div key={idx} className="bg-surface-card rounded-xl border border-outline-variant p-3">
                       <div className="flex justify-between items-center mb-2">
@@ -1821,11 +1821,11 @@ export function ConfiguracoesPage() {
                           <div key={a.id} className="flex items-center justify-between py-1">
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               <button onClick={() => toggleTarefaDistribuicao(a)} className="flex-shrink-0">
-                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${a.status === 'concluida' ? 'border-primary bg-primary' : 'border-outline-variant hover:border-primary'}`}>
-                                  {a.status === 'concluida' && <span className="material-symbols-outlined text-[12px] text-on-primary">check</span>}
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${a.status === 'concluída' ? 'border-primary bg-primary' : 'border-outline-variant hover:border-primary'}`}>
+                                  {a.status === 'concluída' && <span className="matérial-symbols-outlined text-[12px] text-on-primary">check</span>}
                                 </div>
                               </button>
-                              <span className={`text-sm truncate ${a.status === 'concluida' ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{a.titulo}</span>
+                              <span className={`text-sm truncaté ${a.status === 'concluída' ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{a.titulo}</span>
                             </div>
                             <span className="text-[10px] text-text-muted flex-shrink-0 ml-2">{a.responsavelNome?.split(' ')[0]}</span>
                           </div>
@@ -1854,7 +1854,7 @@ export function ConfiguracoesPage() {
         )}
 
         {/* === NOTIFICACOES === */}
-        {abaAtiva === 'notificacoes' && (
+        {abaAtiva === 'notificações' && (
           <NotificaçõesTab user={user} token={notifToken} setToken={setNotifToken} perm={notifPerm} setPerm={setNotifPerm} loading={notifLoading} setLoading={setNotifLoading} testTitle={testTitle} setTestTitle={setTestTitle} testBody={testBody} setTestBody={setTestBody} logs={logs} setLogs={setLogs} addLog={addLog} />
         )}
       </main>
@@ -1877,11 +1877,11 @@ function NotificaçõesTab({ user, token, setToken, perm, setPerm, loading, setL
       {/* Status */}
       <div className="p-4 bg-surface-card rounded-xl border border-outline-variant flex items-center gap-4">
         <div className="w-10 h-10 bg-primary-container/20 rounded-full flex items-center justify-center">
-          <span className="material-symbols-outlined text-primary text-xl">notifications</span>
+          <span className="matérial-symbols-outlined text-primary text-xl">notifications</span>
         </div>
         <div>
           <h3 className="font-bold text-on-surface">Status</h3>
-          <p className="text-caption text-on-surface-variant">{perm || 'Nao solicitado'}</p>
+          <p className="text-caption text-on-surface-variant">{perm || 'Não solicitado'}</p>
         </div>
       </div>
 
@@ -1890,12 +1890,12 @@ function NotificaçõesTab({ user, token, setToken, perm, setPerm, loading, setL
         <div className="flex justify-between items-center">
           <h3 className="font-bold text-on-surface">Acoes</h3>
           <button onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs text-primary hover:underline">
-            {showAdvanced ? 'Ocultar avancado' : 'Avancado'}
+            {showAdvanced ? 'Ocultar avançado' : 'Avançado'}
           </button>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button disabled={loading} onClick={async () => { setLoading(true); addLog('Solicitando permissao...'); try { const { PushNotifications } = await import('@capacitor/push-notifications'); await PushNotifications.requestPermissions().then(r => setPerm(r.receive || 'denied')); addLog('Permissao: ' + (perm || 'ok')); } catch (e: any) { setPerm('erro: ' + e.message); addLog('Erro: ' + e.message); } setLoading(false); }} className="px-4 py-2 bg-primary-container text-on-primary-container rounded-lg text-sm font-bold disabled:opacity-50 hover:brightness-110 transition-all">
-            {loading ? '...' : 'Solicitar Permissao'}
+          <button disabled={loading} onClick={async () => { setLoading(true); addLog('Solicitando permissão...'); try { const { PushNotifications } = await import('@capacitor/push-notifications'); await PushNotifications.requestPermissions().then(r => setPerm(r.receive || 'denied')); addLog('Permissão: ' + (perm || 'ok')); } catch (e: any) { setPerm('erro: ' + e.message); addLog('Erro: ' + e.message); } setLoading(false); }} className="px-4 py-2 bg-primary-container text-on-primary-container rounded-lg text-sm font-bold disabled:opacity-50 hover:brightness-110 transition-all">
+            {loading ? '...' : 'Solicitar Permissão'}
           </button>
           <button onClick={async () => { addLog('Registrando...'); try { const { PushNotifications } = await import('@capacitor/push-notifications'); await PushNotifications.register(); PushNotifications.addListener('registration', (t) => { setToken(t.value); addLog('Token obtido!'); }); PushNotifications.addListener('registrationError', (err) => addLog('Erro: ' + err.error)); } catch (e: any) { addLog('Erro: ' + e.message); } }} className="px-4 py-2 bg-surface-container text-on-surface border border-outline-variant rounded-lg text-sm font-bold hover:bg-surface-container-high transition-all">
             Registrar
@@ -1915,7 +1915,7 @@ function NotificaçõesTab({ user, token, setToken, perm, setPerm, loading, setL
         <button
           disabled={!testTitle.trim() || !testBody.trim()}
           onClick={async () => {
-            addLog('Enviando notificacao...');
+            addLog('Enviando notificação...');
             try {
               const { LocalNotifications } = await import('@capacitor/local-notifications');
               await LocalNotifications.schedule({
@@ -1927,14 +1927,14 @@ function NotificaçõesTab({ user, token, setToken, perm, setPerm, loading, setL
                   sound: 'default',
                 }]
               });
-              addLog('Notificacao enviada!');
+              addLog('Notificação enviada!');
               setTestTitle('');
               setTestBody('');
             } catch (e: any) {
               addLog('Erro: ' + e.message);
               try {
                 new Notification(testTitle, { body: testBody });
-                addLog('Notificacao de browser enviada!');
+                addLog('Notificação de browser enviada!');
               } catch (e2: any) {
                 addLog('Erro browser: ' + e2.message);
               }

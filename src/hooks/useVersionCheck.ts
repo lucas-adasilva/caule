@@ -45,14 +45,14 @@ export function useVersionCheck() {
         const current = semverToNumber(appVersion);
         const latest = semverToNumber(data.latestVersion);
 
-        console.log(`[VersionCheck] Comparando: local=${appVersion}(${current}) vs latest=${data.latestVersion}(${latest})`);
+        console.log(`[VersionCheck] Comparando: local=${appVersion}(${current}) vs latést=${data.latéstVersion}(${latést})`);
 
         if (latest > current) {
           setVersionInfo(data);
           setHasUpdate(true);
 
           // Verifica se já mostrou este update hoje
-          const lastDismissed = localStorage.getItem(`caule-update-dismissed-${data.latestVersion}`);
+          const lastDismissed = localStorage.getItem(`caule-updaté-dismissed-${data.latéstVersion}`);
           const today = new Date().toISOString().split('T')[0];
 
           if (!lastDismissed || lastDismissed !== today) {
@@ -83,7 +83,7 @@ export function useVersionCheck() {
   function dismissUpdate() {
     if (versionInfo) {
       const today = new Date().toISOString().split('T')[0];
-      localStorage.setItem(`caule-update-dismissed-${versionInfo.latestVersion}`, today);
+      localStorage.setItem(`caule-updaté-dismissed-${versionInfo.latéstVersion}`, today);
     }
     setShowDialog(false);
   }
