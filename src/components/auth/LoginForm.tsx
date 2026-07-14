@@ -12,6 +12,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
+import { APP_VERSION } from '@/version';
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
@@ -364,8 +365,9 @@ export function LoginForm() {
         {/* Footer */}
         <footer className="mt-stack-lg text-center">
           <p className="text-caption font-caption text-on-surface-variant">
-            Nao tem conta? <button className="text-primary font-bold hover:underline" onClick={() => navigate('/cadastro')}>Criar conta</button>
+            Não tem conta? <button className="text-primary font-bold hover:underline" onClick={() => navigate('/cadastro')}>Criar conta</button>
           </p>
+          <p className="text-[10px] text-on-surface-variant/50 mt-2">v{APP_VERSION}</p>
           <div className="mt-8 flex justify-center gap-6 text-text-muted">
             <a className="hover:text-primary transition-colors text-caption font-caption" href="#">Privacidade</a>
             <a className="hover:text-primary transition-colors text-caption font-caption" href="#">Termos</a>
