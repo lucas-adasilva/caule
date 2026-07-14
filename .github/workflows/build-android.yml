@@ -50,6 +50,26 @@ jobs:
           # Atualiza src/version.ts com a versão do build
           echo "export const APP_VERSION = '$VERSION';" > src/version.ts
           cat src/version.ts
+          # Verifica se o commit atual tem uma tag associada
+          TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
+          if [ -n "$TAG" ]; then
+            echo "HAS_TAG=true" >> $GITHUB_ENV
+            echo "Commit tem tag: $TAG"
+          else
+            echo "HAS_TAG=false" >> $GITHUB_ENV
+            echo "Commit não tem tag"
+          fi
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          echo "VERSION_NAME=$VERSION" >> $GITHUB_ENV
+          echo "Building version: $VERSION"
+          # Atualiza src/version.ts com a versão do build
+          echo "export const APP_VERSION = '$VERSION';" > src/version.ts
+          cat src/version.ts
       - name: Install dependencies
         run: npm install
       - name: Build web app
@@ -80,6 +100,8 @@ jobs:
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
+        if: env.HAS_TAG == 'true'
+        uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           fail_on_unmatched_files: true
@@ -97,6 +119,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update Firestore version info
+        if: env.HAS_TAG == 'true'
         if: startsWith(github.ref, 'refs/tags/')
         env:
           SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CAULE_C064F }}
