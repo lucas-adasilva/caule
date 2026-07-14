@@ -24,7 +24,6 @@ import { PerfilPage } from './pages/PerfilPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { ProjetosPage } from './pages/ProjetosPage';
 import { EstadiaPage } from './pages/EstadiaPage';
-import { CompletarPerfilPage } from './pages/CompletarPerfilPage';
 import { UpdateDialog } from './components/UpdateDialog';
 import { usePushNotifications } from './hooks/usePushNotifications';
 
@@ -38,7 +37,7 @@ export const useApp = () => useContext(AppContext);
 function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const hideNavPaths = ['/login', '/convite', '/cadastro', '/vincular-casa'];
+  const hideNavPaths = ['/login', '/convite', '/cadastro', '/completar-perfil', '/vincular-casa'];
   const showNav = !hideNavPaths.includes(location.pathname);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -186,7 +185,7 @@ function AppRoutes() {
         <Route path="/perfil" element={<ProtectedRoute><PerfilPage /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
         <Route path="/estadia" element={<ProtectedRoute><EstadiaPage /></ProtectedRoute>} />
-        <Route path="/completar-perfil" element={<ProtectedRoute><CompletarPerfilPage /></ProtectedRoute>} />
+        <Route path="/completar-perfil" element={<ProtectedRoute><CadastroPage /></ProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute adminOnly><ConfiguracoesPage /></ProtectedRoute>} />
       </Routes>
     </AppLayout>

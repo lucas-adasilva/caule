@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+import { useAuthStore } from '@/stores/authStore';
 import { TopAppBar } from '@/components/TopAppBar';
 import { formatPhone, formatCpf, isValidPhone, isValidCpf } from '@/utils/formatters';
 
@@ -24,6 +25,12 @@ const CONCORDANCIA: Record<Pronome, Concordancia> = {
 
 export function CadastroPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user: authUser } = useAuthStore();
+  
+  // Detecta se estamos no modo "completar perfil" (usuário veio do Google)
+  const isGoogleMode = location.pathname === '/completar-perfil';
+  
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
@@ -83,10 +90,12 @@ export function CadastroPage() {
   }
 
   function validarStep4(): boolean {
-    if (!email.trim()) { setErro('Informe o e-mail.'); return false; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setErro('E-mail inválido.'); return false; }
-    if (password.length < 6) { setErro('A senha deve ter pelo menos 6 caracteres.'); return false; }
-    if (password !== confirmPassword) { setErro('As senhas não conferem.'); return false; }
+    if (!isGoogleMode) {
+      if (!email.trim()) { setErro('Informe o e-mail.'); return false; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setErro('E-mail inválido.'); return false; }
+      if (password.length < 6) { setErro('A senha deve ter pelo menos 6 caracteres.'); return false; }
+      if (password !== confirmPassword) { setErro('As senhas não conferem.'); return false; }
+    }
     if (!senhaCasa.trim()) { setErro('Informe a senha da casa.'); return false; }
     return true;
   }
@@ -113,32 +122,78 @@ export function CadastroPage() {
         return;
       }
 
-      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      await updateProfile(userCredential.user, { displayName: name.trim() });
-
       const fullPhone = `${ddi.replace(/\D/g, '')}${ddd.replace(/\D/g, '')}${phoneNumber.replace(/\D/g, '')}`;
 
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
-        uid: userCredential.user.uid,
-        name: name.trim(),
-        fullName: fullName.trim(),
-        pronome,
-        email: email.trim(),
-        phone: fullPhone,
-        birthDate,
-        cpf: cpf.replace(/\D/g, ''),
-        pixKey: pixKey.trim() || '',
-        houseId: casaResult.houseId || '',
-        role: 'hospede',
-        isActive: true,
-        isPresent: true,
-        photoURL: '',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+      if (isGoogleMode) {
+        // Modo Google: usuário já está autenticado
+        const currentUser = auth.currentUser;
+        if (!currentUser) { setErro('Usuário não autenticado'); setLoading(false); return; }
 
-      setSucesso(`${c.bemVindo} ao Caule! Sua conta foi criada e você está ${c.vinculada} à ${casaResult.nomeCasa}.`);
-      setTimeout(() => navigate('/login'), 3000);
+        await setDoc(doc(db, 'users', currentUser.uid), {
+          uid: currentUser.uid,
+          name: name.trim() || authUser?.name || currentUser.displayName || '',
+          fullName: fullName.trim(),
+          pronome,
+          email: currentUser.email || '',
+          phone: fullPhone,
+          birthDate,
+          cpf: cpf.replace(/\D/g, ''),
+          pixKey: pixKey.trim() || '',
+          houseId: casaResult.houseId || '',
+          role: 'hospede',
+          isActive: true,
+          isPresent: true,
+          photoURL: currentUser.photoURL || '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+
+        // Atualiza o store local
+        const { setUser } = useAuthStore.getState();
+        setUser({
+          uid: currentUser.uid,
+          email: currentUser.email || '',
+          name: name.trim() || authUser?.name || currentUser.displayName || '',
+          fullName: fullName.trim(),
+          role: 'hospede',
+          isActive: true,
+          isPresent: true,
+          phone: fullPhone,
+          cpf: cpf.replace(/\D/g, ''),
+          pixKey: pixKey.trim() || '',
+          photoURL: currentUser.photoURL || '',
+          houseId: casaResult.houseId || '',
+        });
+
+        setSucesso(`${c.bemVindo} ao Caule! Você está ${c.vinculada} à ${casaResult.nomeCasa}.`);
+        setTimeout(() => navigate('/app'), 2000);
+      } else {
+        // Modo normal: cria usuário com email/senha
+        const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        await updateProfile(userCredential.user, { displayName: name.trim() });
+
+        await setDoc(doc(db, 'users', userCredential.user.uid), {
+          uid: userCredential.user.uid,
+          name: name.trim(),
+          fullName: fullName.trim(),
+          pronome,
+          email: email.trim(),
+          phone: fullPhone,
+          birthDate,
+          cpf: cpf.replace(/\D/g, ''),
+          pixKey: pixKey.trim() || '',
+          houseId: casaResult.houseId || '',
+          role: 'hospede',
+          isActive: true,
+          isPresent: true,
+          photoURL: '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+
+        setSucesso(`${c.bemVindo} ao Caule! Sua conta foi criada e você está ${c.vinculada} à ${casaResult.nomeCasa}.`);
+        setTimeout(() => navigate('/login'), 3000);
+      }
     } catch (e: any) {
       if (e.code === 'auth/email-already-in-use') setErro('Este e-mail já está cadastrado.');
       else if (e.code === 'auth/invalid-email') setErro('E-mail inválido.');
@@ -147,12 +202,18 @@ export function CadastroPage() {
     setLoading(false);
   }
 
-  const steps = [
-    { label: 'Identidade', icon: 'diversity_3' },
-    { label: 'Dados', icon: 'badge' },
-    { label: 'Contato', icon: 'phone' },
-    { label: 'Acesso', icon: 'lock' },
-  ];
+  const steps = isGoogleMode
+    ? [
+        { label: 'Identidade', icon: 'diversity_3' },
+        { label: 'Dados', icon: 'badge' },
+        { label: 'Contato', icon: 'phone' },
+      ]
+    : [
+        { label: 'Identidade', icon: 'diversity_3' },
+        { label: 'Dados', icon: 'badge' },
+        { label: 'Contato', icon: 'phone' },
+        { label: 'Acesso', icon: 'lock' },
+      ];
 
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body-md">
@@ -161,7 +222,9 @@ export function CadastroPage() {
       <main className="px-margin-page mt-stack-md space-y-6 pb-10">
         {/* Header */}
         <div>
-          <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Criar Conta</h2>
+          <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">
+            {isGoogleMode ? 'Completar Perfil' : 'Criar Conta'}
+          </h2>
           <p className="text-on-surface-variant font-body-md mt-1">{c.bemVindo} ao Caule! Vamos começar.</p>
         </div>
 
@@ -354,42 +417,59 @@ export function CadastroPage() {
         {step === 4 && (
           <div className="bg-surface-card rounded-xl border border-outline-variant p-4 space-y-4">
             <h3 className="font-bold text-on-surface flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary">lock</span>Acesso
+              <span className="material-symbols-outlined text-primary">lock</span>
+              {isGoogleMode ? 'Vincular à Casa' : 'Acesso'}
             </h3>
 
-            <div>
-              <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">E-mail *</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); limparErro(); }}
-                placeholder="seu@email.com"
-                className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
-              />
-            </div>
+            {!isGoogleMode && (
+              <>
+                <div>
+                  <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">E-mail *</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); limparErro(); }}
+                    placeholder="seu@email.com"
+                    className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+                  />
+                </div>
 
-            <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Senha *</label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => { setPassword(e.target.value); limparErro(); }}
+                      placeholder="Mín. 6 caracteres"
+                      className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Confirmar *</label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => { setConfirmPassword(e.target.value); limparErro(); }}
+                      placeholder="Repita a senha"
+                      className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {isGoogleMode && authUser?.email && (
               <div>
-                <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Senha *</label>
+                <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">E-mail</label>
                 <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); limparErro(); }}
-                  placeholder="Mín. 6 caracteres"
-                  className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+                  type="email"
+                  value={authUser.email}
+                  disabled
+                  className="w-full bg-surface-container-high border-2 border-outline-variant text-on-surface rounded-xl py-3 px-4 text-sm opacity-60"
                 />
               </div>
-              <div>
-                <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Confirmar *</label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => { setConfirmPassword(e.target.value); limparErro(); }}
-                  placeholder="Repita a senha"
-                  className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
-                />
-              </div>
-            </div>
+            )}
 
             <div>
               <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Senha da Casa *</label>
@@ -417,21 +497,23 @@ export function CadastroPage() {
                 disabled={loading}
                 className="flex-1 bg-primary text-on-primary font-bold py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-50"
               >
-                {loading ? 'Criando conta...' : 'Criar Conta'}
+                {loading ? 'Salvando...' : isGoogleMode ? 'Finalizar' : 'Criar Conta'}
               </button>
             </div>
           </div>
         )}
 
         {/* Link para login */}
-        <div className="text-center">
-          <p className="text-caption text-on-surface-variant">
-            Já tem conta?{' '}
-            <button onClick={() => navigate('/login')} className="text-primary font-bold hover:underline">
-              Fazer Login
-            </button>
-          </p>
-        </div>
+        {!isGoogleMode && (
+          <div className="text-center">
+            <p className="text-caption text-on-surface-variant">
+              Já tem conta?{' '}
+              <button onClick={() => navigate('/login')} className="text-primary font-bold hover:underline">
+                Fazer Login
+              </button>
+            </p>
+          </div>
+        )}
       </main>
     </div>
   );
