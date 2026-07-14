@@ -5,7 +5,7 @@ import { doc, setDoc, query, collection, where, getDocs } from 'firebase/firesto
 import { auth, db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { TopAppBar } from '@/components/TopAppBar';
-import { formatPhone, formatCpf, isValidPhone, isValidCpf } from '@/utils/formatters';
+import { formatPhone, formatPhoneNumberOnly, formatCpf, isValidPhone, isValidCpf } from '@/utils/formatters';
 
 type Pronome = 'ela' | 'ele' | 'elu';
 
@@ -52,6 +52,8 @@ export function CadastroPage() {
 
   const c = CONCORDANCIA[pronome];
 
+  const isBrasil = ddi.replace(/\D/g, '') === '55';
+
   function limparErro() { setErro(''); }
 
   function validarNomeCompleto(nome: string): boolean {
@@ -79,12 +81,22 @@ export function CadastroPage() {
   }
 
   function validarStep3(): boolean {
+    const ddiClean = ddi.replace(/\D/g, '');
     const dddClean = ddd.replace(/\D/g, '');
     const phoneClean = phoneNumber.replace(/\D/g, '');
-    if (dddClean.length !== 2) { setErro('Informe o DDD com 2 dígitos.'); return false; }
-    if (phoneClean.length < 8 || phoneClean.length > 11) { setErro('Informe um telefone válido.'); return false; }
-    const fullPhone = dddClean + phoneClean;
-    if (!isValidPhone(fullPhone)) { setErro('Telefone celular inválido. Deve ter 11 dígitos (incluindo DDD) começando com 9.'); return false; }
+    
+    if (!ddi.trim().startsWith('+')) { setErro('O DDI deve começar com + (ex: +55).'); return false; }
+    if (ddiClean.length < 1) { setErro('Informe o DDI.'); return false; }
+    
+    if (isBrasil) {
+      if (dddClean.length !== 2) { setErro('Informe o DDD com 2 dígitos.'); return false; }
+      if (phoneClean.length !== 9) { setErro('Informe o número com 9 dígitos (começando com 9).'); return false; }
+      const fullPhone = dddClean + phoneClean;
+      if (!isValidPhone(fullPhone)) { setErro('Número inválido. O celular brasileiro deve ter 9 dígitos começando com 9.'); return false; }
+    } else {
+      if (phoneClean.length < 7) { setErro('Informe um número de telefone válido.'); return false; }
+    }
+    
     if (!isValidCpf(cpf)) { setErro('CPF inválido.'); return false; }
     return true;
   }
@@ -122,7 +134,10 @@ export function CadastroPage() {
         return;
       }
 
-      const fullPhone = `${ddi.replace(/\D/g, '')}${ddd.replace(/\D/g, '')}${phoneNumber.replace(/\D/g, '')}`;
+      const ddiClean = ddi.replace(/\D/g, '');
+      const dddClean = ddd.replace(/\D/g, '');
+      const phoneClean = phoneNumber.replace(/\D/g, '');
+      const fullPhone = isBrasil ? `${ddiClean}${dddClean}${phoneClean}` : `${ddiClean}${phoneClean}`;
 
       if (isGoogleMode) {
         // Modo Google: usuário já está autenticado
@@ -357,23 +372,33 @@ export function CadastroPage() {
               <div className="flex gap-2">
                 <input
                   value={ddi}
-                  onChange={(e) => { setDdi(e.target.value); limparErro(); }}
+                  onChange={(e) => { 
+                    const val = e.target.value;
+                    if (val === '' || val.startsWith('+')) setDdi(val); 
+                    else setDdi('+' + val.replace(/^\+/, ''));
+                    limparErro(); 
+                  }}
                   placeholder="+55"
                   className="w-20 bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-2 text-sm text-center"
                 />
+                {isBrasil && (
+                  <input
+                    value={ddd}
+                    onChange={(e) => { setDdd(e.target.value.replace(/\D/g, '').slice(0, 2)); limparErro(); }}
+                    placeholder="DDD"
+                    className="w-16 bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-2 text-sm text-center"
+                  />
+                )}
                 <input
-                  value={ddd}
-                  onChange={(e) => { setDdd(e.target.value.replace(/\D/g, '').slice(0, 2)); limparErro(); }}
-                  placeholder="DDD"
-                  className="w-16 bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-2 text-sm text-center"
-                />
-                <input
-                  value={formatPhone(phoneNumber)}
+                  value={isBrasil ? formatPhoneNumberOnly(phoneNumber) : phoneNumber}
                   onChange={(e) => { setPhoneNumber(e.target.value); limparErro(); }}
-                  placeholder="(11) 99999-9999"
+                  placeholder={isBrasil ? '9 9999-9999' : 'Número'}
                   className="flex-1 bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
                 />
               </div>
+              <p className="text-[10px] text-on-surface-variant mt-1">
+                {isBrasil ? 'Formato brasileiro: DDI + DDD + número' : 'DDI internacional: apenas DDI + número'}
+              </p>
             </div>
 
             <div>

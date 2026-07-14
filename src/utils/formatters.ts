@@ -8,6 +8,14 @@ export function formatPhone(phone: string): string {
   return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7, 11)}`;
 }
 
+/** Formata apenas o número do celular (sem DDD): 9 9999-9999 */
+export function formatPhoneNumberOnly(phone: string): string {
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length <= 1) return cleaned;
+  if (cleaned.length <= 5) return `${cleaned.slice(0, 1)} ${cleaned.slice(1)}`;
+  return `${cleaned.slice(0, 1)} ${cleaned.slice(1, 5)}-${cleaned.slice(5, 9)}`;
+}
+
 export function formatCpf(cpf: string): string {
   const cleaned = cpf.replace(/\D/g, '');
   if (cleaned.length > 11) return cleaned.slice(0, 11);
