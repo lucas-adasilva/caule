@@ -30,8 +30,8 @@ export function CadastroPage() {
   const [sucesso, setSucesso] = useState('');
 
   const [pronome, setPronome] = useState<Pronome>('ela');
-  const [name, setName] = useState('');              // apelido → campo 'name' no Firestore
-  const [fullName, setFullName] = useState('');      // nome completo
+  const [name, setName] = useState('');
+  const [fullName, setFullName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [ddi, setDdi] = useState('+55');
   const [ddd, setDdd] = useState('');
@@ -106,7 +106,6 @@ export function CadastroPage() {
   async function handleCadastrar() {
     setLoading(true); setErro(''); setSucesso('');
     try {
-      // Verifica senha da casa
       const casaResult = await verificarSenhaCasa();
       if (!casaResult.ok) {
         setErro('Senha da casa incorreta. Verifique com algum morador da casa.');
@@ -148,7 +147,6 @@ export function CadastroPage() {
     setLoading(false);
   }
 
-  const steps = [
   const steps = [
     { label: 'Identidade', icon: 'diversity_3' },
     { label: 'Dados', icon: 'badge' },
