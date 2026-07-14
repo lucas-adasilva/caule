@@ -89,4 +89,5 @@ jobs:
         env:
           SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CAULE_C064F }}
         run: |
+          npm install firebase-admin --no-save || true
           node scripts/update-firestore-version.js
