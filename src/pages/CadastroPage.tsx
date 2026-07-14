@@ -1,11 +1,26 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { TopAppBar } from '@/components/TopAppBar';
+import { formatPhone, formatCpf, isValidPhone, isValidCpf } from '@/utils/formatters';
 
-const PERGUNTA_RESPOSTA = 'perguntaproabacate';
+type Pronome = 'ela' | 'ele' | 'elu';
+
+interface Concordancia {
+  chamado: string;
+  bemVindo: string;
+  vinculada: string;
+  presente: string;
+  ausente: string;
+}
+
+const CONCORDANCIA: Record<Pronome, Concordancia> = {
+  ela: { chamado: 'chamada', bemVindo: 'Bem-vinda', vinculada: 'vinculada', presente: 'presente', ausente: 'ausente' },
+  ele: { chamado: 'chamado', bemVindo: 'Bem-vindo', vinculada: 'vinculado', presente: 'presente', ausente: 'ausente' },
+  elu: { chamado: 'chamade', bemVindo: 'Bem-vinde', vinculada: 'vinculade', presente: 'presente', ausente: 'ausente' },
+};
 
 export function CadastroPage() {
   const navigate = useNavigate();
@@ -14,183 +29,397 @@ export function CadastroPage() {
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
 
-  // Campos que o usuario preenche (baseado nos campos reais do Firestore)
-  const [form, setForm] = useState({
-    name: '',           // nome/apelido
-    email: '',          // email
-    password: '',       // senha
-    confirmPassword: '',// confirmar senha
-    fullName: '',       // nome completo
-    phone: '',          // telefone
-    birthDate: '',      // data nascimento
-    cpf: '',            // CPF
-    pixKey: '',         // chave pix
-    pergunta: '',       // resposta da pergunta secreta
-  });
+  const [pronome, setPronome] = useState<Pronome>('ela');
+  const [name, setName] = useState('');              // apelido → campo 'name' no Firestore
+  const [fullName, setFullName] = useState('');      // nome completo
+  const [birthDate, setBirthDate] = useState('');
+  const [ddi, setDdi] = useState('+55');
+  const [ddd, setDdd] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [cpf, setCpf] = useState('');
+  const [pixKey, setPixKey] = useState('');
+  const [senhaCasa, setSenhaCasa] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
-  function updateField(field: string, value: string) {
-    setForm(prev => ({ ...prev, [field]: value }));
-    setErro('');
+  const c = CONCORDANCIA[pronome];
+
+  function limparErro() { setErro(''); }
+
+  function validarNomeCompleto(nome: string): boolean {
+    const trimmed = nome.trim();
+    if (trimmed.length < 3) return false;
+    const partes = trimmed.split(/\s+/).filter(Boolean);
+    return partes.length >= 2 && /^[a-zA-ZÀ-ÖØ-öø-ÿ\s'-]+$/.test(trimmed);
   }
 
-  function validarPergunta() {
-    if (form.pergunta.trim().toLowerCase() !== PERGUNTA_RESPOSTA) {
-      setErro('Resposta incorreta.');
-      return false;
-    }
+  function validarStep1(): boolean {
+    if (!pronome) { setErro('Selecione um pronome.'); return false; }
+    if (!name.trim()) { setErro(`Informe como quer ser ${c.chamado}.`); return false; }
+    if (name.trim().length < 2) { setErro('O nome precisa ter pelo menos 2 caracteres.'); return false; }
     return true;
   }
 
-  async function handleCadastrar() {
-    if (form.password !== form.confirmPassword) { setErro('As senhas nao conferem'); return; }
-    if (form.password.length < 6) { setErro('Senha deve ter no minimo 6 caracteres'); return; }
-    if (!form.name.trim() || !form.email.trim() || !form.fullName.trim()) { setErro('Preencha todos os campos obrigatorios'); return; }
+  function validarStep2(): boolean {
+    if (!validarNomeCompleto(fullName)) { setErro('Informe o nome completo (nome e sobrenome, apenas letras).'); return false; }
+    if (!birthDate) { setErro('Informe a data de nascimento.'); return false; }
+    const hoje = new Date();
+    const nasc = new Date(birthDate);
+    const idade = hoje.getFullYear() - nasc.getFullYear();
+    if (idade < 13 || idade > 120) { setErro('Data de nascimento inválida.'); return false; }
+    return true;
+  }
 
+  function validarStep3(): boolean {
+    const dddClean = ddd.replace(/\D/g, '');
+    const phoneClean = phoneNumber.replace(/\D/g, '');
+    if (dddClean.length !== 2) { setErro('Informe o DDD com 2 dígitos.'); return false; }
+    if (phoneClean.length < 8 || phoneClean.length > 11) { setErro('Informe um telefone válido.'); return false; }
+    const fullPhone = dddClean + phoneClean;
+    if (!isValidPhone(fullPhone)) { setErro('Telefone celular inválido. Deve ter 11 dígitos (incluindo DDD) começando com 9.'); return false; }
+    if (!isValidCpf(cpf)) { setErro('CPF inválido.'); return false; }
+    return true;
+  }
+
+  function validarStep4(): boolean {
+    if (!email.trim()) { setErro('Informe o e-mail.'); return false; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setErro('E-mail inválido.'); return false; }
+    if (password.length < 6) { setErro('A senha deve ter pelo menos 6 caracteres.'); return false; }
+    if (password !== confirmPassword) { setErro('As senhas não conferem.'); return false; }
+    if (!senhaCasa.trim()) { setErro('Informe a senha da casa.'); return false; }
+    return true;
+  }
+
+  async function verificarSenhaCasa(): Promise<{ ok: boolean; houseId?: string; nomeCasa?: string }> {
+    try {
+      const q = query(collection(db, 'casas'), where('senhaCadastro', '==', senhaCasa.trim()));
+      const snap = await getDocs(q);
+      if (snap.empty) return { ok: false };
+      const casa = snap.docs[0];
+      return { ok: true, houseId: casa.id, nomeCasa: casa.data().nome || 'Casa' };
+    } catch (e) {
+      return { ok: false };
+    }
+  }
+
+  async function handleCadastrar() {
     setLoading(true); setErro(''); setSucesso('');
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, form.email, form.password);
-      await updateProfile(userCredential.user, { displayName: form.name });
+      // Verifica senha da casa
+      const casaResult = await verificarSenhaCasa();
+      if (!casaResult.ok) {
+        setErro('Senha da casa incorreta. Verifique com algum morador da casa.');
+        setLoading(false);
+        return;
+      }
 
-      // Salva no Firestore com TODOS os campos do schema
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      await updateProfile(userCredential.user, { displayName: name.trim() });
+
+      const fullPhone = `${ddi.replace(/\D/g, '')}${ddd.replace(/\D/g, '')}${phoneNumber.replace(/\D/g, '')}`;
+
       await setDoc(doc(db, 'users', userCredential.user.uid), {
-        // Campos do usuario
-        name: form.name,
-        email: form.email,
-        fullName: form.fullName,
-        phone: form.phone || '',
-        birthDate: form.birthDate || '',
-        cpf: form.cpf || '',
-        pixKey: form.pixKey || '',
-        // Campos do sistema
         uid: userCredential.user.uid,
-        houseId: '',           // vazio - vincula depois
-        role: 'hospede',       // padrao: novos usuarios comecam como hospede
-        isActive: true,        // ativo
-        isPresent: true,       // presente
-        photoURL: '',          // vazio - upload depois
+        name: name.trim(),
+        fullName: fullName.trim(),
+        pronome,
+        email: email.trim(),
+        phone: fullPhone,
+        birthDate,
+        cpf: cpf.replace(/\D/g, ''),
+        pixKey: pixKey.trim() || '',
+        houseId: casaResult.houseId || '',
+        role: 'hospede',
+        isActive: true,
+        isPresent: true,
+        photoURL: '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
 
-      setSucesso('Cadastro realizado! Faca login para continuar.');
-      setTimeout(() => navigate('/login'), 2000);
+      setSucesso(`${c.bemVindo} ao Caule! Sua conta foi criada e você está ${c.vinculada} à ${casaResult.nomeCasa}.`);
+      setTimeout(() => navigate('/login'), 3000);
     } catch (e: any) {
-      setErro(e.code === 'auth/email-already-in-use' ? 'Este email já está cadastrado' : e.code === 'auth/invalid-email' ? 'Email inválido' : e.message);
+      if (e.code === 'auth/email-already-in-use') setErro('Este e-mail já está cadastrado.');
+      else if (e.code === 'auth/invalid-email') setErro('E-mail inválido.');
+      else setErro(e.message || 'Erro ao criar conta. Tente novamente.');
     }
     setLoading(false);
   }
 
+  const totalSteps = 4;
+  const steps = [
+    { label: 'Identidade', icon: 'diversity_3' },
+    { label: 'Dados', icon: 'badge' },
+    { label: 'Contato', icon: 'phone' },
+    { label: 'Acesso', icon: 'lock' },
+  ];
+
   return (
-    <div className="min-h-screen bg-surface text-text-body font-body-md">
+    <div className="min-h-screen bg-surface text-on-surface font-body-md">
       <TopAppBar title="Cadastro" showAvatar={false} showMenu={false} showNotifications={false} />
 
       <main className="px-margin-page mt-stack-md space-y-6 pb-10">
         {/* Header */}
         <div>
           <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Criar Conta</h2>
-          <p className="text-text-muted font-body-md mt-1">Preencha seus dados para ingressar no Caule</p>
+          <p className="text-on-surface-variant font-body-md mt-1">{c.bemVindo} ao Caule! Vamos começar.</p>
         </div>
 
         {/* Progresso */}
         <div className="flex gap-2">
-          <div className={`flex-1 h-2 rounded-full ${step >= 1 ? 'bg-primary' : 'bg-surface-container-high'}`} />
-          <div className={`flex-1 h-2 rounded-full ${step >= 2 ? 'bg-primary' : 'bg-surface-container-high'}`} />
-          <div className={`flex-1 h-2 rounded-full ${step >= 3 ? 'bg-primary' : 'bg-surface-container-high'}`} />
+          {steps.map((s, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1">
+              <div className={`w-full h-2 rounded-full ${i + 1 <= step ? 'bg-primary' : 'bg-surface-container-high'}`} />
+              <span className={`text-[10px] ${i + 1 <= step ? 'text-primary font-bold' : 'text-on-surface-variant'}`}>{s.label}</span>
+            </div>
+          ))}
         </div>
 
         {/* Mensagens */}
-        {erro && <div className="p-3 bg-error/10 border border-error/30 rounded-lg text-error text-sm flex items-center gap-2"><span className="material-symbols-outlined text-sm">error</span>{erro}</div>}
-        {sucesso && <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg text-primary text-sm flex items-center gap-2"><span className="material-symbols-outlined text-sm">check_circle</span>{sucesso}</div>}
+        {erro && (
+          <div className="p-3 bg-error/10 border border-error/30 rounded-lg text-error text-sm flex items-center gap-2">
+            <span className="material-symbols-outlined text-sm">error</span>{erro}
+          </div>
+        )}
+        {sucesso && (
+          <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg text-primary text-sm flex items-center gap-2">
+            <span className="material-symbols-outlined text-sm">check_circle</span>{sucesso}
+          </div>
+        )}
 
-        {/* Etapa 1: Conta (obrigatorio) */}
+        {/* Etapa 1: Identidade (Pronome + Apelido) */}
         {step === 1 && (
           <div className="bg-surface-card rounded-xl border border-outline-variant p-4 space-y-4">
-            <h3 className="font-bold text-on-surface flex items-center gap-2"><span className="material-symbols-outlined text-primary">person</span>Dados da Conta *</h3>
+            <h3 className="font-bold text-on-surface flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">diversity_3</span>Quem é você?
+            </h3>
+
+            {/* Pronome */}
             <div>
-              <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Nome / Apelido *</label>
-              <input value={form.name} onChange={e => updateField('name', e.target.value)} placeholder="Como quer ser chamado"
-                className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm" />
+              <label className="text-label-sm text-on-surface-variant block mb-2 font-bold">Pronome *</label>
+              <div className="flex gap-2">
+                {(['ela', 'ele', 'elu'] as Pronome[]).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => { setPronome(p); limparErro(); }}
+                    className={`flex-1 py-3 rounded-xl font-bold text-sm capitalize transition-all border-2 ${
+                      pronome === p
+                        ? 'bg-primary text-on-primary border-primary'
+                        : 'bg-surface-container-high text-on-surface border-outline-variant hover:border-primary/50'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Apelido */}
+            <div>
+              <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">
+                Como quer ser {c.chamado}? *
+              </label>
+              <input
+                value={name}
+                onChange={(e) => { setName(e.target.value); limparErro(); }}
+                placeholder="Ex: Carol, Lucas, João..."
+                className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+              />
+              <p className="text-[10px] text-on-surface-variant mt-1">Este é o nome que o app usará para se referir a você.</p>
+            </div>
+
+            <button
+              onClick={() => { if (validarStep1()) setStep(2); }}
+              className="w-full bg-primary text-on-primary font-bold py-3 rounded-xl hover:brightness-110 transition-all"
+            >
+              Próximo
+            </button>
+          </div>
+        )}
+
+        {/* Etapa 2: Dados Pessoais */}
+        {step === 2 && (
+          <div className="bg-surface-card rounded-xl border border-outline-variant p-4 space-y-4">
+            <h3 className="font-bold text-on-surface flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">badge</span>Dados Pessoais
+            </h3>
+
+            <div>
+              <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Nome Completo *</label>
+              <input
+                value={fullName}
+                onChange={(e) => { setFullName(e.target.value); limparErro(); }}
+                placeholder="Nome e sobrenome"
+                className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Data de Nascimento *</label>
+              <input
+                type="date"
+                value={birthDate}
+                onChange={(e) => { setBirthDate(e.target.value); limparErro(); }}
+                className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStep(1)}
+                className="flex-1 bg-surface-container text-on-surface border border-outline-variant font-bold py-3 rounded-xl hover:bg-surface-container-high transition-all"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={() => { if (validarStep2()) setStep(3); }}
+                className="flex-1 bg-primary text-on-primary font-bold py-3 rounded-xl hover:brightness-110 transition-all"
+              >
+                Próximo
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Etapa 3: Contato (Telefone, CPF, PIX) */}
+        {step === 3 && (
+          <div className="bg-surface-card rounded-xl border border-outline-variant p-4 space-y-4">
+            <h3 className="font-bold text-on-surface flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">phone</span>Contato
+            </h3>
+
+            {/* Telefone com DDI e DDD */}
+            <div>
+              <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Celular *</label>
+              <div className="flex gap-2">
+                <input
+                  value={ddi}
+                  onChange={(e) => { setDdi(e.target.value); limparErro(); }}
+                  placeholder="+55"
+                  className="w-20 bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-2 text-sm text-center"
+                />
+                <input
+                  value={ddd}
+                  onChange={(e) => { setDdd(e.target.value.replace(/\D/g, '').slice(0, 2)); limparErro(); }}
+                  placeholder="DDD"
+                  className="w-16 bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-2 text-sm text-center"
+                />
+                <input
+                  value={formatPhone(phoneNumber)}
+                  onChange={(e) => { setPhoneNumber(e.target.value); limparErro(); }}
+                  placeholder="(11) 99999-9999"
+                  className="flex-1 bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">CPF *</label>
+              <input
+                value={formatCpf(cpf)}
+                onChange={(e) => { setCpf(e.target.value); limparErro(); }}
+                placeholder="000.000.000-00"
+                className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Chave PIX</label>
+              <input
+                value={pixKey}
+                onChange={(e) => { setPixKey(e.target.value); limparErro(); }}
+                placeholder="CPF, e-mail, celular ou chave aleatória"
+                className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStep(2)}
+                className="flex-1 bg-surface-container text-on-surface border border-outline-variant font-bold py-3 rounded-xl hover:bg-surface-container-high transition-all"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={() => { if (validarStep3()) setStep(4); }}
+                className="flex-1 bg-primary text-on-primary font-bold py-3 rounded-xl hover:brightness-110 transition-all"
+              >
+                Próximo
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Etapa 4: Acesso (Email, Senha, Senha da Casa) */}
+        {step === 4 && (
+          <div className="bg-surface-card rounded-xl border border-outline-variant p-4 space-y-4">
+            <h3 className="font-bold text-on-surface flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">lock</span>Acesso
+            </h3>
+
             <div>
               <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">E-mail *</label>
-              <input value={form.email} onChange={e => updateField('email', e.target.value)} placeholder="seu@email.com" type="email"
-                className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); limparErro(); }}
+                placeholder="seu@email.com"
+                className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+              />
             </div>
+
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Senha *</label>
-                <input value={form.password} onChange={e => updateField('password', e.target.value)} placeholder="Min 6 chars" type="password"
-                  className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); limparErro(); }}
+                  placeholder="Mín. 6 caracteres"
+                  className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+                />
               </div>
               <div>
                 <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Confirmar *</label>
-                <input value={form.confirmPassword} onChange={e => updateField('confirmPassword', e.target.value)} placeholder="Repita" type="password"
-                  className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm" />
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => { setConfirmPassword(e.target.value); limparErro(); }}
+                  placeholder="Repita a senha"
+                  className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+                />
               </div>
             </div>
-            <button onClick={() => setStep(2)} className="w-full bg-primary text-on-primary font-bold py-3 rounded-xl hover:brightness-110 transition-all">Proximo</button>
-          </div>
-        )}
 
-        {/* Etapa 2: Dados Pessoais (opcional) */}
-        {step === 2 && (
-          <div className="bg-surface-card rounded-xl border border-outline-variant p-4 space-y-4">
-            <h3 className="font-bold text-on-surface flex items-center gap-2"><span className="material-symbols-outlined text-primary">badge</span>Dados Pessoais</h3>
             <div>
-              <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Nome Completo *</label>
-              <input value={form.fullName} onChange={e => updateField('fullName', e.target.value)} placeholder="Seu nome completo"
-                className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm" />
+              <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Senha da Casa *</label>
+              <input
+                type="text"
+                value={senhaCasa}
+                onChange={(e) => { setSenhaCasa(e.target.value); limparErro(); }}
+                placeholder="Peça a senha para algum morador da casa"
+                className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+              />
+              <p className="text-[10px] text-on-surface-variant mt-1">
+                A senha da casa vincula sua conta automaticamente. Sem ela, você não conseguirá usar o app.
+              </p>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Telefone</label>
-                <input value={form.phone} onChange={e => updateField('phone', e.target.value)} placeholder="11999998888"
-                  className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm" />
-              </div>
-              <div>
-                <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Data Nasc.</label>
-                <input value={form.birthDate} onChange={e => updateField('birthDate', e.target.value)} type="date"
-                  className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">CPF</label>
-                <input value={form.cpf} onChange={e => updateField('cpf', e.target.value)} placeholder="000.000.000-00"
-                  className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm" />
-              </div>
-              <div>
-                <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Chave PIX</label>
-                <input value={form.pixKey} onChange={e => updateField('pixKey', e.target.value)} placeholder="CPF, email ou celular"
-                  className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm" />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => setStep(1)} className="flex-1 bg-surface-container text-on-surface border border-outline-variant font-bold py-3 rounded-xl hover:bg-surface-container-high transition-all">Voltar</button>
-              <button onClick={() => setStep(3)} className="flex-1 bg-primary text-on-primary font-bold py-3 rounded-xl hover:brightness-110 transition-all">Proximo</button>
-            </div>
-          </div>
-        )}
 
-        {/* Etapa 3: Pergunta Secreta (oculto) */}
-        {step === 3 && (
-          <div className="bg-surface-card rounded-xl border border-outline-variant p-4 space-y-4">
-            <h3 className="font-bold text-on-surface flex items-center gap-2"><span className="material-symbols-outlined text-tertiary">verified</span>Validacao</h3>
-            <div className="bg-tertiary/10 border border-tertiary/30 rounded-xl p-4 text-center space-y-2">
-              <span className="material-symbols-outlined text-tertiary text-3xl">help_outline</span>
-              <p className="text-sm text-on-surface font-bold">Pergunta de seguranca</p>
-              <p className="text-sm text-on-surface-variant">Voce precisa da frase secreta para se cadastrar. Peça a um morador da casa.</p>
-            </div>
-            <div>
-              <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Frase Secreta *</label>
-              <input value={form.pergunta} onChange={e => updateField('pergunta', e.target.value)} placeholder="Digite a frase aqui..."
-                className="w-full bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm" />
-            </div>
             <div className="flex gap-2">
-              <button onClick={() => setStep(2)} className="flex-1 bg-surface-container text-on-surface border border-outline-variant font-bold py-3 rounded-xl hover:bg-surface-container-high transition-all">Voltar</button>
-              <button onClick={() => { if (validarPergunta()) handleCadastrar(); }} disabled={loading}
-                className="flex-1 bg-primary text-on-primary font-bold py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-50">
-                {loading ? 'Cadastrando...' : 'Criar Conta'}
+              <button
+                onClick={() => setStep(3)}
+                className="flex-1 bg-surface-container text-on-surface border border-outline-variant font-bold py-3 rounded-xl hover:bg-surface-container-high transition-all"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={() => { if (validarStep4()) handleCadastrar(); }}
+                disabled={loading}
+                className="flex-1 bg-primary text-on-primary font-bold py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-50"
+              >
+                {loading ? 'Criando conta...' : 'Criar Conta'}
               </button>
             </div>
           </div>
@@ -198,7 +427,12 @@ export function CadastroPage() {
 
         {/* Link para login */}
         <div className="text-center">
-          <p className="text-caption text-on-surface-variant">Ja tem conta? <button onClick={() => navigate('/login')} className="text-primary font-bold hover:underline">Fazer Login</button></p>
+          <p className="text-caption text-on-surface-variant">
+            Já tem conta?{' '}
+            <button onClick={() => navigate('/login')} className="text-primary font-bold hover:underline">
+              Fazer Login
+            </button>
+          </p>
         </div>
       </main>
     </div>
