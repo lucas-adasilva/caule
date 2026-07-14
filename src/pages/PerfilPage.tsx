@@ -6,6 +6,8 @@ import { db, storage } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { TopAppBar } from '@/components/TopAppBar';
 import { UserAvatar } from '@/components/UserAvatar';
+import { useVersionCheck } from '@/hooks/useVersionCheck';
+import { Capacitor } from '@capacitor/core';
 
 interface Viagem {
   id: string;
@@ -25,6 +27,8 @@ export function PerfilPage() {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
+  const { forceCheck, checking: checkingVersion, currentVersion, hasUpdate, versionInfo } = useVersionCheck();
+  const isNative = Capacitor.isNativePlatform();
 
   const [form, setForm] = useState({
     name: user?.name || '',
@@ -430,6 +434,30 @@ export function PerfilPage() {
           <span className="material-symbols-outlined">flight</span>
           Cadastrar Viagem
         </button>
+
+        {/* Verificar Atualizações */}
+        {isNative && (
+          <div className="bg-surface-card rounded-xl border border-outline-variant p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-on-surface">Versão do App</h3>
+              <span className="text-caption text-on-surface-variant">{currentVersion}</span>
+            </div>
+            {hasUpdate && versionInfo && (
+              <div className="p-2 bg-primary-container/20 border border-primary/30 rounded-lg text-sm text-primary">
+                <span className="material-symbols-outlined text-sm align-middle">new_releases</span>{' '}
+                Nova versão {versionInfo.latestVersion} disponível!
+              </div>
+            )}
+            <button
+              onClick={forceCheck}
+              disabled={checkingVersion}
+              className="w-full bg-surface-container text-on-surface border border-outline-variant font-bold py-3 rounded-xl hover:bg-surface-container-high transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined">refresh</span>
+              {checkingVersion ? 'Verificando...' : 'Verificar Atualizações'}
+            </button>
+          </div>
+        )}
       </main>
 
       {/* Modal Viagem */}
