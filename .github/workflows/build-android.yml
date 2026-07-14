@@ -64,18 +64,30 @@ jobs:
         env:
           VERSION_NAME: ${{ env.VERSION_NAME }}
         run: ./gradlew assembleRelease
+
+      - name: Verify APK exists
+        run: |
+          echo "=== APKs gerados ==="
+          find android/app/build/outputs/apk -name "*.apk" -type f
+          ls -la android/app/build/outputs/apk/release/ || echo "Diretório não encontrado"
+          test -f android/app/build/outputs/apk/release/app-release.apk && echo "✅ APK encontrado" || (echo "❌ APK não encontrado" && exit 1)
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: caule-apk
           path: android/app/build/outputs/apk/release/app-release.apk
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
+          fail_on_unmatched_files: true
           files: android/app/build/outputs/apk/release/app-release.apk
           body: |
             Nova versão do Caule disponível!
+            
+            Versão: ${{ env.VERSION_NAME }}
             
             Para instalar:
             1. Baixe o APK
