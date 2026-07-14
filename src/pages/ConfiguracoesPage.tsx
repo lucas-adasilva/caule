@@ -1430,7 +1430,7 @@ export function ConfiguracoesPage() {
                 {/* Dados basicos */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Nome</label>
+                    <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Nome / Apelido</label>
                     <input value={formMoradorCompleto.name || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, name: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                   </div>
                   <div>

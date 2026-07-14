@@ -21,7 +21,7 @@ export function CompletarPerfilPage() {
   const [error, setError] = useState('');
   const [casaEncontrada, setCasaEncontrada] = useState<CasaEncontrada | null>(null);
   const [form, setForm] = useState({
-    fullName: user?.name || '',
+    fullName: user?.fullName || '',
     phone: '',
     cpf: '',
     pixKey: '',

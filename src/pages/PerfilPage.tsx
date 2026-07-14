@@ -369,7 +369,7 @@ export function PerfilPage() {
 
           {editando ? (
             <div className="space-y-3">
-              <div><label className="text-label-sm text-on-surface-variant block mb-1">Nome</label><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
+              <div><label className="text-label-sm text-on-surface-variant block mb-1">Nome de Exibição (Apelido)</label><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
               <div><label className="text-label-sm text-on-surface-variant block mb-1">Nome Completo</label><input value={form.fullName} onChange={e => setForm({ ...form, fullName: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
               <div><label className="text-label-sm text-on-surface-variant block mb-1">Telefone</label><input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
               <div><label className="text-label-sm text-on-surface-variant block mb-1">Data de Nascimento</label><input type="daté" value={form.birthDate} onChange={e => setForm({ ...form, birthDate: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
