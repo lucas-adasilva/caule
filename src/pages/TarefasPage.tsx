@@ -17,6 +17,13 @@ interface Distribuicao { id: string; weekId: string; casaId: string; atribuicoes
 const DIAS_SEMANA = ['Seg','Ter','Qua','Qui','Sex','Sab','Dom'];
 function getSemanaAtual(): string { const hoje = new Date(); const ano = hoje.getFullYear(); const primeiraSegunda = new Date(ano, 0, 1); const diasDesdeInicio = Math.floor((hoje.getTime() - primeiraSegunda.getTime()) / (24 * 60 * 60 * 1000)); const semana = Math.ceil((diasDesdeInicio + primeiraSegunda.getDay()) / 7); return `${ano}-W${String(semana).padStart(2, '0')}`; }
 function getDiaAtual(): number { return new Date().getDay(); }
+function getDatasDaSemanaAtual(): Date[] {
+  const hoje = new Date();
+  const diaSemana = hoje.getDay();
+  const segunda = new Date(hoje);
+  segunda.setDate(hoje.getDate() - (diaSemana === 0 ? 6 : diaSemana - 1));
+  return Array.from({ length: 7 }, (_, i) => { const d = new Date(segunda); d.setDate(segunda.getDate() + i); return d; });
+}
 function formatarDataBr(dataIso?: string): string { if (!dataIso) return ''; const d = new Date(dataIso); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; }
 function isoToInputDate(dataIso?: string): string { if (!dataIso) return ''; const d = new Date(dataIso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function inputDateToIso(dataStr: string): string { return new Date(`${dataStr}T12:00:00`).toISOString(); }
@@ -119,6 +126,7 @@ export function TarefasPage() {
   const [editandoAtrib, setEditandoAtrib] = useState<Atribuicao | null>(null);
   const [novaData, setNovaData] = useState('');
   const semanaAtual = getSemanaAtual();
+  const datasDaSemana = getDatasDaSemanaAtual();
 
   async function carregarDados() {
     if (!user?.uid || !user?.houseId) { setLoading(false); return; }
@@ -234,14 +242,26 @@ export function TarefasPage() {
       <main className="px-margin-page mt-stack-md">
         <div className="mb-stack-lg"><h2 className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Folhas</h2><p className="text-text-muted font-body-md">Minhas tarefas da semana</p></div>
 
-        {/* Weekly Filter */}
-        <div className="flex gap-2 overflow-x-auto pb-4 mb-stack-lg">
+        {/* Weekly Filter - dia da semana + dia do mes + qtd de tarefas (modelo visual da pagina Flores, em verde) */}
+        <div className="flex gap-3 overflow-x-auto pb-4 mb-stack-lg">
           {DIAS_SEMANA.map((dia, idx) => {
             const count = distribuicao?.atribuicoes.filter(a => a.responsavelId === user?.uid && a.diaSemana === idx && a.status === 'pendente').length || 0;
+            const isSelected = diaSelecionado === idx;
             return (
-              <button key={idx} onClick={() => setDiaSelecionado(idx)} className={`flex-shrink-0 flex flex-col items-center justify-center w-14 h-18 rounded-xl transition-all duration-200 ${diaSelecionado === idx ? 'bg-primary text-on-primary shadow-sm' : 'bg-surface-card border border-outline-variant/30 text-on-surface'}`}>
-                <span className={`text-[10px] font-bold uppercase ${diaSelecionado === idx ? 'text-on-primary/80' : 'text-text-muted'}`}>{dia}</span>
-                {count > 0 && <span className={`text-[10px] font-bold mt-0.5 ${diaSelecionado === idx ? 'text-on-primary' : 'text-primary'}`}>{count}</span>}
+              <button
+                key={idx}
+                onClick={() => setDiaSelecionado(idx)}
+                className={`flex-shrink-0 flex flex-col items-center justify-center w-14 h-20 rounded-2xl transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-primary text-on-primary font-bold active-glow scale-110 mx-1'
+                    : 'bg-surface-card border border-outline-variant/30 text-on-surface'
+                }`}
+              >
+                <span className={`text-[10px] uppercase ${isSelected ? 'opacity-80' : 'text-text-muted'}`}>{dia}</span>
+                <span className={isSelected ? 'text-xl' : 'font-bold text-lg'}>{datasDaSemana[idx].getDate()}</span>
+                {count > 0 && (
+                  <span className={`text-[9px] font-bold mt-0.5 px-1.5 rounded-full ${isSelected ? 'bg-on-primary/20 text-on-primary' : 'bg-primary/10 text-primary'}`}>{count}</span>
+                )}
               </button>
             );
           })}
