@@ -386,7 +386,7 @@ export function CadastroPage() {
             {/* Telefone com DDI e DDD */}
             <div>
               <label className="text-label-sm text-on-surface-variant block mb-1 font-bold">Celular *</label>
-              <div className="flex gap-2">
+              <div className="flex gap-1.5 min-w-0">
                 <input
                   value={ddi}
                   onChange={(e) => { 
@@ -396,14 +396,14 @@ export function CadastroPage() {
                     limparErro(); 
                   }}
                   placeholder="+55"
-                  className="w-20 bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-2 text-sm text-center"
+                  className="w-14 bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-1 text-sm text-center shrink-0"
                 />
                 {isBrasil && (
                   <input
                     value={ddd}
                     onChange={(e) => { setDdd(e.target.value.replace(/\D/g, '').slice(0, 2)); limparErro(); }}
                     placeholder="DDD"
-                    className="w-16 bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-2 text-sm text-center"
+                    className="w-12 bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-1 text-sm text-center shrink-0"
                   />
                 )}
                 <input
@@ -414,7 +414,7 @@ export function CadastroPage() {
                     limparErro(); 
                   }}
                   placeholder={isBrasil ? '9 9999-9999' : 'Número'}
-                  className="flex-1 bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
+                  className="flex-1 min-w-0 bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-2 text-sm"
                 />
               </div>
               <p className="text-[10px] text-on-surface-variant mt-1">
