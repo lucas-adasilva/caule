@@ -27,7 +27,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { path: '/app', label: 'Copa', realLabel: 'Visão Geral', icon: 'forest', color: 'text-[#2ECC71]', activeBg: 'bg-[#2ECC71]/15', hoverBg: 'hover:bg-[#2ECC71]/25', showFor: ['admin', 'morador'] },
   { path: '/tarefas', label: 'Folhas', realLabel: 'Tarefas', icon: 'eco', color: 'text-[#90EE90]', activeBg: 'bg-[#90EE90]/15', hoverBg: 'hover:bg-[#90EE90]/25', showFor: ['admin', 'morador', 'hospede'] },
-  { path: '/eventos', label: 'Flores', realLabel: 'Eventos', icon: 'local_florist', color: 'text-[#FFB6C1]', activeBg: 'bg-[#FFB6C1]/15', hoverBg: 'hover:bg-[#FFB6C1]/25', showFor: ['admin', 'morador', 'hospede'] },
+  { path: '/eventos', label: 'Flores', realLabel: 'Eventos', icon: 'local_florist', color: 'text-[#fc7c78]', activeBg: 'bg-[#fc7c78]/15', hoverBg: 'hover:bg-[#fc7c78]/25', showFor: ['admin', 'morador', 'hospede'] },
   { path: '/conquistas', label: 'Frutos', realLabel: 'Conquistas', icon: 'nutrition', color: 'text-[#FFA07A]', activeBg: 'bg-[#FFA07A]/15', hoverBg: 'hover:bg-[#FFA07A]/25', showFor: ['admin', 'morador'] },
   { path: '/projetos', label: 'Sementes', realLabel: 'Projetos', icon: 'potted_plant', color: 'text-[#98D8C8]', activeBg: 'bg-[#98D8C8]/15', hoverBg: 'hover:bg-[#98D8C8]/25', showFor: ['admin', 'morador'] },
   { path: '/admin/users', label: 'Ramos', realLabel: 'Moradores', icon: 'account_tree', color: 'text-[#A5B4FC]', activeBg: 'bg-[#A5B4FC]/15', hoverBg: 'hover:bg-[#A5B4FC]/25', showFor: ['admin', 'morador'] },
