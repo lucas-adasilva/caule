@@ -93,7 +93,7 @@ export function NotificacoesPage() {
                   <span className={`material-symbols-outlined text-2xl flex-shrink-0 ${tipoColor[n.tipo]}`}>{tipoIcon[n.tipo]}</span>
                   <div className="flex-1 min-w-0">
                     <h4 className={`font-bold text-base ${n.lida ? 'text-on-surface-variant' : 'text-on-surface'}`}>{n.titulo}</h4>
-                    <div className="text-sm text-on-surface-variant mt-1 leading-relaxed" dangerouslySetInnerHTML={{ __html: n.mensagem }} />
+                    <div className="text-sm mt-2 leading-relaxed bg-white rounded-xl p-3 w-full overflow-x-auto" dangerouslySetInnerHTML={{ __html: n.mensagem }} />
                     <div className="flex items-center justify-between mt-3">
                       <span className="text-[10px] text-on-surface-variant/60 bg-surface-container-high px-2 py-0.5 rounded-full font-medium">
                         {n.createdAt}

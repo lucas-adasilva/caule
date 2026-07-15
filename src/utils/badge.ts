@@ -11,12 +11,21 @@ export async function syncBadgeCount(uid?: string): Promise<void> {
   try {
     const { Badge } = await import('@capawesome/capacitor-badge');
     const { isSupported } = await Badge.isSupported();
-    if (!isSupported) return;
+    if (!isSupported) {
+      // No Android, isSupported() reflete se o launcher do aparelho é suportado pelo
+      // ShortcutBadger (Samsung, Xiaomi, Huawei, Sony, Nova, etc). Launchers "puros"
+      // (Pixel/AOSP) NÃO suportam número no ícone - só um pontinho, e nem sempre.
+      console.log('[Badge] Não suportado neste launcher/dispositivo.');
+      return;
+    }
 
     let perm = await Badge.checkPermissions();
     if (perm.display !== 'granted') {
       perm = await Badge.requestPermissions();
-      if (perm.display !== 'granted') return;
+      if (perm.display !== 'granted') {
+        console.log('[Badge] Permissão negada:', perm.display);
+        return;
+      }
     }
 
     // Filtra "lida" no cliente (em vez de where composto) para não depender de um índice
@@ -26,8 +35,10 @@ export async function syncBadgeCount(uid?: string): Promise<void> {
     const naoLidas = snap.docs.filter((d) => d.data().lida !== true).length;
     if (naoLidas > 0) {
       await Badge.set({ count: naoLidas });
+      console.log('[Badge] Contador atualizado:', naoLidas);
     } else {
       await Badge.clear();
+      console.log('[Badge] Contador zerado.');
     }
   } catch (e) {
     console.error('[Badge] Erro ao sincronizar contador:', e);

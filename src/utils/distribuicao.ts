@@ -306,7 +306,7 @@ async function notificarRedistribuicao(
   if (adiantadas > 0) totalExtras.push(`⏩ ${adiantadas} adiantada${adiantadas > 1 ? 's' : ''} da próxima semana`);
 
   const mensagemHTML = `
-    <div style="font-family:system-ui,sans-serif;line-height:1.5;color:#1f2937;background:#ffffff;border-radius:14px;padding:14px;">
+    <div style="font-family:system-ui,sans-serif;line-height:1.5;color:#1f2937;width:100%;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <span style="font-size:24px;">${emojiEvento}</span>
         <div>
