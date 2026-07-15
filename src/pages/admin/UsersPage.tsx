@@ -1,29 +1,44 @@
-import { Sidebar } from '../../components/Sidebar';
+import { TopAppBar } from '@/components/TopAppBar';
+import { useApp } from '@/App';
 
 export function UsersPage() {
-  return (
-    <div className="min-h-screen bg-gray-900 text-white flex">
-      <Sidebar />
+  const { openMenu, openNotifications } = useApp();
 
-      <div className="flex-1 p-6 overflow-auto flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-20 h-20 rounded-full bg-page-ramos/15 flex items-center justify-center mx-auto mb-6">
-            <svg className="w-10 h-10 text-page-ramos" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 2v20" />
-              <path d="M12 8c-2.5 0-4-1.5-4-4" />
-              <path d="M12 12c2.5 0 4 1.5 4 4" />
-              <path d="M12 16c-2 0-3 1-3 3" />
-            </svg>
+  return (
+    <div className="min-h-screen bg-surface text-on-surface font-body-md pb-32">
+      <TopAppBar
+        onMenuClick={openMenu}
+        onNotificationClick={openNotifications}
+        title="Moradores"
+        titleColor="text-page-ramos" />
+
+      <main className="px-margin-page pb-8">
+        <section className="mt-6 mb-8">
+          <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-page-ramos">Ramos</h2>
+          <p className="font-body-md text-text-muted">Moradores da Casa</p>
+        </section>
+
+        <section className="flex flex-col items-center text-center py-16 px-6 bg-surface-card rounded-2xl border border-outline-variant">
+          <span className="text-7xl mb-6">🌿</span>
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-page-ramos/15 rounded-full mb-6">
+            <div className="w-2 h-2 bg-page-ramos rounded-full animate-pulse" />
+            <span className="text-page-ramos text-sm font-medium">Em desenvolvimento</span>
           </div>
-          <h1 className="text-3xl font-bold text-page-ramos mb-2">Ramos</h1>
-          <p className="text-gray-500 max-w-md mx-auto">
-            A gestão de moradores foi movida para <strong>Caule — Configurações</strong>.
+          <p className="text-on-surface text-base leading-relaxed max-w-sm">
+            Estamos cultivando esta sessão com carinho! 🌿
           </p>
-          <p className="text-gray-600 text-sm mt-4">
-            Use a navegação lateral para acessar a administração completa da casa.
+          <p className="text-text-muted text-sm mt-3 max-w-sm">
+            Por enquanto, a gestão de moradores está em <strong>Caule — Configurações</strong>.
           </p>
-        </div>
-      </div>
+          <div className="mt-8 flex items-center justify-center gap-3">
+            <div className="w-3 h-3 bg-page-ramos rounded-full" />
+            <div className="w-3 h-3 bg-page-ramos/60 rounded-full" />
+            <div className="w-3 h-3 bg-page-ramos/30 rounded-full" />
+            <div className="w-3 h-3 bg-surface-container-highest rounded-full" />
+            <div className="w-3 h-3 bg-surface-container-highest rounded-full" />
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
