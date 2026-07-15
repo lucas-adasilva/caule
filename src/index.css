@@ -31,6 +31,18 @@
 
   --color-pitanga: #ff5c33;
 
+  /* Cor de destaque por pagina (titulo, selecoes, componentes ativos) - mesma cor
+     usada no item correspondente do menu lateral (src/components/MenuDrawer.tsx) */
+  --color-page-copa: #2ECC71;
+  --color-page-folhas: #90EE90;
+  --color-page-flores: #fc7c78;
+  --color-page-frutos: #FFA07A;
+  --color-page-sementes: #98D8C8;
+  --color-page-ramos: #A5B4FC;
+  --color-page-ciclos: #D8BFD8;
+  --color-page-raizes: #8A2BE2;
+  --color-page-caule: #A9A9A9;
+
   --color-text-body: #D1D5DB;
   --color-text-muted: #9CA3AF;
 
@@ -121,7 +133,7 @@
   }
 
   .progress-glow {
-    box-shadow: 0 0 15px rgba(251, 146, 60, 0.3);
+    box-shadow: 0 0 15px rgba(255, 160, 122, 0.3);
   }
 
   .flower-glow {

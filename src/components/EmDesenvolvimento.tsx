@@ -22,20 +22,20 @@ export function EmDesenvolvimento({ titulo, subtitulo, emoji = '🌱' }: EmDesen
             {/* Decoração de fundo */}
             <div className="absolute inset-0 opacity-5">
               <svg viewBox="0 0 200 200" className="w-full h-full">
-                <path d="M100 20 Q60 60 100 100 Q140 140 100 180" stroke="#10b981" strokeWidth="2" fill="none"/>
-                <path d="M100 40 Q70 70 100 100 Q130 130 100 160" stroke="#10b981" strokeWidth="1" fill="none"/>
+                <path d="M100 20 Q60 60 100 100 Q140 140 100 180" stroke="#98D8C8" strokeWidth="2" fill="none"/>
+                <path d="M100 40 Q70 70 100 100 Q130 130 100 160" stroke="#98D8C8" strokeWidth="1" fill="none"/>
               </svg>
             </div>
 
             <div className="relative">
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600/20 rounded-full mb-6">
-                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                <span className="text-emerald-400 text-sm font-medium">Em desenvolvimento</span>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-page-sementes/20 rounded-full mb-6">
+                <div className="w-2 h-2 bg-page-sementes rounded-full animate-pulse" />
+                <span className="text-page-sementes text-sm font-medium">Em desenvolvimento</span>
               </div>
 
               {/* Título */}
-              <h1 className="text-4xl font-bold text-white mb-4">{titulo}</h1>
+              <h1 className="text-4xl font-bold text-page-sementes mb-4">{titulo}</h1>
 
               {/* Subtítulo */}
               <p className="text-xl text-gray-400 mb-8">{subtitulo}</p>
@@ -52,9 +52,9 @@ export function EmDesenvolvimento({ titulo, subtitulo, emoji = '🌱' }: EmDesen
 
               {/* Progresso estilizado */}
               <div className="mt-8 flex items-center justify-center gap-3">
-                <div className="w-3 h-3 bg-emerald-500 rounded-full" />
-                <div className="w-3 h-3 bg-emerald-500/60 rounded-full" />
-                <div className="w-3 h-3 bg-emerald-500/30 rounded-full" />
+                <div className="w-3 h-3 bg-page-sementes rounded-full" />
+                <div className="w-3 h-3 bg-page-sementes/60 rounded-full" />
+                <div className="w-3 h-3 bg-page-sementes/30 rounded-full" />
                 <div className="w-3 h-3 bg-gray-700 rounded-full" />
                 <div className="w-3 h-3 bg-gray-700 rounded-full" />
               </div>

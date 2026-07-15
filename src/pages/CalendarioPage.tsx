@@ -77,8 +77,8 @@ export function CalendarioPage() {
       <main className="flex-1 px-margin-page py-6 pb-24 space-y-stack-lg">
         {/* Hero Header */}
         <section className="space-y-1">
-          <p className="text-label-sm font-label-sm text-primary uppercase tracking-widest">Tempo de Crescer</p>
-          <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Calendário da Casa</h2>
+          <p className="text-label-sm font-label-sm text-page-ciclos uppercase tracking-widest">Tempo de Crescer</p>
+          <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-page-ciclos">Calendário da Casa</h2>
         </section>
 
         {/* Calendar Month View Card */}
@@ -108,9 +108,9 @@ export function CalendarioPage() {
                   !day.isCurrentMonth
                     ? 'text-on-surface-variant opacity-20'
                     : day.isToday
-                    ? 'bg-primary text-on-primary font-bold shadow-[0_0_15px_rgba(78,222,163,0.3)]'
+                    ? 'bg-page-ciclos text-on-primary font-bold shadow-[0_0_15px_rgba(216,191,216,0.4)]'
                     : selectedDay === day.day
-                    ? 'bg-primary/20 text-primary font-bold'
+                    ? 'bg-page-ciclos/20 text-page-ciclos font-bold'
                     : 'hover:bg-surface-variant text-on-surface'
                 }`}
               >

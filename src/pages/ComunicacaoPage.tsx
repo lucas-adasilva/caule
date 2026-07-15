@@ -193,7 +193,7 @@ export function ComunicacaoPage() {
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary-container/20 rounded-xl flex items-center justify-center text-xl">💬</div>
               <div>
-                <h1 className="text-lg font-bold text-on-surface">Raízes</h1>
+                <h1 className="text-lg font-bold text-page-raizes">Raízes</h1>
                 <p className="text-xs text-on-surface-variant">Comunicação da Casa</p>
               </div>
             </div>
@@ -210,7 +210,7 @@ export function ComunicacaoPage() {
                   onClick={() => setTipoFiltro(f.key)}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
                     tipoFiltro === f.key
-                      ? 'bg-primary text-on-primary'
+                      ? 'bg-page-raizes text-white'
                       : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-variant'
                   }`}
                 >

@@ -1049,7 +1049,7 @@ export function ConfiguracoesPage() {
               <button
                 key={a.key}
                 onClick={() => { setAbaAtiva(a.key); setErro(''); setSucesso(''); }}
-                className={`bg-surface-card rounded-xl p-5 flex flex-col items-center text-center transition-all ${isActive ? 'ring-2 ring-primary/50 scale-[1.02]' : 'hover:bg-surface-container'}`}
+                className={`bg-surface-card rounded-xl p-5 flex flex-col items-center text-center transition-all ${isActive ? 'ring-2 ring-page-caule/50 scale-[1.02]' : 'hover:bg-surface-container'}`}
               >
                 <div className="w-14 h-14 rounded-full bg-surface-container flex items-center justify-center mb-3">
                   <span className="text-3xl">{a.icon}</span>

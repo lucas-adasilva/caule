@@ -205,8 +205,8 @@ export function HomePage() {
       <main className="px-margin-page py-stack-md space-y-stack-lg">
         {/* House Identity */}
         <section className="space-y-stack-sm pt-4">
-          <p className="text-primary text-label-sm font-label-sm tracking-widest uppercase">Bem-vindo a Copa</p>
-          <h2 className="text-primary font-headline-lg-mobile text-4xl leading-tight">Casa Abacateira</h2>
+          <p className="text-page-copa text-label-sm font-label-sm tracking-widest uppercase">Bem-vindo a Copa</p>
+          <h2 className="text-page-copa font-headline-lg-mobile text-4xl leading-tight">Casa Abacateira</h2>
           <div className="flex items-center gap-2 text-on-surface-variant text-body-md">
             <span className="material-symbols-outlined text-sm">potted_plant</span>
             <span>Ecossistema em pleno crescimento</span>
@@ -301,9 +301,9 @@ export function HomePage() {
                     onClick={() => setSelectedDay(idx)}
                     className={`py-2 rounded-lg transition-all font-label-sm ${
                       day.isToday
-                        ? 'bg-primary/10 text-primary font-bold active-glow'
+                        ? 'bg-page-copa/10 text-page-copa font-bold shadow-[0_0_15px_rgba(46,204,113,0.3)]'
                         : selectedDay === idx
-                        ? 'bg-primary text-on-primary font-bold'
+                        ? 'bg-page-copa text-on-primary font-bold'
                         : 'hover:bg-surface-variant text-on-surface'
                     }`}
                   >

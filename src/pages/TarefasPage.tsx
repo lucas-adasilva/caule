@@ -240,7 +240,7 @@ export function TarefasPage() {
         onNotificationClick={openNotifications}
         title={user?.name ? `Casa de ${user.name}` : 'Casa das Oliveiras'} />
       <main className="px-margin-page mt-stack-md">
-        <div className="mb-stack-lg"><h2 className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Folhas</h2><p className="text-text-muted font-body-md">Minhas tarefas da semana</p></div>
+        <div className="mb-stack-lg"><h2 className="font-headline-lg-mobile text-headline-lg-mobile text-page-folhas">Folhas</h2><p className="text-text-muted font-body-md">Minhas tarefas da semana</p></div>
 
         {/* Weekly Filter - dia da semana + dia do mes + qtd de tarefas (modelo visual da pagina Flores, em verde) */}
         <div className="flex gap-3 overflow-x-auto pb-4 mb-stack-lg">
@@ -253,14 +253,14 @@ export function TarefasPage() {
                 onClick={() => setDiaSelecionado(idx)}
                 className={`flex-shrink-0 flex flex-col items-center justify-center w-14 h-20 rounded-2xl transition-all cursor-pointer ${
                   isSelected
-                    ? 'bg-primary text-on-primary font-bold active-glow scale-110 mx-1'
+                    ? 'bg-page-folhas text-on-primary font-bold shadow-[0_0_15px_rgba(144,238,144,0.35)] scale-110 mx-1'
                     : 'bg-surface-card border border-outline-variant/30 text-on-surface'
                 }`}
               >
                 <span className={`text-[10px] uppercase ${isSelected ? 'opacity-80' : 'text-text-muted'}`}>{dia}</span>
                 <span className={isSelected ? 'text-xl' : 'font-bold text-lg'}>{datasDaSemana[idx].getDate()}</span>
                 {count > 0 && (
-                  <span className={`text-[9px] font-bold mt-0.5 px-1.5 rounded-full ${isSelected ? 'bg-on-primary/20 text-on-primary' : 'bg-primary/10 text-primary'}`}>{count}</span>
+                  <span className={`text-[9px] font-bold mt-0.5 px-1.5 rounded-full ${isSelected ? 'bg-on-primary/20 text-on-primary' : 'bg-page-folhas/15 text-page-folhas'}`}>{count}</span>
                 )}
               </button>
             );

@@ -25,15 +25,15 @@ interface MenuItem {
 
 // Menu lateral - visibilidade por role
 const menuItems: MenuItem[] = [
-  { path: '/app', label: 'Copa', realLabel: 'Visão Geral', icon: 'forest', color: 'text-[#2ECC71]', activeBg: 'bg-[#2ECC71]/15', hoverBg: 'hover:bg-[#2ECC71]/25', showFor: ['admin', 'morador'] },
-  { path: '/tarefas', label: 'Folhas', realLabel: 'Tarefas', icon: 'eco', color: 'text-[#90EE90]', activeBg: 'bg-[#90EE90]/15', hoverBg: 'hover:bg-[#90EE90]/25', showFor: ['admin', 'morador', 'hospede'] },
-  { path: '/eventos', label: 'Flores', realLabel: 'Eventos', icon: 'local_florist', color: 'text-[#fc7c78]', activeBg: 'bg-[#fc7c78]/15', hoverBg: 'hover:bg-[#fc7c78]/25', showFor: ['admin', 'morador', 'hospede'] },
-  { path: '/conquistas', label: 'Frutos', realLabel: 'Conquistas', icon: 'nutrition', color: 'text-[#FFA07A]', activeBg: 'bg-[#FFA07A]/15', hoverBg: 'hover:bg-[#FFA07A]/25', showFor: ['admin', 'morador'] },
-  { path: '/projetos', label: 'Sementes', realLabel: 'Projetos', icon: 'potted_plant', color: 'text-[#98D8C8]', activeBg: 'bg-[#98D8C8]/15', hoverBg: 'hover:bg-[#98D8C8]/25', showFor: ['admin', 'morador'] },
-  { path: '/admin/users', label: 'Ramos', realLabel: 'Moradores', icon: 'account_tree', color: 'text-[#A5B4FC]', activeBg: 'bg-[#A5B4FC]/15', hoverBg: 'hover:bg-[#A5B4FC]/25', showFor: ['admin', 'morador'] },
-  { path: '/calendario', label: 'Ciclos', realLabel: 'Calendário', icon: 'cycle', color: 'text-[#D8BFD8]', activeBg: 'bg-[#D8BFD8]/15', hoverBg: 'hover:bg-[#D8BFD8]/25', showFor: ['admin', 'morador', 'hospede'] },
-  { path: '/comunicacao', label: 'Raízes', realLabel: 'Comunicação', icon: 'device_hub', color: 'text-[#8A2BE2]', activeBg: 'bg-[#8A2BE2]/15', hoverBg: 'hover:bg-[#8A2BE2]/25', showFor: ['admin', 'morador', 'hospede'] },
-  { path: '/configuracoes', label: 'Caule', realLabel: 'Configurações', icon: 'yard', color: 'text-[#A9A9A9]', activeBg: 'bg-[#A9A9A9]/15', hoverBg: 'hover:bg-[#A9A9A9]/25', showFor: ['admin'] },
+  { path: '/app', label: 'Copa', realLabel: 'Visão Geral', icon: 'forest', color: 'text-page-copa', activeBg: 'bg-page-copa/15', hoverBg: 'hover:bg-page-copa/25', showFor: ['admin', 'morador'] },
+  { path: '/tarefas', label: 'Folhas', realLabel: 'Tarefas', icon: 'eco', color: 'text-page-folhas', activeBg: 'bg-page-folhas/15', hoverBg: 'hover:bg-page-folhas/25', showFor: ['admin', 'morador', 'hospede'] },
+  { path: '/eventos', label: 'Flores', realLabel: 'Eventos', icon: 'local_florist', color: 'text-page-flores', activeBg: 'bg-page-flores/15', hoverBg: 'hover:bg-page-flores/25', showFor: ['admin', 'morador', 'hospede'] },
+  { path: '/conquistas', label: 'Frutos', realLabel: 'Conquistas', icon: 'nutrition', color: 'text-page-frutos', activeBg: 'bg-page-frutos/15', hoverBg: 'hover:bg-page-frutos/25', showFor: ['admin', 'morador'] },
+  { path: '/projetos', label: 'Sementes', realLabel: 'Projetos', icon: 'potted_plant', color: 'text-page-sementes', activeBg: 'bg-page-sementes/15', hoverBg: 'hover:bg-page-sementes/25', showFor: ['admin', 'morador'] },
+  { path: '/admin/users', label: 'Ramos', realLabel: 'Moradores', icon: 'account_tree', color: 'text-page-ramos', activeBg: 'bg-page-ramos/15', hoverBg: 'hover:bg-page-ramos/25', showFor: ['admin', 'morador'] },
+  { path: '/calendario', label: 'Ciclos', realLabel: 'Calendário', icon: 'cycle', color: 'text-page-ciclos', activeBg: 'bg-page-ciclos/15', hoverBg: 'hover:bg-page-ciclos/25', showFor: ['admin', 'morador', 'hospede'] },
+  { path: '/comunicacao', label: 'Raízes', realLabel: 'Comunicação', icon: 'device_hub', color: 'text-page-raizes', activeBg: 'bg-page-raizes/15', hoverBg: 'hover:bg-page-raizes/25', showFor: ['admin', 'morador', 'hospede'] },
+  { path: '/configuracoes', label: 'Caule', realLabel: 'Configurações', icon: 'yard', color: 'text-page-caule', activeBg: 'bg-page-caule/15', hoverBg: 'hover:bg-page-caule/25', showFor: ['admin'] },
 ];
 
 export function MenuDrawer({ isOpen, onClose }: MenuDrawerProps) {

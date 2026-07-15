@@ -41,7 +41,7 @@ export function ConquistasPage() {
   const [harmonia] = useState(84);
 
   const corClasses = {
-    'highlight-orange': 'border-l-highlight-orange text-highlight-orange bg-highlight-orange/20',
+    'highlight-orange': 'border-l-page-frutos text-page-frutos bg-page-frutos/20',
     'primary': 'border-l-primary text-primary bg-primary/20',
     'secondary': 'border-l-secondary text-secondary bg-secondary/20',
   };
@@ -56,7 +56,7 @@ export function ConquistasPage() {
       <main className="px-margin-page pb-8">
         {/* Title Section */}
         <section className="mt-6 mb-8">
-          <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-[#fb923c]">Frutos</h2>
+          <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-page-frutos">Frutos</h2>
           <p className="font-body-md text-text-muted">Conquistas da Casa</p>
         </section>
 
@@ -64,14 +64,14 @@ export function ConquistasPage() {
         <section className="mb-stack-lg p-6 bg-surface-container rounded-xl">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-section-heading text-section-heading flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#fb923c]">eco</span>
+              <span className="material-symbols-outlined text-page-frutos">eco</span>
               Harmonia da Casa
             </h3>
-            <span className="text-[#fb923c] font-bold">{harmonia}%</span>
+            <span className="text-page-frutos font-bold">{harmonia}%</span>
           </div>
           <div className="w-full h-4 bg-surface-container-highest rounded-full overflow-hidden">
             <div
-              className="h-full bg-[#fb923c] progress-glow rounded-full transition-all duration-1000 ease-out"
+              className="h-full bg-page-frutos progress-glow rounded-full transition-all duration-1000 ease-out"
               style={{ width: `${harmonia}%` }}
             />
           </div>
@@ -85,17 +85,17 @@ export function ConquistasPage() {
             {conquistas.filter(c => c.desbloqueada).slice(0, 1).map(c => (
               <div
                 key={c.id}
-                className="col-span-2 p-6 bg-surface-card rounded-[24px] border border-[#fb923c]/20 flex items-center justify-between overflow-hidden relative cursor-pointer active:scale-[0.96] transition-all"
+                className="col-span-2 p-6 bg-surface-card rounded-[24px] border border-page-frutos/20 flex items-center justify-between overflow-hidden relative cursor-pointer active:scale-[0.96] transition-all"
               >
                 <div className="relative z-10">
-                  <span className="bg-[#fb923c]/10 text-[#fb923c] px-3 py-1 rounded-full font-label-sm text-label-sm mb-2 inline-block">Mestre do Solo</span>
+                  <span className="bg-page-frutos/10 text-page-frutos px-3 py-1 rounded-full font-label-sm text-label-sm mb-2 inline-block">Mestre do Solo</span>
                   <h4 className="font-section-heading text-section-heading text-white">{c.titulo}</h4>
                   <p className="font-caption text-caption text-text-muted">{c.descricao}</p>
                 </div>
-                <div className="w-24 h-24 bg-[#fb923c]/10 rounded-full flex items-center justify-center relative z-10">
-                  <span className="material-symbols-outlined text-5xl text-[#fb923c]" style={{ fontVariationSettings: "'FILL' 1" }}>{c.icone}</span>
+                <div className="w-24 h-24 bg-page-frutos/10 rounded-full flex items-center justify-center relative z-10">
+                  <span className="material-symbols-outlined text-5xl text-page-frutos" style={{ fontVariationSettings: "'FILL' 1" }}>{c.icone}</span>
                 </div>
-                <div className="absolute top-0 right-0 w-32 h-32 bg-[#fb923c]/5 blur-3xl -mr-10 -mt-10" />
+                <div className="absolute top-0 right-0 w-32 h-32 bg-page-frutos/5 blur-3xl -mr-10 -mt-10" />
               </div>
             ))}
 
@@ -108,7 +108,7 @@ export function ConquistasPage() {
                 }`}
               >
                 <div className="w-12 h-12 mb-4 bg-surface-container-highest rounded-lg flex items-center justify-center">
-                  <span className={`material-symbols-outlined ${c.desbloqueada ? 'text-[#fb923c]' : 'text-outline'}`}>
+                  <span className={`material-symbols-outlined ${c.desbloqueada ? 'text-page-frutos' : 'text-outline'}`}>
                     {c.icone}
                   </span>
                 </div>
@@ -126,16 +126,16 @@ export function ConquistasPage() {
             {atividades.map((a) => (
               <div key={a.id} className={`flex items-center gap-4 p-4 bg-surface-container-low rounded-xl border-l-4 ${corClasses[a.cor]}`}>
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  a.cor === 'highlight-orange' ? 'bg-[#fb923c]/20' : a.cor === 'primary' ? 'bg-primary/20' : 'bg-secondary/20'
+                  a.cor === 'highlight-orange' ? 'bg-page-frutos/20' : a.cor === 'primary' ? 'bg-primary/20' : 'bg-secondary/20'
                 }`}>
                   <span className={`material-symbols-outlined text-sm ${
-                    a.cor === 'highlight-orange' ? 'text-[#fb923c]' : a.cor === 'primary' ? 'text-primary' : 'text-secondary'
+                    a.cor === 'highlight-orange' ? 'text-page-frutos' : a.cor === 'primary' ? 'text-primary' : 'text-secondary'
                   }`}>{a.icone}</span>
                 </div>
                 <div className="flex-grow">
                   <p className="font-label-sm text-label-sm text-white">
                     {a.usuario} {a.acao} <span className={`font-bold ${
-                      a.cor === 'highlight-orange' ? 'text-[#fb923c]' : a.cor === 'primary' ? 'text-primary' : 'text-secondary'
+                      a.cor === 'highlight-orange' ? 'text-page-frutos' : a.cor === 'primary' ? 'text-primary' : 'text-secondary'
                     }`}>"{a.target}"</span>
                   </p>
                   <p className="font-caption text-caption text-text-muted">{a.tempo} • +{a.pontos} pts</p>

@@ -42,6 +42,19 @@ module.exports = {
           'fixed-dim': '#ffb3af',
         },
         pitanga: '#ff5c33',
+        // Cor de destaque por pagina (titulo, selecoes, componentes ativos) - mesma cor
+        // usada no item correspondente do menu lateral (src/components/MenuDrawer.tsx)
+        page: {
+          copa: '#2ECC71',
+          folhas: '#90EE90',
+          flores: '#fc7c78',
+          frutos: '#FFA07A',
+          sementes: '#98D8C8',
+          ramos: '#A5B4FC',
+          ciclos: '#D8BFD8',
+          raizes: '#8A2BE2',
+          caule: '#A9A9A9',
+        },
         'text-body': '#D1D5DB',
         'text-muted': '#9CA3AF',
         outline: {
