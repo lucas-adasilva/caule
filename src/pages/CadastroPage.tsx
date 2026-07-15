@@ -124,6 +124,16 @@ export function CadastroPage() {
     }
   }
 
+  async function handleCancelar() {
+    // Se estiver no modo Google, faz signOut para não deixar o usuário em estado inconsistente
+    if (isGoogleMode) {
+      try { await auth.signOut(); } catch { /* silent */ }
+      const { setUser } = useAuthStore.getState();
+      setUser(null);
+    }
+    navigate('/login');
+  }
+
   async function handleCadastrar() {
     setLoading(true); setErro(''); setSucesso('');
     try {
@@ -236,7 +246,14 @@ export function CadastroPage() {
 
       <main className="px-margin-page mt-stack-md space-y-6 pb-10">
         {/* Header */}
-        <div>
+        <div className="relative">
+          <button
+            onClick={handleCancelar}
+            className="absolute -top-2 -right-2 p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-full transition-all"
+            title="Cancelar e voltar ao login"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
           <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">
             {isGoogleMode ? 'Completar Perfil' : 'Criar Conta'}
           </h2>
@@ -528,17 +545,15 @@ export function CadastroPage() {
           </div>
         )}
 
-        {/* Link para login */}
-        {!isGoogleMode && (
-          <div className="text-center">
-            <p className="text-caption text-on-surface-variant">
-              Já tem conta?{' '}
-              <button onClick={() => navigate('/login')} className="text-primary font-bold hover:underline">
-                Fazer Login
-              </button>
-            </p>
-          </div>
-        )}
+        {/* Link para login / cancelar */}
+        <div className="text-center space-y-2">
+          <p className="text-caption text-on-surface-variant">
+            {isGoogleMode ? 'Não quer continuar?' : 'Já tem conta?'}{' '}
+            <button onClick={handleCancelar} className="text-primary font-bold hover:underline">
+              {isGoogleMode ? 'Cancelar e voltar ao login' : 'Fazer Login'}
+            </button>
+          </p>
+        </div>
       </main>
     </div>
   );
