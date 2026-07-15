@@ -8,6 +8,9 @@ import { TopAppBar } from '@/components/TopAppBar';
 import { UserAvatar } from '@/components/UserAvatar';
 import { useVersionCheck } from '@/hooks/useVersionCheck';
 import { Capacitor } from '@capacitor/core';
+import { redistribuirPorSaida, redistribuirPorEntrada } from '@/utils/distribuicao';
+import { getSemanaDaData, getIntervaloSemana, sobrepoeSemanaAtual } from '@/utils/semana';
+import { existeViagemSobrepondoPeriodo } from '@/utils/viagens';
 
 interface Viagem {
   id: string;
@@ -145,6 +148,8 @@ export function PerfilPage() {
     if (!user?.uid) return;
     try {
       const dados = { ...formViagem, uid: user.uid, updatedAt: serverTimestamp() };
+      const viagemOriginal = editandoViagemId ? viagens.find(v => v.id === editandoViagemId) || null : null;
+      const isCadastro = !editandoViagemId;
       if (editandoViagemId) {
         await updateDoc(doc(db, 'viagens', editandoViagemId), dados);
         setSucesso('Viagem atualizada!');
@@ -155,125 +160,40 @@ export function PerfilPage() {
       fecharModalViagem();
       carregarViagens();
       if (user.houseId) {
-        await redistribuirTarefasPorViagem(formViagem.dataSaida, formViagem.dataRetorno);
-      } else {
-        console.log('[VIAGEM] user.houseId ausente, não redistribui');
+        await redistribuirPorViagemAlterada(viagemOriginal, formViagem.dataSaida, formViagem.dataRetorno, isCadastro);
       }
     } catch (e: any) { setErro('Erro: ' + e.message); }
   }
 
-  async function redistribuirTarefasPorViagem(dataSaida: string, dataRetorno: string) {
-    if (!user?.uid || !user.houseId) {
-      console.log('[REDIST] user.uid ou user.houseId ausente', { uid: user?.uid, houseId: user?.houseId });
-      return;
-    }
-    console.log('[REDIST] Iniciando redistribuição', { dataSaida, dataRetorno, houseId: user.houseId });
-    try {
-      const qd = query(collection(db, 'distribuicoes'), where('casaId', '==', user.houseId));
-      const sd = await getDocs(qd);
-      console.log(`[REDIST] Distribuicoes encontradas: ${sd.docs.length}`);
-      const tarefasRealocadasAlta: string[] = [];
-      const tarefasAdiadasMediaBaixa: string[] = [];
-      let distribuicoesAfetadas = 0;
-      for (const distDoc of sd.docs) {
-        const distData = distDoc.data();
-        console.log(`[REDIST] Doc ${distDoc.id}:`, JSON.stringify(distData).substring(0, 200));
-        const weekId = distData.weekId as string;
-        if (!weekId) {
-          console.log(`[REDIST] Doc ${distDoc.id} sem weekId, ignorando`);
-          continue;
-        }
-        console.log(`[REDIST] Verificando distribuição ${weekId}`);
-        const match = weekId.match(/(\d+)-W(\d+)/);
-        if (!match) { console.log(`[REDIST] weekId invalido: ${weekId}`); continue; }
-        const ano = parseInt(match[1], 10);
-        const semana = parseInt(match[2], 10);
-        const jan4 = new Date(ano, 0, 4);
-        const primeiroSegunda = new Date(jan4.getTime() - ((jan4.getDay() + 6) % 7) * 24 * 60 * 60 * 1000);
-        const inicioSemana = new Date(primeiroSegunda.getTime() + (semana - 1) * 7 * 24 * 60 * 60 * 1000);
-        const fimSemana = new Date(inicioSemana.getTime() + 6 * 24 * 60 * 60 * 1000);
-        const inicioStr = inicioSemana.toISOString().split('T')[0];
-        const fimStr = fimSemana.toISOString().split('T')[0];
-        console.log(`[REDIST] Semana ${weekId}: ${inicioStr} a ${fimStr}. Viagem: ${dataSaida} a ${dataRetorno}`);
-        if (dataRetorno < inicioStr || dataSaida > fimStr) {
-          console.log(`[REDIST] Viagem não afeta está semana`);
-          continue;
-        }
-        const atribuicoes: any[] = distData.atribuicoes || [];
-        console.log(`[REDIST] Total atribuicoes: ${atribuicoes.length}`);
-        const outrasAtribuicoes = atribuicoes.filter((a: any) => a.responsavelId !== user.uid || a.status === 'concluída');
-        const tarefasDoViajante = atribuicoes.filter((a: any) => a.responsavelId === user.uid && a.status === 'pendente');
-        console.log(`[REDIST] Tarefas do viajánte: ${tarefasDoViajante.length}`);
-        if (tarefasDoViajante.length === 0) continue;
-        distribuicoesAfetadas++;
-        const qu = query(collection(db, 'users'), where('houseId', '==', user.houseId));
-        const su = await getDocs(qu);
-        const outrosMoradores: any[] = [];
-        su.forEach(d => {
-          const udata = d.data();
-          if (d.id !== user.uid && udata.isActive !== false && udata.isPresent === true) {
-            outrosMoradores.push({ uid: d.id, name: udata.name || 'Morador' });
-          }
-        });
-        console.log(`[REDIST] Outros moradores disponiveis: ${outrosMoradores.length}`);
-        const novasAtribuicoes = [...outrasAtribuicoes];
-        for (const tarefa of tarefasDoViajante) {
-          console.log(`[REDIST] Processando tarefa: ${tarefa.titulo} (prioridade: ${tarefa.prioridade})`);
-          if (tarefa.prioridade === 'alta') {
-            if (outrosMoradores.length > 0) {
-              const substituto = outrosMoradores[0];
-              novasAtribuicoes.push({ ...tarefa, responsavelId: substituto.uid, responsavelNome: substituto.name });
-              tarefasRealocadasAlta.push(tarefa.titulo);
-              console.log(`[REDIST] Realocada para ${substituto.name}`);
-            } else {
-              console.log(`[REDIST] Nenhum morador disponível para realocar`);
-            }
-          } else {
-            tarefasAdiadasMediaBaixa.push(tarefa.titulo);
-            console.log(`[REDIST] Adiada (removida)`);
-          }
-        }
-        await updateDoc(doc(db, 'distribuicoes', distDoc.id), { atribuicoes: novasAtribuicoes });
-        console.log(`[REDIST] Distribuição ${weekId} atualizada`);
-      }
-      console.log(`[REDIST] Resumo: ${tarefasRealocadasAlta.length} alta, ${tarefasAdiadasMediaBaixa.length} media/baixa, ${distribuicoesAfetadas} semanas afetadas`);
-      if (tarefasRealocadasAlta.length > 0 || tarefasAdiadasMediaBaixa.length > 0) {
-        await notificarAdminRealocacao(tarefasRealocadasAlta, tarefasAdiadasMediaBaixa);
-        const resumoMsg = `Redistribuição completa: ${tarefasRealocadasAlta.length} tarefa(s) alta prioridade realocadas, ${tarefasAdiadasMediaBaixa.length} tarefa(s) media/baixa adiadas.`;
-        setSucesso(prev => prev ? prev + ' ' + resumoMsg : resumoMsg);
-      } else if (distribuicoesAfetadas > 0) {
-        setSucesso(prev => prev ? prev + ' Nenhuma tarefa pendente afetada.' : 'Nenhuma tarefa pendente afetada.');
-      } else {
-        setSucesso(prev => prev ? prev + ' Nenhuma distribuição afetada pela viagem.' : 'Nenhuma distribuição afetada pela viagem.');
-      }
-    } catch (e: any) {
-      console.error('[REDIST] Erro ao redistribuir:', e);
-      setErro('Erro na redistribuição: ' + e.message);
-    }
-  }
-
-  async function notificarAdminRealocacao(tarefasAlta: string[], tarefasMediaBaixa: string[]) {
+  // Redistribui via utils/distribuicao.ts (regras oficiais) somente se a presença na semana
+  // atual mudou (viagem passou a cobrir a semana ou deixou de cobrir).
+  async function redistribuirPorViagemAlterada(
+    original: Viagem | null,
+    novaDataSaida: string,
+    novaDataRetorno: string,
+    isCadastro: boolean
+  ) {
     if (!user?.uid || !user.houseId) return;
+    const sobrepoeAntes = original ? sobrepoeSemanaAtual(original.dataSaida, original.dataRetorno) : false;
+    const sobrepoeDepois = sobrepoeSemanaAtual(novaDataSaida, novaDataRetorno);
+    if (sobrepoeAntes === sobrepoeDepois) return;
+    const semana = getSemanaDaData(new Date());
     try {
-      const qu = query(collection(db, 'users'), where('houseId', '==', user.houseId), where('role', '==', 'admin'));
-      const su = await getDocs(qu);
-      const admins: string[] = [];
-      su.forEach(d => admins.push(d.id));
-      if (admins.length === 0) return;
-      const mensagem = `${user.name || 'Um morador'} cadastrou uma viagem. ` +
-        (tarefasAlta.length > 0 ? `Tarefas alta prioridade realocadas: ${tarefasAlta.join(', ')}. ` : '') +
-        (tarefasMediaBaixa.length > 0 ? `Tarefas média/baixa adiadas: ${tarefasMediaBaixa.join(', ')}.` : '');
-      for (const adminId of admins) {
-        await addDoc(collection(db, 'notificações'), {
-          destinatarioId: adminId,
-          titulo: 'Realocação de tarefas por viagem',
-          mensagem,
-          tipo: 'realocação',
-          lida: false,
-          createdAt: serverTimestamp(),
-        });
+      if (sobrepoeDepois) {
+        const titulo = isCadastro ? 'Tarefas Redistribuídas - Cadastro de Viagem' : 'Tarefas Redistribuídas - Alteração de Viagem';
+        const resultado = await redistribuirPorSaida(user.uid, user.houseId, semana.weekId, 'viagem', titulo);
+        if (resultado.redistribuidas > 0 || resultado.realocadas > 0) {
+          setSucesso(prev => `${prev} ${resultado.redistribuidas} tarefa(s) redistribuída(s), ${resultado.realocadas} realocada(s) para a próxima semana.`);
+        }
+      } else {
+        const resultado = await redistribuirPorEntrada(user.uid, user.houseId, semana.weekId, 'retorno_viagem', undefined, undefined, 'Tarefas Redistribuídas - Alteração de Viagem');
+        if (resultado.redistribuidas > 0 || resultado.adiantadas > 0) {
+          setSucesso(prev => `${prev} ${resultado.redistribuidas} tarefa(s) redistribuída(s).`);
+        }
       }
-    } catch (e) { console.error('Erro ao notificar admin:', e); }
+    } catch (err: any) {
+      console.error('[VIAGEM] Erro ao redistribuir:', err);
+    }
   }
 
   async function handleDuplicarViagem(v: Viagem) {
@@ -294,7 +214,25 @@ export function PerfilPage() {
 
   async function handleExcluirViagem(id: string) {
     if (!confirm('Excluir esta viagem?')) return;
-    try { await deleteDoc(doc(db, 'viagens', id)); setSucesso('Viagem excluída!'); carregarViagens(); }
+    const viagem = viagens.find(v => v.id === id);
+    try {
+      await deleteDoc(doc(db, 'viagens', id));
+      setSucesso('Viagem excluída!');
+      carregarViagens();
+      if (viagem && user?.uid && user.houseId && sobrepoeSemanaAtual(viagem.dataSaida, viagem.dataRetorno)) {
+        const { inicio, fim } = getIntervaloSemana(new Date());
+        const aindaViajando = await existeViagemSobrepondoPeriodo(user.uid, inicio, fim, id);
+        if (!aindaViajando) {
+          const semana = getSemanaDaData(new Date());
+          try {
+            const resultado = await redistribuirPorEntrada(user.uid, user.houseId, semana.weekId, 'retorno_viagem', undefined, undefined, 'Tarefas Redistribuídas - Viagem Excluída');
+            if (resultado.redistribuidas > 0 || resultado.adiantadas > 0) {
+              setSucesso(prev => `${prev} ${resultado.redistribuidas} tarefa(s) redistribuída(s).`);
+            }
+          } catch (err: any) { console.error('[VIAGEM] Erro ao redistribuir exclusão:', err); }
+        }
+      }
+    }
     catch (e: any) { setErro('Erro: ' + e.message); }
   }
 

@@ -5,7 +5,7 @@ import { db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { TopAppBar } from '@/components/TopAppBar';
 import { redistribuirPorEntrada, redistribuirPorSaida } from '@/utils/distribuicao';
-import { getSemanaDaData } from '@/utils/semana';
+import { getSemanaDaData, sobrepoeSemanaAtual } from '@/utils/semana';
 
 export function EstadiaPage() {
   const { user } = useAuthStore();
@@ -39,7 +39,10 @@ export function EstadiaPage() {
     try {
       const hoje = new Date().toISOString().split('T')[0];
       const estadiaAtiva = estadiaInicio <= hoje && estadiaFim > hoje;
-      const estavaAtiva = user?.estadiaInicio && user?.estadiaFim && user.estadiaInicio <= hoje && user.estadiaFim > hoje;
+      const isCadastro = !user?.estadiaInicio || !user?.estadiaFim;
+      // Presença NESTA SEMANA (não só hoje) - decide se dispara redistribuição/push
+      const sobrepoeAntes = sobrepoeSemanaAtual(user?.estadiaInicio, user?.estadiaFim);
+      const sobrepoeDepois = sobrepoeSemanaAtual(estadiaInicio, estadiaFim);
       await updateDoc(doc(db, 'users', user.uid), {
         estadiaInicio,
         estadiaFim,
@@ -49,14 +52,15 @@ export function EstadiaPage() {
       setSucesso(estadiaAtiva
         ? 'Estadia definida! Você pode usar o app normalmente.'
         : `Estadia definida, mas ainda não está ativa. Volte em ${estadiaInicio}.`);
-      // Redistribui tarefas se o estado mudou
-      if (user?.houseId && estavaAtiva !== estadiaAtiva) {
+      // Redistribui tarefas se a presença na semana atual mudou
+      if (user?.houseId && sobrepoeAntes !== sobrepoeDepois) {
         const semanaAtual = getSemanaDaData(new Date());
         try {
-          if (!estavaAtiva && estadiaAtiva) {
-            await redistribuirPorEntrada(user.uid, user.houseId, semanaAtual.weekId, 'estadia_iniciada', estadiaInicio, estadiaFim);
-          } else if (estavaAtiva && !estadiaAtiva) {
-            await redistribuirPorSaida(user.uid, user.houseId, semanaAtual.weekId, 'estadia_terminada');
+          if (sobrepoeDepois) {
+            const titulo = isCadastro ? 'Tarefas Redistribuídas - Cadastro de Hospedagem' : 'Tarefas Redistribuídas - Alteração de Hospedagem';
+            await redistribuirPorEntrada(user.uid, user.houseId, semanaAtual.weekId, 'estadia_iniciada', estadiaInicio, estadiaFim, titulo);
+          } else {
+            await redistribuirPorSaida(user.uid, user.houseId, semanaAtual.weekId, 'estadia_terminada', 'Tarefas Redistribuídas - Alteração de Hospedagem');
           }
         } catch (err: any) {
           console.error('Erro ao redistribuir por mudança de estadia:', err);
@@ -68,6 +72,36 @@ export function EstadiaPage() {
       }
     } catch (e: any) {
       setErro('Erro ao salvar: ' + e.message);
+    }
+    setLoading(false);
+  }
+
+  async function handleExcluirEstadia() {
+    if (!user?.uid) return;
+    if (!confirm('Excluir sua estadia cadastrada? Você precisará definir um novo período para voltar a usar o app.')) return;
+    setLoading(true);
+    setErro(''); setSucesso('');
+    try {
+      const sobrepoeAntes = sobrepoeSemanaAtual(user.estadiaInicio, user.estadiaFim);
+      await updateDoc(doc(db, 'users', user.uid), {
+        estadiaInicio: '',
+        estadiaFim: '',
+        isPresent: false,
+        updatedAt: new Date().toISOString(),
+      });
+      setEstadiaInicio('');
+      setEstadiaFim('');
+      setSucesso('Estadia excluída.');
+      if (user.houseId && sobrepoeAntes) {
+        const semanaAtual = getSemanaDaData(new Date());
+        try {
+          await redistribuirPorSaida(user.uid, user.houseId, semanaAtual.weekId, 'estadia_terminada', 'Tarefas Redistribuídas - Hospedagem Excluída');
+        } catch (err: any) {
+          console.error('Erro ao redistribuir exclusão de estadia:', err);
+        }
+      }
+    } catch (e: any) {
+      setErro('Erro ao excluir: ' + e.message);
     }
     setLoading(false);
   }
@@ -164,6 +198,17 @@ export function EstadiaPage() {
               </>
             )}
           </button>
+
+          {user?.estadiaInicio && user?.estadiaFim && (
+            <button
+              onClick={handleExcluirEstadia}
+              disabled={loading}
+              className="w-full bg-error/10 text-error border border-error/30 font-bold py-2.5 rounded-xl hover:bg-error/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined text-lg">delete</span>
+              Excluir Estadia
+            </button>
+          )}
         </div>
 
         {/* Info */}

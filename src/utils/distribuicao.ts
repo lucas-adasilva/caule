@@ -236,7 +236,8 @@ async function notificarRedistribuicao(
   subtipo: 'viagem' | 'estadia',
   tarefasAlteradas: Atribuicao[],
   realocadas: number,
-  adiantadas: number
+  adiantadas: number,
+  tituloCustom?: string
 ): Promise<void> {
   const admins = await buscarAdmins(casaId);
   if (admins.length === 0) return;
@@ -306,7 +307,7 @@ async function notificarRedistribuicao(
     </div>
   `;
 
-  const titulo = `Redistribuição de Tarefas — ${nomeMorador} ${textoEvento}`;
+  const titulo = tituloCustom || `Redistribuição de Tarefas — ${nomeMorador} ${textoEvento}`;
   const bodyTexto = `${tarefasAlteradas.length} tarefas redistribuídas. ${totalExtras.join('. ')}`;
 
   // Envia para cada admin
@@ -337,7 +338,8 @@ export async function redistribuirPorSaida(
   uidSaindo: string,
   casaId: string,
   weekId: string,
-  motivo: 'viagem' | 'estadia_terminada'
+  motivo: 'viagem' | 'estadia_terminada',
+  tituloNotificacao?: string
 ): Promise<{ redistribuidas: number; realocadas: number }> {
   const dist = await buscarDistribuicao(casaId, weekId);
   if (!dist) return { redistribuidas: 0, realocadas: 0 };
@@ -436,7 +438,8 @@ export async function redistribuirPorSaida(
     motivo === 'viagem' ? 'viagem' : 'estadia',
     tarefasRedistribuidas,
     realocadas,
-    0
+    0,
+    tituloNotificacao
   );
 
   return { redistribuidas, realocadas };
@@ -452,7 +455,8 @@ export async function redistribuirPorEntrada(
   weekId: string,
   motivo: 'retorno_viagem' | 'estadia_iniciada',
   estadiaInicio?: string,
-  estadiaFim?: string
+  estadiaFim?: string,
+  tituloNotificacao?: string
 ): Promise<{ redistribuidas: number; adiantadas: number }> {
   // Verifica > 1 noite para hóspedes
   if (motivo === 'estadia_iniciada' && estadiaInicio && estadiaFim) {
@@ -562,7 +566,8 @@ export async function redistribuirPorEntrada(
     motivo === 'retorno_viagem' ? 'viagem' : 'estadia',
     tarefasRedistribuidas,
     0,
-    adiantadas
+    adiantadas,
+    tituloNotificacao
   );
 
   return { redistribuidas: pendentes.length, adiantadas };

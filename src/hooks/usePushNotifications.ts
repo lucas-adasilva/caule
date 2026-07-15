@@ -6,7 +6,7 @@ import {
   type ActionPerformed,
   type PushNotificationSchema,
 } from '@capacitor/push-notifications';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, setDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuthStore } from '../stores/authStore';
 
@@ -17,6 +17,16 @@ export function usePushNotifications() {
   const [notifications, setNotifications] = useState<PushNotificationSchema[]>([]);
 
   const isNative = Capacitor.isNativePlatform();
+
+  // Salvar token FCM no Firestore para permitir push real vindo de outros usuarios (Cloud Function)
+  const saveFcmTokenToFirestore = async (fcmToken: string) => {
+    if (!user?.uid) return;
+    try {
+      await setDoc(doc(db, 'users', user.uid), { fcmTokens: arrayUnion(fcmToken) }, { merge: true });
+    } catch (e) {
+      console.error('[Push] Erro ao salvar fcmToken:', e);
+    }
+  };
 
   // Salvar notificacao no Firestore
   const saveNotificationToFirestore = async (notification: PushNotificationSchema) => {
@@ -97,6 +107,7 @@ export function usePushNotifications() {
         console.log('[Push] FCM Token:', token.value);
         setToken(token.value);
         setError(null);
+        saveFcmTokenToFirestore(token.value);
       }
     );
 

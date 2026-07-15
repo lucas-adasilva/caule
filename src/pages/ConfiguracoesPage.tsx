@@ -7,7 +7,8 @@ import { useApp } from '@/App';
 import { TopAppBar } from '@/components/TopAppBar';
 import { UserAvatar } from '@/components/UserAvatar';
 import { redistribuirPorSaida, redistribuirPorEntrada } from '@/utils/distribuicao';
-import { getSemanaDaData } from '@/utils/semana';
+import { getSemanaDaData, getIntervaloSemana, sobrepoeSemanaAtual } from '@/utils/semana';
+import { existeViagemSobrepondoPeriodo } from '@/utils/viagens';
 
 interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; foto?: string; }
 interface Comodo { id: string; nome: string; icone: string; cor: string; tipo: 'coletivo' | 'privado'; casaId: string; ordem: number; createdBy: string; responsavelId?: string; }
@@ -560,42 +561,43 @@ export function ConfiguracoesPage() {
           dadosParaSalvar[key] = value;
         }
       });
-      // Se for hospede, sincroniza isPresent com o periodo de estadia
+      // Se for hospede, sincroniza isPresent (hoje) e verifica mudanca de presenca NA SEMANA ATUAL
       const role = dadosParaSalvar.role || formMoradorCompleto.role || 'hospede';
-      let estavaPresente = false;
-      let ficaraPresente = false;
+      let sobrepoeAntes = false;
+      let sobrepoeDepois = false;
+      let isCadastro = false;
+      let novaEstadiaInicio = '';
+      let novaEstadiaFim = '';
       if (role === 'hospede') {
-        const estadiaInicio = dadosParaSalvar.estadiaInicio || formMoradorCompleto.estadiaInicio || '';
-        const estadiaFim = dadosParaSalvar.estadiaFim || formMoradorCompleto.estadiaFim || '';
+        novaEstadiaInicio = dadosParaSalvar.estadiaInicio || formMoradorCompleto.estadiaInicio || '';
+        novaEstadiaFim = dadosParaSalvar.estadiaFim || formMoradorCompleto.estadiaFim || '';
         const hoje = new Date().toISOString().split('T')[0];
-        ficaraPresente = estadiaInicio && estadiaFim && estadiaInicio <= hoje && estadiaFim > hoje;
-        dadosParaSalvar.isPresent = ficaraPresente;
-        // Verifica estado anterior
+        dadosParaSalvar.isPresent = !!(novaEstadiaInicio && novaEstadiaFim && novaEstadiaInicio <= hoje && novaEstadiaFim > hoje);
         const moradorAnterior = moradores.find(m => m.uid === editandoMoradorId);
-        if (moradorAnterior) {
-          const prevInicio = moradorAnterior.estadiaInicio || '';
-          const prevFim = moradorAnterior.estadiaFim || '';
-          estavaPresente = prevInicio && prevFim && prevInicio <= hoje && prevFim > hoje;
-        }
+        const prevInicio = moradorAnterior?.estadiaInicio || '';
+        const prevFim = moradorAnterior?.estadiaFim || '';
+        isCadastro = !prevInicio || !prevFim;
+        sobrepoeAntes = sobrepoeSemanaAtual(prevInicio, prevFim);
+        sobrepoeDepois = sobrepoeSemanaAtual(novaEstadiaInicio, novaEstadiaFim);
       }
       await updateDoc(doc(db, 'users', editandoMoradorId), dadosParaSalvar);
       setEditandoMoradorId(null);
       setFormMoradorCompleto({});
       setSucesso('Morador atualizado!');
       carregarMoradores();
-      // Se hóspede mudou de estado, dispara redistribuição
-      if (role === 'hospede' && casaSelecionada?.id && estavaPresente !== ficaraPresente) {
+      // Se a presenca do hospede NA SEMANA ATUAL mudou, dispara redistribuição
+      if (role === 'hospede' && casaSelecionada?.id && sobrepoeAntes !== sobrepoeDepois) {
         const semanaAtual = getSemanaDaData(new Date());
         try {
-          if (!estavaPresente && ficaraPresente) {
+          if (sobrepoeDepois) {
+            const titulo = isCadastro ? 'Tarefas Redistribuídas - Cadastro de Hospedagem' : 'Tarefas Redistribuídas - Alteração de Hospedagem';
             const resultado = await redistribuirPorEntrada(
               editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'estadia_iniciada',
-              dadosParaSalvar.estadiaInicio || formMoradorCompleto.estadiaInicio,
-              dadosParaSalvar.estadiaFim || formMoradorCompleto.estadiaFim
+              novaEstadiaInicio, novaEstadiaFim, titulo
             );
             setSucesso(`Hóspede presente! ${resultado.redistribuidas} tarefas redistribuídas${resultado.adiantadas > 0 ? `, ${resultado.adiantadas} adiantadas` : ''}.`);
-          } else if (estavaPresente && !ficaraPresente) {
-            const resultado = await redistribuirPorSaida(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'estadia_terminada');
+          } else {
+            const resultado = await redistribuirPorSaida(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'estadia_terminada', 'Tarefas Redistribuídas - Alteração de Hospedagem');
             setSucesso(`Hóspede ausente. ${resultado.redistribuidas} tarefas redistribuídas, ${resultado.realocadas} realocadas.`);
           }
         } catch (err: any) {
@@ -603,6 +605,31 @@ export function ConfiguracoesPage() {
         }
       }
     } catch (e: any) { setErro('Erro ao salvar: ' + e.message); }
+  }
+
+  async function handleExcluirEstadiaMorador() {
+    if (!editandoMoradorId) return;
+    if (!confirm('Excluir a estadia deste hóspede? Ele perderá acesso às tarefas até um novo período ser definido.')) return;
+    try {
+      const moradorAtual = moradores.find(m => m.uid === editandoMoradorId);
+      const sobrepoeAntes = sobrepoeSemanaAtual(moradorAtual?.estadiaInicio, moradorAtual?.estadiaFim);
+      await updateDoc(doc(db, 'users', editandoMoradorId), {
+        estadiaInicio: '',
+        estadiaFim: '',
+        isPresent: false,
+        updatedAt: serverTimestamp(),
+      });
+      setFormMoradorCompleto(prev => ({ ...prev, estadiaInicio: '', estadiaFim: '' }));
+      setSucesso('Estadia excluída!');
+      carregarMoradores();
+      if (casaSelecionada?.id && sobrepoeAntes) {
+        const semanaAtual = getSemanaDaData(new Date());
+        try {
+          const resultado = await redistribuirPorSaida(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'estadia_terminada', 'Tarefas Redistribuídas - Hospedagem Excluída');
+          setSucesso(`Estadia excluída! ${resultado.redistribuidas} tarefas redistribuídas, ${resultado.realocadas} realocadas.`);
+        } catch (err: any) { console.error('Erro ao redistribuir exclusão de estadia:', err); }
+      }
+    } catch (e: any) { setErro('Erro ao excluir estadia: ' + e.message); }
   }
 
   async function handleExcluirMorador(morador: UserData) {
@@ -655,36 +682,40 @@ export function ConfiguracoesPage() {
     if (!novaViagem.destino.trim() || !novaViagem.dataSaida || !novaViagem.dataRetorno) { setErro('Preencha destino, data de saída e retorno'); return; }
     if (novaViagem.dataSaida > novaViagem.dataRetorno) { setErro('Data de retorno deve ser após a data de saída'); return; }
     try {
-      let estadoMudou = false;
-      const hoje = new Date().toISOString().split('T')[0];
+      const isCadastro = !editandoViagemId;
+      const viagemOriginal = editandoViagemId ? viagensMoradorEditando.find(v => v.id === editandoViagemId) : null;
       if (editandoViagemId) {
-        const viagemOriginal = viagensMoradorEditando.find(v => v.id === editandoViagemId);
-        if (viagemOriginal) {
-          const estavaEmViagem = viagemOriginal.dataSaida <= hoje && viagemOriginal.dataRetorno >= hoje;
-          const estaEmViagem = novaViagem.dataSaida <= hoje && novaViagem.dataRetorno >= hoje;
-          estadoMudou = estavaEmViagem !== estaEmViagem;
-        }
         await updateDoc(doc(db, 'viagens', editandoViagemId), { ...novaViagem, updatedAt: serverTimestamp() });
       } else {
         await addDoc(collection(db, 'viagens'), { ...novaViagem, uid: editandoMoradorId, createdAt: serverTimestamp() });
-        // Nova viagem: redistribui se já começou (dataSaida <= hoje)
-        estadoMudou = novaViagem.dataSaida <= hoje;
       }
       setNovaViagem({ destino: '', dataSaida: '', dataRetorno: '', motivo: '' });
       setEditandoViagemId(null);
       setSucesso('Viagem salva!');
       await carregarViagensMorador(editandoMoradorId);
       await carregarViagensMoradores();
-      // Redistribui se o estado de viagem mudou e a viagem afeta a semana atual
-      if (estadoMudou && casaSelecionada?.id) {
-        const semanaAtual = getSemanaDaData(new Date());
-        try {
-          const resultado = await redistribuirPorSaida(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'viagem');
-          if (resultado.redistribuidas > 0 || resultado.realocadas > 0) {
-            setSucesso(`Viagem salva! ${resultado.redistribuidas} tarefas redistribuídas, ${resultado.realocadas} realocadas para próxima semana.`);
+      // Redistribui se a presença na semana atual mudou (viagem passou a cobrir a semana ou deixou de cobrir)
+      if (casaSelecionada?.id) {
+        const sobrepoeAntes = viagemOriginal ? sobrepoeSemanaAtual(viagemOriginal.dataSaida, viagemOriginal.dataRetorno) : false;
+        const sobrepoeDepois = sobrepoeSemanaAtual(novaViagem.dataSaida, novaViagem.dataRetorno);
+        if (sobrepoeAntes !== sobrepoeDepois) {
+          const semanaAtual = getSemanaDaData(new Date());
+          try {
+            if (sobrepoeDepois) {
+              const titulo = isCadastro ? 'Tarefas Redistribuídas - Cadastro de Viagem' : 'Tarefas Redistribuídas - Alteração de Viagem';
+              const resultado = await redistribuirPorSaida(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'viagem', titulo);
+              if (resultado.redistribuidas > 0 || resultado.realocadas > 0) {
+                setSucesso(`Viagem salva! ${resultado.redistribuidas} tarefas redistribuídas, ${resultado.realocadas} realocadas para próxima semana.`);
+              }
+            } else {
+              const resultado = await redistribuirPorEntrada(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'retorno_viagem', undefined, undefined, 'Tarefas Redistribuídas - Alteração de Viagem');
+              if (resultado.redistribuidas > 0 || resultado.adiantadas > 0) {
+                setSucesso(`Viagem salva! ${resultado.redistribuidas} tarefas redistribuídas.`);
+              }
+            }
+          } catch (err: any) {
+            console.error('Erro ao redistribuir por viagem:', err);
           }
-        } catch (err: any) {
-          console.error('Erro ao redistribuir por viagem:', err);
         }
       }
     } catch (e: any) { setErro('Erro ao salvar viagem: ' + e.message); }
@@ -692,11 +723,25 @@ export function ConfiguracoesPage() {
 
   async function excluirViagem(viagemId: string) {
     if (!confirm('Excluir esta viagem?')) return;
+    const viagem = viagensMoradorEditando.find(v => v.id === viagemId);
     try {
       await deleteDoc(doc(db, 'viagens', viagemId));
       setViagensMoradorEditando(prev => prev.filter(v => v.id !== viagemId));
       setSucesso('Viagem excluída!');
       await carregarViagensMoradores();
+      if (viagem && editandoMoradorId && casaSelecionada?.id && sobrepoeSemanaAtual(viagem.dataSaida, viagem.dataRetorno)) {
+        const { inicio, fim } = getIntervaloSemana(new Date());
+        const aindaViajando = await existeViagemSobrepondoPeriodo(editandoMoradorId, inicio, fim, viagemId);
+        if (!aindaViajando) {
+          const semanaAtual = getSemanaDaData(new Date());
+          try {
+            const resultado = await redistribuirPorEntrada(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'retorno_viagem', undefined, undefined, 'Tarefas Redistribuídas - Viagem Excluída');
+            if (resultado.redistribuidas > 0 || resultado.adiantadas > 0) {
+              setSucesso(`Viagem excluída! ${resultado.redistribuidas} tarefas redistribuídas.`);
+            }
+          } catch (err: any) { console.error('Erro ao redistribuir exclusão de viagem:', err); }
+        }
+      }
     } catch (e: any) { setErro('Erro ao excluir viagem: ' + e.message); }
   }
 
@@ -1619,6 +1664,11 @@ export function ConfiguracoesPage() {
                         <input type="date" value={formMoradorCompleto.estadiaFim || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, estadiaFim: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
                       </div>
                     </div>
+                    {formMoradorCompleto.estadiaInicio && formMoradorCompleto.estadiaFim && (
+                      <button onClick={handleExcluirEstadiaMorador} className="w-full bg-error/10 text-error border border-error/30 font-bold py-2 rounded-lg text-sm hover:bg-error/20 transition-all">
+                        Excluir Estadia
+                      </button>
+                    )}
                   </div>
                 )}
 

@@ -82,6 +82,33 @@ export async function buscarViagemAtiva(uid: string): Promise<{ id: string; dest
 }
 
 /**
+ * Verifica se o usuário tem alguma outra viagem (exceto `excluirId`) sobrepondo o período informado.
+ * Usado para não devolver alguém à rotação de tarefas se outra viagem dele ainda cobre a semana atual.
+ */
+export async function existeViagemSobrepondoPeriodo(
+  uid: string,
+  periodoInicio: string,
+  periodoFim: string,
+  excluirId?: string
+): Promise<boolean> {
+  if (!uid) return false;
+  try {
+    const q = query(collection(db, 'viagens'), where('uid', '==', uid));
+    const snap = await getDocs(q);
+    let existe = false;
+    snap.forEach(d => {
+      if (excluirId && d.id === excluirId) return;
+      const data = d.data();
+      if (data.dataSaida <= periodoFim && data.dataRetorno >= periodoInicio) existe = true;
+    });
+    return existe;
+  } catch (e) {
+    console.error('Erro ao verificar sobreposição de viagens:', e);
+    return false;
+  }
+}
+
+/**
  * Atualiza a data de retorno de uma viagem para hoje (interrompe viagem antecipadamente)
  */
 export async function interromperViagem(viagemId: string): Promise<void> {
