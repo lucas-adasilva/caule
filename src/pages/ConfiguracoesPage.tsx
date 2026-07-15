@@ -33,10 +33,10 @@ interface UserData {
 }
 type Aba = 'casas' | 'comodos' | 'tarefas' | 'moradores' | 'distribuição' | 'notificações';
 
-interface Atribuicao { id: string; tarefaId: string; titulo: string; descricao: string; prioridade: 'alta' | 'media' | 'baixa'; responsavelId: string; responsavelNome: string; diaSemana: number; status: 'pendente' | 'concluída'; dataConclusao?: string; }
+interface Atribuicao { id: string; tarefaId: string; titulo: string; descricao: string; prioridade: 'alta' | 'media' | 'baixa'; responsavelId: string; responsavelNome: string; diaSemana: number; status: 'pendente' | 'concluída'; dataConclusao?: string; execucaoId?: string; }
 interface Distribuicao { id: string; weekId: string; houseId: string; atribuicoes: Atribuicao[]; }
 interface TarefaBase { id: string; titulo: string; descricao: string; frequencia: string; prioridade: 'alta' | 'media' | 'baixa'; diasSemana: string[]; horarioLimite: string; houseId: string; ativo: boolean; }
-interface Execucao { id: string; tarefaId: string; executorId: string; data: string; houseId: string; }
+interface Execucao { id: string; tarefaId: string; titulo?: string; executorId: string; executorNome?: string; weekId?: string; data: string; casaId: string; }
 interface MoradorPresente { uid: string; name: string; isPresent: boolean; isActive: boolean; role?: string; estadiaInicio?: string; estadiaFim?: string; }
 interface Viagem { id: string; uid: string; destino: string; dataSaida: string; dataRetorno: string; motivo: string; }
 
@@ -946,12 +946,22 @@ export function ConfiguracoesPage() {
   async function toggleTarefaDistribuicao(atribuicao: Atribuicao) {
     if (!distribuicao || !user?.uid || !casaSelecionada?.id) return;
     try {
+      const isConcluindo = atribuicao.status === 'pendente';
+      // Desfazer remove o registro de execucao criado ao concluir, para nao inflar o historico usado no desempate.
+      // Executor gravado e o responsavel pela atribuicao (nao o admin que fez o toggle), pois e quem de fato realizou a tarefa.
+      let execucaoId = atribuicao.execucaoId;
+      if (isConcluindo) {
+        const ref = await addDoc(collection(db, 'execucoes'), { tarefaId: atribuicao.tarefaId, titulo: atribuicao.titulo, executorId: atribuicao.responsavelId, executorNome: atribuicao.responsavelNome, weekId: distribuicao.weekId, data: new Date().toISOString(), casaId: casaSelecionada.id });
+        execucaoId = ref.id;
+      } else if (atribuicao.execucaoId) {
+        await deleteDoc(doc(db, 'execucoes', atribuicao.execucaoId));
+        execucaoId = undefined;
+      }
       const novasAtribuicoes = distribuicao.atribuicoes.map(a => {
-        if (a.id === atribuicao.id) { const novoStatus: 'pendente' | 'concluída' = a.status === 'concluída' ? 'pendente' : 'concluída'; return { ...a, status: novoStatus, dataConclusao: novoStatus === 'concluída' ? new Date().toISOString() : undefined }; }
+        if (a.id === atribuicao.id) { const novoStatus: 'pendente' | 'concluída' = isConcluindo ? 'concluída' : 'pendente'; return { ...a, status: novoStatus, dataConclusao: isConcluindo ? new Date().toISOString() : undefined, execucaoId }; }
         return a;
       });
       await updateDoc(doc(db, 'distribuicoes', distribuicao.id), { atribuicoes: novasAtribuicoes });
-      if (atribuicao.status === 'pendente') { await addDoc(collection(db, 'execucoes'), { tarefaId: atribuicao.tarefaId, executorId: user.uid, data: new Date().toISOString(), casaId: casaSelecionada.id }); }
       setDistribuicao({ ...distribuicao, atribuicoes: novasAtribuicoes });
     } catch (e: any) { setErro('Erro: ' + e.message); }
   }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { useApp } from '@/App';
@@ -10,6 +10,7 @@ interface Atribuicao {
   prioridade: 'alta' | 'media' | 'baixa'; responsavelId: string;
   responsavelNome: string; diaSemana: number;
   status: 'pendente' | 'concluida'; dataConclusao?: string; horarioLimite?: string;
+  execucaoId?: string;
 }
 interface Distribuicao { id: string; weekId: string; casaId: string; atribuicoes: Atribuicao[]; }
 
@@ -153,18 +154,26 @@ export function TarefasPage() {
     if (!distribuicao || !user?.uid || !user?.houseId) return;
     try {
       const isConcluindo = atribuicao.status === 'pendente';
-      // Cria objeto de update - nao inclui dataConclusao quando desfaz (remove do doc)
+      // Desfazer remove o registro de execucao criado ao concluir, para nao inflar o historico usado no desempate
+      let execucaoId = atribuicao.execucaoId;
+      if (isConcluindo) {
+        const ref = await addDoc(collection(db, 'execucoes'), { tarefaId: atribuicao.tarefaId, titulo: atribuicao.titulo, executorId: user.uid, executorNome: user.name || 'Morador', weekId: semanaAtual, data: new Date().toISOString(), casaId: user.houseId });
+        execucaoId = ref.id;
+      } else if (atribuicao.execucaoId) {
+        await deleteDoc(doc(db, 'execucoes', atribuicao.execucaoId));
+        execucaoId = undefined;
+      }
+      // Cria objeto de update - nao inclui dataConclusao/execucaoId quando desfaz (remove do doc)
       const novasAtribuicoes = distribuicao.atribuicoes.map(a => {
         if (a.id === atribuicao.id) {
           const updated: any = { ...a, status: (isConcluindo ? 'concluida' : 'pendente') as 'pendente' | 'concluida' };
-          if (isConcluindo) { updated.dataConclusao = new Date().toISOString(); }
-          else { delete updated.dataConclusao; } // Remove campo ao inves de undefined
+          if (isConcluindo) { updated.dataConclusao = new Date().toISOString(); updated.execucaoId = execucaoId; }
+          else { delete updated.dataConclusao; delete updated.execucaoId; } // Remove campos ao inves de undefined
           return updated;
         }
         return a;
       });
       await updateDoc(doc(db, 'distribuicoes', distribuicao.id), { atribuicoes: novasAtribuicoes });
-      if (isConcluindo) await addDoc(collection(db, 'execucoes'), { tarefaId: atribuicao.tarefaId, titulo: atribuicao.titulo, executorId: user.uid, executorNome: user.name || 'Morador', weekId: semanaAtual, data: new Date().toISOString(), casaId: user.houseId });
       setDistribuicao({ ...distribuicao, atribuicoes: novasAtribuicoes });
     } catch (e) { console.error('toggleTarefa error:', e); }
   }
