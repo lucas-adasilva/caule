@@ -260,30 +260,40 @@ async function notificarRedistribuicao(
     ? (isChegada ? 'iniciou a estadia' : 'encerrou a estadia')
     : (isChegada ? 'retornou de viagem' : 'saiu em viagem');
 
-  // Tabelinha de tarefas redistribuídas
+  // Coluna muda de sentido conforme o evento: quem SAI mostra pra quem a tarefa foi;
+  // quem CHEGA/retorna mostra de quem a tarefa veio.
+  const colunaTitulo = isChegada ? 'Recebido de' : 'Novo Responsável';
+  function nomeColuna(a: Atribuicao): string {
+    const hist = a.historico && a.historico.length > 0 ? a.historico[a.historico.length - 1] : undefined;
+    if (isChegada) return hist?.responsavelAnteriorNome || '—';
+    return hist?.responsavelNovoNome || a.responsavelNome;
+  }
+
+  // Tabelinha de tarefas redistribuídas - cores fixas e opacas (não depende do tema do app,
+  // já que o card é renderizado dentro da página de notificações via HTML bruto)
   let tabelaHTML = '';
   if (tarefasAlteradas.length > 0) {
     tabelaHTML = `
-      <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:13px;">
+      <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:13px;background:#ffffff;">
         <thead>
-          <tr style="background:${corEvento}15;">
-            <th style="text-align:left;padding:8px;border-bottom:2px solid ${corEvento}40;">Tarefa</th>
-            <th style="text-align:center;padding:8px;border-bottom:2px solid ${corEvento}40;">Prioridade</th>
-            <th style="text-align:center;padding:8px;border-bottom:2px solid ${corEvento}40;">Dia</th>
-            <th style="text-align:left;padding:8px;border-bottom:2px solid ${corEvento}40;">Responsável</th>
+          <tr style="background:#f3f4f6;">
+            <th style="text-align:left;padding:8px;border-bottom:2px solid ${corEvento};color:#111827;font-weight:700;">Tarefa</th>
+            <th style="text-align:center;padding:8px;border-bottom:2px solid ${corEvento};color:#111827;font-weight:700;">Prioridade</th>
+            <th style="text-align:center;padding:8px;border-bottom:2px solid ${corEvento};color:#111827;font-weight:700;">Dia</th>
+            <th style="text-align:left;padding:8px;border-bottom:2px solid ${corEvento};color:#111827;font-weight:700;">${colunaTitulo}</th>
           </tr>
         </thead>
         <tbody>
           ${tarefasAlteradas.map((a, i) => `
-            <tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
-              <td style="padding:8px;border-bottom:1px solid #e5e7eb;">${escapeHtml(a.titulo)}</td>
+            <tr style="background:${i % 2 === 0 ? '#ffffff' : '#f3f4f6'};">
+              <td style="padding:8px;border-bottom:1px solid #e5e7eb;color:#111827;">${escapeHtml(a.titulo)}</td>
               <td style="text-align:center;padding:8px;border-bottom:1px solid #e5e7eb;">
                 <span style="color:${corPrioridade(a.prioridade)};font-weight:bold;">
                   ${emojiPrioridade(a.prioridade)} ${a.prioridade}
                 </span>
               </td>
-              <td style="text-align:center;padding:8px;border-bottom:1px solid #e5e7eb;">${DIAS_LABEL[a.diaSemana]}</td>
-              <td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:600;">${escapeHtml(a.responsavelNome)}</td>
+              <td style="text-align:center;padding:8px;border-bottom:1px solid #e5e7eb;color:#111827;">${DIAS_LABEL[a.diaSemana]}</td>
+              <td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#111827;">${escapeHtml(nomeColuna(a))}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -296,7 +306,7 @@ async function notificarRedistribuicao(
   if (adiantadas > 0) totalExtras.push(`⏩ ${adiantadas} adiantada${adiantadas > 1 ? 's' : ''} da próxima semana`);
 
   const mensagemHTML = `
-    <div style="font-family:system-ui,sans-serif;line-height:1.5;color:#1f2937;">
+    <div style="font-family:system-ui,sans-serif;line-height:1.5;color:#1f2937;background:#ffffff;border-radius:14px;padding:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <span style="font-size:24px;">${emojiEvento}</span>
         <div>
@@ -308,9 +318,9 @@ async function notificarRedistribuicao(
       </div>
       ${tabelaHTML}
       <div style="margin-top:14px;padding:10px 12px;background:#f3f4f6;border-radius:10px;font-size:13px;color:#374151;">
-        <p style="margin:0 0 4px 0;font-weight:600;">📊 Resumo:</p>
-        <p style="margin:0;">📝 ${tarefasAlteradas.length} tarefa${tarefasAlteradas.length !== 1 ? 's' : ''} redistribuída${tarefasAlteradas.length !== 1 ? 's' : ''}</p>
-        ${totalExtras.length > 0 ? `<p style="margin:4px 0 0 0;">${totalExtras.join(' · ')}</p>` : ''}
+        <p style="margin:0 0 4px 0;font-weight:600;color:#111827;">📊 Resumo:</p>
+        <p style="margin:0;color:#374151;">📝 ${tarefasAlteradas.length} tarefa${tarefasAlteradas.length !== 1 ? 's' : ''} redistribuída${tarefasAlteradas.length !== 1 ? 's' : ''}</p>
+        ${totalExtras.length > 0 ? `<p style="margin:4px 0 0 0;color:#374151;">${totalExtras.join(' · ')}</p>` : ''}
       </div>
       <p style="margin-top:12px;font-size:11px;color:#9ca3af;text-align:center;">
         ✨ Caule — Sistema de Gestão da Casa
@@ -539,7 +549,10 @@ export async function redistribuirPorEntrada(
       : atrib;
 
     novasAtribuicoes.push(novaAtrib);
-    if (foiMudanca) tarefasRedistribuidas.push(novaAtrib);
+    // Só entra na notificação a tarefa que efetivamente foi PARA quem chegou/retornou -
+    // o rebalanceamento pode reatribuir tarefas de/para outras pessoas, mas isso não é
+    // relevante para a notificação deste evento específico.
+    if (foiMudanca && novoResponsavel.uid === uidEntrando) tarefasRedistribuidas.push(novaAtrib);
   }
 
   // Capacidade restante

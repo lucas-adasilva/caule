@@ -23,6 +23,7 @@ import { NotificacoesPage } from './pages/NotificacoesPage';
 import { PerfilPage } from './pages/PerfilPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { ProjetosPage } from './pages/ProjetosPage';
+import { syncBadgeCount } from './utils/badge';
 import { EstadiaPage } from './pages/EstadiaPage';
 import { UpdateDialog } from './components/UpdateDialog';
 import { usePushNotifications } from './hooks/usePushNotifications';
@@ -139,6 +140,7 @@ function AuthListener() {
       if (firebaseUser) {
         const user = await buildUserObject(firebaseUser);
         setUser(user);
+        syncBadgeCount(user.uid);
         if (user.isNewUser) {
           if (location.pathname !== '/completar-perfil') {
             navigate('/completar-perfil', { replace: true });

@@ -3,6 +3,7 @@ import { collection, query, where, getDocs, doc, updateDoc, deleteDoc } from 'fi
 import { db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { TopAppBar } from '@/components/TopAppBar';
+import { syncBadgeCount } from '@/utils/badge';
 
 interface Notificacao {
   id: string;
@@ -40,12 +41,14 @@ export function NotificacoesPage() {
       setNotifs(lista.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
     } catch (e) { console.error(e); }
     setLoading(false);
+    syncBadgeCount(user?.uid);
   }
 
   async function marcarLida(notifId: string) {
     try {
       await updateDoc(doc(db, 'notificacoes', notifId), { lida: true });
       setNotifs(prev => prev.map(n => n.id === notifId ? { ...n, lida: true } : n));
+      syncBadgeCount(user?.uid);
     } catch (e) { console.error(e); }
   }
 
@@ -54,6 +57,7 @@ export function NotificacoesPage() {
     try {
       await deleteDoc(doc(db, 'notificacoes', notifId));
       setNotifs(prev => prev.filter(n => n.id !== notifId));
+      syncBadgeCount(user?.uid);
     } catch (e) { console.error(e); }
   }
 

@@ -9,6 +9,7 @@ import {
 import { collection, addDoc, serverTimestamp, doc, setDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuthStore } from '../stores/authStore';
+import { syncBadgeCount } from '../utils/badge';
 
 export function usePushNotifications() {
   const { user } = useAuthStore();
@@ -126,6 +127,7 @@ export function usePushNotifications() {
         setNotifications((prev) => [notification, ...prev]);
         // Salvar no Firestore
         saveNotificationToFirestore(notification);
+        syncBadgeCount(user?.uid);
       }
     );
 
