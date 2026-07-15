@@ -5,7 +5,7 @@ import { auth } from '@/lib/firebase';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { UserAvatar } from '@/components/UserAvatar';
-import { usuarioViajandoAgora, buscarViagemAtiva, interromperViagem, redistribuirTarefasPorRetorno } from '@/utils/viagens';
+import { usuarioViajandoAgora, buscarViagemAtiva, interromperViagem } from '@/utils/viagens';
 import { redistribuirPorEntrada } from '@/utils/distribuicao';
 import {
   DropdownMenu,

@@ -331,7 +331,7 @@ export async function redistribuirPorSaida(
  * - Se sobrar capacidade, adianta tarefas de semanas futuras
  */
 export async function redistribuirPorEntrada(
-  uidEntrando: string,
+  _uidEntrando: string,
   casaId: string,
   weekId: string,
   motivo: 'retorno_viagem' | 'estadia_iniciada'
@@ -437,7 +437,7 @@ async function realocarParaSemanaSeguinte(
   tarefas: Atribuicao[],
   casaId: string,
   weekIdAtual: string,
-  uidSaindo: string,
+  _uidSaindo: string,
   motivoTexto: string
 ): Promise<void> {
   const weekIdDestino = proximaSemana(weekIdAtual);
