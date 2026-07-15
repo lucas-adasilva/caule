@@ -197,7 +197,8 @@ export function HomePage() {
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body-md antialiased">
       <TopAppBar
-        title={user?.name ? `Casa de ${user.name}` : 'Casa das Oliveiras'}
+        title="Visão Geral"
+        titleColor="text-page-copa"
         onMenuClick={openMenu}
         onNotificationClick={openNotifications}
       />

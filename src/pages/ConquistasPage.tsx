@@ -51,7 +51,8 @@ export function ConquistasPage() {
       <TopAppBar
         onMenuClick={openMenu}
         onNotificationClick={openNotifications}
-        title="Casa das Oliveiras" />
+        title="Conquistas"
+        titleColor="text-page-frutos" />
 
       <main className="px-margin-page pb-8">
         {/* Title Section */}

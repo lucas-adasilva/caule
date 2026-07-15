@@ -67,7 +67,8 @@ export function EventosPage() {
       <TopAppBar
         onMenuClick={openMenu}
         onNotificationClick={openNotifications}
-        title="Casa das Oliveiras" />
+        title="Eventos"
+        titleColor="text-page-flores" />
 
       <main className="px-margin-page pb-8">
         {/* Title & Subtitle */}

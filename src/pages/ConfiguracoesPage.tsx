@@ -1037,7 +1037,7 @@ export function ConfiguracoesPage() {
       <TopAppBar
         onMenuClick={openMenu}
         onNotificationClick={openNotifications}
-        title="Caule" subtitle="Configurações" />
+        title="Configurações" titleColor="text-page-caule" />
       <main className="px-margin-page py-stack-md">
         <p className="text-on-surface-variant mb-4">Gerencie suas Casas</p>
 

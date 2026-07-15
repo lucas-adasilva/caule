@@ -72,7 +72,8 @@ export function CalendarioPage() {
       <TopAppBar
         onMenuClick={openMenu}
         onNotificationClick={openNotifications}
-        title="Ciclos" />
+        title="Calendário"
+        titleColor="text-page-ciclos" />
 
       <main className="flex-1 px-margin-page py-6 pb-24 space-y-stack-lg">
         {/* Hero Header */}

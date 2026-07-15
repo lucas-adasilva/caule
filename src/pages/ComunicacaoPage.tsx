@@ -185,7 +185,7 @@ export function ComunicacaoPage() {
       <TopAppBar
         onMenuClick={openMenu}
         onNotificationClick={openNotifications}
-        title="Raízes" subtitle="Comunicação" />
+        title="Comunicação" titleColor="text-page-raizes" />
       <main className="flex flex-col h-[calc(100dvh-64px-env(safe-area-inset-top)-80px-env(safe-area-inset-bottom))] overflow-hidden">
         {/* Header com filtros */}
         <div className="shrink-0 border-b border-outline-variant bg-surface-container/50 px-4 py-3">

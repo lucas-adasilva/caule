@@ -238,7 +238,8 @@ export function TarefasPage() {
       <TopAppBar
         onMenuClick={openMenu}
         onNotificationClick={openNotifications}
-        title={user?.name ? `Casa de ${user.name}` : 'Casa das Oliveiras'} />
+        title="Tarefas"
+        titleColor="text-page-folhas" />
       <main className="px-margin-page mt-stack-md">
         <div className="mb-stack-lg"><h2 className="font-headline-lg-mobile text-headline-lg-mobile text-page-folhas">Folhas</h2><p className="text-text-muted font-body-md">Minhas tarefas da semana</p></div>
 

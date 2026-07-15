@@ -23,6 +23,7 @@ import { useNavigate } from 'react-router-dom';
 interface TopAppBarProps {
   title?: string;
   subtitle?: string;
+  titleColor?: string;
   onMenuClick?: () => void;
   onNotificationClick?: () => void;
   showAvatar?: boolean;
@@ -35,6 +36,7 @@ interface TopAppBarProps {
 export function TopAppBar({
   title,
   subtitle,
+  titleColor = 'text-primary',
   onMenuClick,
   onNotificationClick,
   showAvatar = true,
@@ -119,9 +121,9 @@ export function TopAppBar({
         {title ? (
           <div>
             {subtitle && (
-              <p className="text-primary text-label-sm font-label-sm tracking-widest uppercase">{subtitle}</p>
+              <p className={`${titleColor} text-label-sm font-label-sm tracking-widest uppercase`}>{subtitle}</p>
             )}
-            <h1 className="text-primary font-bold text-2xl tracking-tight">{title}</h1>
+            <h1 className={`${titleColor} font-bold text-2xl tracking-tight`}>{title}</h1>
           </div>
         ) : (
           <span className="text-primary font-bold text-2xl tracking-tight">Caule</span>
