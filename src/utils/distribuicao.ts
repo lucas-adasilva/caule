@@ -208,6 +208,17 @@ function emojiPrioridade(p: string): string {
   return '🟢';
 }
 
+// Escapa valores vindos de campos editáveis pelo usuário (nome, título de tarefa) antes de
+// interpolar no HTML da notificação, que é renderizado com dangerouslySetInnerHTML no app.
+function escapeHtml(str: string): string {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 async function enviarNotificacaoLocal(titulo: string, body: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
@@ -265,14 +276,14 @@ async function notificarRedistribuicao(
         <tbody>
           ${tarefasAlteradas.map((a, i) => `
             <tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
-              <td style="padding:8px;border-bottom:1px solid #e5e7eb;">${a.titulo}</td>
+              <td style="padding:8px;border-bottom:1px solid #e5e7eb;">${escapeHtml(a.titulo)}</td>
               <td style="text-align:center;padding:8px;border-bottom:1px solid #e5e7eb;">
                 <span style="color:${corPrioridade(a.prioridade)};font-weight:bold;">
                   ${emojiPrioridade(a.prioridade)} ${a.prioridade}
                 </span>
               </td>
               <td style="text-align:center;padding:8px;border-bottom:1px solid #e5e7eb;">${DIAS_LABEL[a.diaSemana]}</td>
-              <td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:600;">${a.responsavelNome}</td>
+              <td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:600;">${escapeHtml(a.responsavelNome)}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -291,7 +302,7 @@ async function notificarRedistribuicao(
         <div>
           <p style="margin:0;font-size:15px;color:#6b7280;">Redistribuição de Tarefas</p>
           <p style="margin:0;font-size:17px;font-weight:700;color:${corEvento};">
-            <strong>${nomeMorador}</strong> ${textoEvento}
+            <strong>${escapeHtml(nomeMorador)}</strong> ${textoEvento}
           </p>
         </div>
       </div>
@@ -307,7 +318,9 @@ async function notificarRedistribuicao(
     </div>
   `;
 
-  const titulo = tituloCustom || `Redistribuição de Tarefas — ${nomeMorador} ${textoEvento}`;
+  const titulo = tituloCustom
+    ? `${tituloCustom} (${nomeMorador})`
+    : `Redistribuição de Tarefas — ${nomeMorador} ${textoEvento}`;
   const bodyTexto = `${tarefasAlteradas.length} tarefas redistribuídas. ${totalExtras.join('. ')}`;
 
   // Envia para cada admin
