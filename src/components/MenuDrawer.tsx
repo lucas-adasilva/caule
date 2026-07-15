@@ -91,7 +91,7 @@ export function MenuDrawer({ isOpen, onClose }: MenuDrawerProps) {
 
       {/* Drawer */}
       <div
-        className={`fixed top-0 left-0 h-full w-72 bg-surface z-50 shadow-2xl transform transition-transform duration-300 ease-in-out border-r border-outline-variant flex flex-col overflow-hidden ${
+        className={`fixed top-0 left-0 h-full w-72 bg-surface z-50 shadow-2xl transform transition-transform duration-300 ease-in-out border-r border-outline-variant flex flex-col overflow-hidden pt-[max(32px,env(safe-area-inset-top))] ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
