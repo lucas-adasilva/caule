@@ -119,7 +119,8 @@ export function CadastroPage() {
       if (snap.empty) return { ok: false };
       const casa = snap.docs[0];
       return { ok: true, houseId: casa.id, nomeCasa: casa.data().nome || 'Casa' };
-    } catch (e) {
+    } catch (e: any) {
+      console.error('[verificarSenhaCasa] Erro:', e.code, e.message);
       return { ok: false };
     }
   }
