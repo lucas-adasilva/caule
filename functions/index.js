@@ -35,7 +35,12 @@ exports.enviarPushNotificacao = onDocumentCreated('notificacoes/{notificacaoId}'
       notificacaoId: event.params.notificacaoId,
     },
     android: {
-      notification: { channelId: 'caule-default', sound: 'default' },
+      notification: {
+        channelId: 'caule-default',
+        sound: 'default',
+        icon: 'ic_stat_notification',
+        color: '#4edea3',
+      },
     },
   });
 
