@@ -1,5 +1,6 @@
 import { collection, query, where, getDocs, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { Capacitor } from '@capacitor/core';
 
 // ==========================================
 // INTERFACES
@@ -49,23 +50,15 @@ export interface MoradorInfo {
 // FUNÇÕES AUXILIARES
 // ==========================================
 
-/**
- * Calcula a próxima semana ISO a partir de um weekId.
- * Exemplo: 2026-W30 → 2026-W31, 2026-W52 → 2027-W01
- */
 export function proximaSemana(weekId: string): string {
   const match = weekId.match(/(\d+)-W(\d+)/);
   if (!match) return weekId;
   const ano = parseInt(match[1], 10);
   const semana = parseInt(match[2], 10);
-  // Simplificação: assume 52 semanas por ano
   if (semana >= 52) return `${ano + 1}-W01`;
   return `${ano}-W${String(semana + 1).padStart(2, '0')}`;
 }
 
-/**
- * Calcula a semana anterior ISO a partir de um weekId.
- */
 export function semanaAnterior(weekId: string): string {
   const match = weekId.match(/(\d+)-W(\d+)/);
   if (!match) return weekId;
@@ -75,18 +68,11 @@ export function semanaAnterior(weekId: string): string {
   return `${ano}-W${String(semana - 1).padStart(2, '0')}`;
 }
 
-/**
- * Busca a distribuição de uma semana específica.
- * Retorna null se não existir.
- */
 export async function buscarDistribuicao(
   casaId: string,
   weekId: string
 ): Promise<DistribuicaoSemana | null> {
-  const q = query(
-    collection(db, 'distribuicoes'),
-    where('casaId', '==', casaId)
-  );
+  const q = query(collection(db, 'distribuicoes'), where('casaId', '==', casaId));
   const snap = await getDocs(q);
   let encontrou: DistribuicaoSemana | null = null;
   snap.forEach((d) => {
@@ -106,9 +92,6 @@ export async function buscarDistribuicao(
   return encontrou;
 }
 
-/**
- * Busca todos os moradores e hóspedes presentes em uma casa.
- */
 export async function buscarMoradoresPresentes(casaId: string): Promise<MoradorInfo[]> {
   const q = query(collection(db, 'users'), where('houseId', '==', casaId));
   const snap = await getDocs(q);
@@ -121,14 +104,12 @@ export async function buscarMoradoresPresentes(casaId: string): Promise<MoradorI
 
     let estaPresente = false;
     if (data.role === 'hospede') {
-      // Hóspede só está presente durante a estadia ativa
       estaPresente =
         data.estadiaInicio &&
         data.estadiaFim &&
         data.estadiaInicio <= hoje &&
         data.estadiaFim > hoje;
     } else {
-      // Morador está presente se isPresent !== false
       estaPresente = data.isPresent !== false;
     }
 
@@ -144,14 +125,7 @@ export async function buscarMoradoresPresentes(casaId: string): Promise<MoradorI
   return moradores;
 }
 
-/**
- * Calcula a carga de tarefas por morador em uma distribuição.
- * Retorna um mapa: { uid: número de tarefas pendentes }
- */
-function calcularCarga(
-  atribuicoes: Atribuicao[],
-  moradores: MoradorInfo[]
-): Record<string, number> {
+function calcularCarga(atribuicoes: Atribuicao[], moradores: MoradorInfo[]): Record<string, number> {
   const carga: Record<string, number> = {};
   moradores.forEach((m) => (carga[m.uid] = 0));
   atribuicoes.forEach((a) => {
@@ -162,9 +136,6 @@ function calcularCarga(
   return carga;
 }
 
-/**
- * Adiciona uma entrada no histórico de uma atribuição.
- */
 function adicionarHistorico(
   atribuicao: Atribuicao,
   tipo: AtribuicaoHistorico['tipo'],
@@ -183,13 +154,7 @@ function adicionarHistorico(
   };
 }
 
-/**
- * Encontra o morador com menor carga.
- */
-function moradorComMenorCarga(
-  moradores: MoradorInfo[],
-  carga: Record<string, number>
-): MoradorInfo | null {
+function moradorComMenorCarga(moradores: MoradorInfo[], carga: Record<string, number>): MoradorInfo | null {
   if (moradores.length === 0) return null;
   return moradores.reduce((menor, atual) => {
     const cargaMenor = carga[menor.uid] || 0;
@@ -198,28 +163,176 @@ function moradorComMenorCarga(
   });
 }
 
-/**
- * Atualiza uma distribuição no Firestore.
- */
-async function salvarDistribuicao(
-  distId: string,
-  atribuicoes: Atribuicao[]
-): Promise<void> {
+async function salvarDistribuicao(distId: string, atribuicoes: Atribuicao[]): Promise<void> {
   await updateDoc(doc(db, 'distribuicoes', distId), {
     atribuicoes,
     updatedAt: serverTimestamp(),
   });
 }
 
+function calcularDiasEntre(inicio: string, fim: string): number {
+  const d1 = new Date(inicio);
+  const d2 = new Date(fim);
+  const diff = Math.ceil((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
+  return diff;
+}
+
 // ==========================================
-// REDISTRIBUIÇÃO POR SAÍDA (viagem / estadia termina)
+// NOTIFICAÇÃO PARA ADMIN
 // ==========================================
 
-/**
- * Quando um morador sai (viagem ou estadia termina):
- * - Alta prioridade: redistribui para qualquer presente (pode ultrapassar limite)
- * - Média/baixa: redistribui se houver capacidade, senão realoca para semana seguinte
- */
+async function buscarAdmins(casaId: string): Promise<{ uid: string; name: string }[]> {
+  const q = query(collection(db, 'users'), where('houseId', '==', casaId));
+  const snap = await getDocs(q);
+  const admins: { uid: string; name: string }[] = [];
+  snap.forEach((d) => {
+    const data = d.data();
+    if (data.role === 'admin') {
+      admins.push({ uid: d.id, name: data.name || 'Admin' });
+    }
+  });
+  return admins;
+}
+
+const DIAS_LABEL = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+
+function corPrioridade(p: string): string {
+  if (p === 'alta') return '#ef4444';
+  if (p === 'media') return '#f59e0b';
+  return '#22c55e';
+}
+
+function emojiPrioridade(p: string): string {
+  if (p === 'alta') return '🔴';
+  if (p === 'media') return '🟡';
+  return '🟢';
+}
+
+async function enviarNotificacaoLocal(titulo: string, body: string): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          title: titulo,
+          body: body.replace(/<[^>]*>/g, ''),
+          id: Math.floor(Math.random() * 2147483647),
+          channelId: 'caule-default',
+          sound: 'default',
+          smallIcon: 'ic_stat_notification',
+        },
+      ],
+    });
+  } catch (err: any) {
+    console.error('[Notificacao] Local notification error:', err.message);
+  }
+}
+
+async function notificarRedistribuicao(
+  casaId: string,
+  nomeMorador: string,
+  tipoEvento: 'chegada' | 'saida',
+  subtipo: 'viagem' | 'estadia',
+  tarefasAlteradas: Atribuicao[],
+  realocadas: number,
+  adiantadas: number
+): Promise<void> {
+  const admins = await buscarAdmins(casaId);
+  if (admins.length === 0) return;
+
+  const isChegada = tipoEvento === 'chegada';
+  const corEvento = isChegada ? '#22c55e' : '#ef4444';
+  const emojiEvento = isChegada ? '✅' : '✈️';
+  const textoEvento = subtipo === 'estadia'
+    ? (isChegada ? 'iniciou a estadia' : 'encerrou a estadia')
+    : (isChegada ? 'retornou de viagem' : 'saiu em viagem');
+
+  // Tabelinha de tarefas redistribuídas
+  let tabelaHTML = '';
+  if (tarefasAlteradas.length > 0) {
+    tabelaHTML = `
+      <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:13px;">
+        <thead>
+          <tr style="background:${corEvento}15;">
+            <th style="text-align:left;padding:8px;border-bottom:2px solid ${corEvento}40;">Tarefa</th>
+            <th style="text-align:center;padding:8px;border-bottom:2px solid ${corEvento}40;">Prioridade</th>
+            <th style="text-align:center;padding:8px;border-bottom:2px solid ${corEvento}40;">Dia</th>
+            <th style="text-align:left;padding:8px;border-bottom:2px solid ${corEvento}40;">Responsável</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tarefasAlteradas.map((a, i) => `
+            <tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
+              <td style="padding:8px;border-bottom:1px solid #e5e7eb;">${a.titulo}</td>
+              <td style="text-align:center;padding:8px;border-bottom:1px solid #e5e7eb;">
+                <span style="color:${corPrioridade(a.prioridade)};font-weight:bold;">
+                  ${emojiPrioridade(a.prioridade)} ${a.prioridade}
+                </span>
+              </td>
+              <td style="text-align:center;padding:8px;border-bottom:1px solid #e5e7eb;">${DIAS_LABEL[a.diaSemana]}</td>
+              <td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:600;">${a.responsavelNome}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  const totalExtras = [];
+  if (realocadas > 0) totalExtras.push(`📅 ${realocadas} realocada${realocadas > 1 ? 's' : ''} para próxima semana`);
+  if (adiantadas > 0) totalExtras.push(`⏩ ${adiantadas} adiantada${adiantadas > 1 ? 's' : ''} da próxima semana`);
+
+  const mensagemHTML = `
+    <div style="font-family:system-ui,sans-serif;line-height:1.5;color:#1f2937;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <span style="font-size:24px;">${emojiEvento}</span>
+        <div>
+          <p style="margin:0;font-size:15px;color:#6b7280;">Redistribuição de Tarefas</p>
+          <p style="margin:0;font-size:17px;font-weight:700;color:${corEvento};">
+            <strong>${nomeMorador}</strong> ${textoEvento}
+          </p>
+        </div>
+      </div>
+      ${tabelaHTML}
+      <div style="margin-top:14px;padding:10px 12px;background:#f3f4f6;border-radius:10px;font-size:13px;color:#374151;">
+        <p style="margin:0 0 4px 0;font-weight:600;">📊 Resumo:</p>
+        <p style="margin:0;">📝 ${tarefasAlteradas.length} tarefa${tarefasAlteradas.length !== 1 ? 's' : ''} redistribuída${tarefasAlteradas.length !== 1 ? 's' : ''}</p>
+        ${totalExtras.length > 0 ? `<p style="margin:4px 0 0 0;">${totalExtras.join(' · ')}</p>` : ''}
+      </div>
+      <p style="margin-top:12px;font-size:11px;color:#9ca3af;text-align:center;">
+        ✨ Caule — Sistema de Gestão da Casa
+      </p>
+    </div>
+  `;
+
+  const titulo = `Redistribuição de Tarefas — ${nomeMorador} ${textoEvento}`;
+  const bodyTexto = `${tarefasAlteradas.length} tarefas redistribuídas. ${totalExtras.join('. ')}`;
+
+  // Envia para cada admin
+  for (const admin of admins) {
+    try {
+      await addDoc(collection(db, 'notificacoes'), {
+        destinatarioId: admin.uid,
+        titulo,
+        mensagem: mensagemHTML,
+        tipo: 'sistema',
+        lida: false,
+        createdAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.error('[Notificacao] Erro ao salvar notificacao:', e);
+    }
+  }
+
+  // Envia notificação local no dispositivo
+  await enviarNotificacaoLocal(titulo, bodyTexto);
+}
+
+// ==========================================
+// REDISTRIBUIÇÃO POR SAÍDA
+// ==========================================
+
 export async function redistribuirPorSaida(
   uidSaindo: string,
   casaId: string,
@@ -234,29 +347,49 @@ export async function redistribuirPorSaida(
 
   const carga = calcularCarga(dist.atribuicoes, moradores);
   const textoMotivo =
-    motivo === 'viagem'
-      ? 'Morador saiu em viagem'
-      : 'Hóspede encerrou a estadia';
+    motivo === 'viagem' ? 'Morador saiu em viagem' : 'Hóspede encerrou a estadia';
 
   const novasAtribuicoes: Atribuicao[] = [];
   const tarefasParaRealocar: Atribuicao[] = [];
+  const tarefasRedistribuidas: Atribuicao[] = [];
   let redistribuidas = 0;
   let realocadas = 0;
 
   for (const atrib of dist.atribuicoes) {
-    // Se não é do morador que saiu, mantém
     if (atrib.responsavelId !== uidSaindo || atrib.status !== 'pendente') {
       novasAtribuicoes.push(atrib);
       continue;
     }
 
     if (atrib.prioridade === 'alta') {
-      // Alta prioridade: redistribui para quem tem menor carga (sem limite)
       const novoResponsavel = moradorComMenorCarga(moradores, carga);
       if (novoResponsavel) {
         carga[novoResponsavel.uid] = (carga[novoResponsavel.uid] || 0) + 1;
-        novasAtribuicoes.push(
-          adicionarHistorico(
+        const nova = adicionarHistorico(
+          { ...atrib, responsavelId: novoResponsavel.uid, responsavelNome: novoResponsavel.name },
+          'redistribuicao',
+          textoMotivo,
+          {
+            responsavelAnteriorId: uidSaindo,
+            responsavelAnteriorNome: atrib.responsavelNome,
+            responsavelNovoId: novoResponsavel.uid,
+            responsavelNovoNome: novoResponsavel.name,
+          }
+        );
+        novasAtribuicoes.push(nova);
+        tarefasRedistribuidas.push(nova);
+        redistribuidas++;
+      } else {
+        tarefasParaRealocar.push(atrib);
+      }
+    } else {
+      const LIMITE = 5;
+      const disponiveis = moradores.filter((m) => (carga[m.uid] || 0) < LIMITE);
+      if (disponiveis.length > 0) {
+        const novoResponsavel = moradorComMenorCarga(disponiveis, carga);
+        if (novoResponsavel) {
+          carga[novoResponsavel.uid] = (carga[novoResponsavel.uid] || 0) + 1;
+          const nova = adicionarHistorico(
             { ...atrib, responsavelId: novoResponsavel.uid, responsavelNome: novoResponsavel.name },
             'redistribuicao',
             textoMotivo,
@@ -266,33 +399,9 @@ export async function redistribuirPorSaida(
               responsavelNovoId: novoResponsavel.uid,
               responsavelNovoNome: novoResponsavel.name,
             }
-          )
-        );
-        redistribuidas++;
-      } else {
-        tarefasParaRealocar.push(atrib);
-      }
-    } else {
-      // Média/baixa: redistribui se houver morador com carga < limite
-      const LIMITE = 5;
-      const disponiveis = moradores.filter((m) => (carga[m.uid] || 0) < LIMITE);
-      if (disponiveis.length > 0) {
-        const novoResponsavel = moradorComMenorCarga(disponiveis, carga);
-        if (novoResponsavel) {
-          carga[novoResponsavel.uid] = (carga[novoResponsavel.uid] || 0) + 1;
-          novasAtribuicoes.push(
-            adicionarHistorico(
-              { ...atrib, responsavelId: novoResponsavel.uid, responsavelNome: novoResponsavel.name },
-              'redistribuicao',
-              textoMotivo,
-              {
-                responsavelAnteriorId: uidSaindo,
-                responsavelAnteriorNome: atrib.responsavelNome,
-                responsavelNovoId: novoResponsavel.uid,
-                responsavelNovoNome: novoResponsavel.name,
-              }
-            )
           );
+          novasAtribuicoes.push(nova);
+          tarefasRedistribuidas.push(nova);
           redistribuidas++;
         } else {
           tarefasParaRealocar.push(atrib);
@@ -303,64 +412,92 @@ export async function redistribuirPorSaida(
     }
   }
 
-  // Realoca tarefas médias/baixas para semana seguinte
   if (tarefasParaRealocar.length > 0) {
-    await realocarParaSemanaSeguinte(
-      tarefasParaRealocar,
-      casaId,
-      weekId,
-      uidSaindo,
-      textoMotivo
-    );
+    await realocarParaSemanaSeguinte(tarefasParaRealocar, casaId, weekId, uidSaindo, textoMotivo);
     realocadas = tarefasParaRealocar.length;
   }
 
-  // Salva distribuição atualizada
   await salvarDistribuicao(dist.id, novasAtribuicoes);
+
+  // Busca nome do morador para notificação
+  let nomeMorador = 'Morador';
+  try {
+    const q = query(collection(db, 'users'), where('houseId', '==', casaId));
+    const snap = await getDocs(q);
+    snap.forEach((d) => {
+      if (d.id === uidSaindo) nomeMorador = d.data().name || 'Morador';
+    });
+  } catch { /* silent */ }
+
+  await notificarRedistribuicao(
+    casaId,
+    nomeMorador,
+    'saida',
+    motivo === 'viagem' ? 'viagem' : 'estadia',
+    tarefasRedistribuidas,
+    realocadas,
+    0
+  );
 
   return { redistribuidas, realocadas };
 }
 
 // ==========================================
-// REDISTRIBUIÇÃO POR ENTRADA (retorno / estadia inicia)
+// REDISTRIBUIÇÃO POR ENTRADA
 // ==========================================
 
-/**
- * Quando alguém entra (retorno de viagem ou estadia inicia):
- * - Todas as tarefas pendentes são redistribuídas entre todos os presentes
- * - Se sobrar capacidade, adianta tarefas de semanas futuras
- */
 export async function redistribuirPorEntrada(
-  _uidEntrando: string,
+  uidEntrando: string,
   casaId: string,
   weekId: string,
-  motivo: 'retorno_viagem' | 'estadia_iniciada'
+  motivo: 'retorno_viagem' | 'estadia_iniciada',
+  estadiaInicio?: string,
+  estadiaFim?: string
 ): Promise<{ redistribuidas: number; adiantadas: number }> {
+  // Verifica > 1 noite para hóspedes
+  if (motivo === 'estadia_iniciada' && estadiaInicio && estadiaFim) {
+    const noites = calcularDiasEntre(estadiaInicio, estadiaFim);
+    if (noites <= 1) {
+      return { redistribuidas: 0, adiantadas: 0 };
+    }
+  }
+
   const dist = await buscarDistribuicao(casaId, weekId);
   if (!dist) return { redistribuidas: 0, adiantadas: 0 };
 
   const moradores = await buscarMoradoresPresentes(casaId);
   if (moradores.length === 0) return { redistribuidas: 0, adiantadas: 0 };
 
-  const textoMotivo =
-    motivo === 'retorno_viagem'
-      ? 'Morador retornou de viagem'
-      : 'Hóspede iniciou a estadia';
+  const textoMotivo = motivo === 'retorno_viagem' ? 'Morador retornou de viagem' : 'Hóspede iniciou a estadia';
+
+  // Dia de hoje (segunda=0, domingo=6)
+  const diaHoje = (new Date().getDay() + 6) % 7;
+
+  // Separa moradores que já estavam presentes dos que acabaram de entrar
+  const moradoresAnteriores = moradores.filter((m) => m.uid !== uidEntrando);
+  const moradorEntrando = moradores.find((m) => m.uid === uidEntrando);
 
   const carga: Record<string, number> = {};
   moradores.forEach((m) => (carga[m.uid] = 0));
 
-  // Pega apenas tarefas pendentes
   const pendentes = dist.atribuicoes.filter((a) => a.status === 'pendente');
   const concluidas = dist.atribuicoes.filter((a) => a.status === 'concluída');
-
-  // Redistribui todas as pendentes (round-robin por carga)
   const novasAtribuicoes: Atribuicao[] = [...concluidas];
+  const tarefasRedistribuidas: Atribuicao[] = [];
 
   for (const atrib of pendentes) {
-    const sortedMoradores = [...moradores].sort(
-      (a, b) => (carga[a.uid] || 0) - (carga[b.uid] || 0)
-    );
+    // Se for dia de hoje, o morador que entrou não pode receber (só a partir de amanhã)
+    const candidatos =
+      atrib.diaSemana === diaHoje && moradorEntrando
+        ? moradoresAnteriores
+        : moradores;
+
+    if (candidatos.length === 0) {
+      novasAtribuicoes.push(atrib);
+      continue;
+    }
+
+    const sortedMoradores = [...candidatos].sort((a, b) => (carga[a.uid] || 0) - (carga[b.uid] || 0));
     const novoResponsavel = sortedMoradores[0];
     if (!novoResponsavel) {
       novasAtribuicoes.push(atrib);
@@ -385,54 +522,56 @@ export async function redistribuirPorEntrada(
       : atrib;
 
     novasAtribuicoes.push(novaAtrib);
+    if (foiMudanca) tarefasRedistribuidas.push(novaAtrib);
   }
 
-  // Calcula capacidade restante
+  // Capacidade restante
   const LIMITE = 5;
   const DIAS = 6;
   const capacidadeTotal = moradores.length * DIAS * LIMITE;
   const tarefasTotais = novasAtribuicoes.filter((a) => a.status === 'pendente').length;
   const capacidadeSobrando = Math.max(0, capacidadeTotal - tarefasTotais);
 
-  // Adianta tarefas de semanas futuras se houver capacidade
   let adiantadas = 0;
   if (capacidadeSobrando > 0) {
-    const resultadoAdiantamento = await adiantarTarefas(
-      casaId,
-      weekId,
-      capacidadeSobrando,
-      moradores,
-      carga
-    );
+    const resultadoAdiantamento = await adiantarTarefas(casaId, weekId, capacidadeSobrando, moradores, carga);
     novasAtribuicoes.push(...resultadoAdiantamento.tarefasAdiantadas);
     adiantadas = resultadoAdiantamento.tarefasAdiantadas.length;
 
-    // Se adiantou tarefas, salva a semana futura atualizada
     if (resultadoAdiantamento.distFuturaId && resultadoAdiantamento.atribuicoesFuturas) {
-      await salvarDistribuicao(
-        resultadoAdiantamento.distFuturaId,
-        resultadoAdiantamento.atribuicoesFuturas
-      );
+      await salvarDistribuicao(resultadoAdiantamento.distFuturaId, resultadoAdiantamento.atribuicoesFuturas);
     }
   }
 
-  // Salva distribuição atualizada
   await salvarDistribuicao(dist.id, novasAtribuicoes);
 
-  return {
-    redistribuidas: pendentes.length,
-    adiantadas,
-  };
+  // Busca nome do morador
+  let nomeMorador = 'Morador';
+  try {
+    const q = query(collection(db, 'users'), where('houseId', '==', casaId));
+    const snap = await getDocs(q);
+    snap.forEach((d) => {
+      if (d.id === uidEntrando) nomeMorador = d.data().name || 'Morador';
+    });
+  } catch { /* silent */ }
+
+  await notificarRedistribuicao(
+    casaId,
+    nomeMorador,
+    'chegada',
+    motivo === 'retorno_viagem' ? 'viagem' : 'estadia',
+    tarefasRedistribuidas,
+    0,
+    adiantadas
+  );
+
+  return { redistribuidas: pendentes.length, adiantadas };
 }
 
 // ==========================================
-// REALOCAÇÃO PARA SEMANA SEGUINTE
+// REALOCAÇÃO / ADIANTAMENTO
 // ==========================================
 
-/**
- * Move tarefas de uma semana para a seguinte.
- * Cria a distribuição da semana seguinte se não existir.
- */
 async function realocarParaSemanaSeguinte(
   tarefas: Atribuicao[],
   casaId: string,
@@ -441,28 +580,22 @@ async function realocarParaSemanaSeguinte(
   motivoTexto: string
 ): Promise<void> {
   const weekIdDestino = proximaSemana(weekIdAtual);
-
-  // Busca distribuição da semana seguinte
   let distDestino = await buscarDistribuicao(casaId, weekIdDestino);
 
-  if (!distDestino) {
-    // Cria nova distribuição para semana seguinte
-    const novasAtribuicoes = tarefas.map((atrib) =>
-      adicionarHistorico(
-        {
-          ...atrib,
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          dataPlanejamento: atrib.dataPlanejamento || new Date().toISOString(),
-        },
-        'realocacao',
-        motivoTexto,
-        {
-          semanaOrigem: weekIdAtual,
-          semanaDestino: weekIdDestino,
-        }
-      )
-    );
+  const novasAtribuicoes = tarefas.map((atrib) =>
+    adicionarHistorico(
+      {
+        ...atrib,
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        dataPlanejamento: atrib.dataPlanejamento || new Date().toISOString(),
+      },
+      'realocacao',
+      motivoTexto,
+      { semanaOrigem: weekIdAtual, semanaDestino: weekIdDestino }
+    )
+  );
 
+  if (!distDestino) {
     await addDoc(collection(db, 'distribuicoes'), {
       casaId,
       weekId: weekIdDestino,
@@ -472,32 +605,9 @@ async function realocarParaSemanaSeguinte(
     return;
   }
 
-  // Adiciona à distribuição existente
-  const atribuicoesAtuais = [...distDestino.atribuicoes];
-  for (const atrib of tarefas) {
-    atribuicoesAtuais.push(
-      adicionarHistorico(
-        {
-          ...atrib,
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          dataPlanejamento: atrib.dataPlanejamento || new Date().toISOString(),
-        },
-        'realocacao',
-        motivoTexto,
-        {
-          semanaOrigem: weekIdAtual,
-          semanaDestino: weekIdDestino,
-        }
-      )
-    );
-  }
-
+  const atribuicoesAtuais = [...distDestino.atribuicoes, ...novasAtribuicoes];
   await salvarDistribuicao(distDestino.id, atribuicoesAtuais);
 }
-
-// ==========================================
-// ADIANTAMENTO DE TAREFAS
-// ==========================================
 
 interface ResultadoAdiantamento {
   tarefasAdiantadas: Atribuicao[];
@@ -505,10 +615,6 @@ interface ResultadoAdiantamento {
   atribuicoesFuturas?: Atribuicao[];
 }
 
-/**
- * Busca tarefas pendentes de semanas futuras e as traz para a semana atual.
- * Retorna as tarefas que foram adiantadas (para adicionar à semana atual).
- */
 async function adiantarTarefas(
   casaId: string,
   weekIdAtual: string,
@@ -518,26 +624,16 @@ async function adiantarTarefas(
 ): Promise<ResultadoAdiantamento> {
   const weekIdFuturo = proximaSemana(weekIdAtual);
   const distFutura = await buscarDistribuicao(casaId, weekIdFuturo);
+  if (!distFutura) return { tarefasAdiantadas: [] };
 
-  if (!distFutura) {
-    return { tarefasAdiantadas: [] };
-  }
-
-  const tarefasPendentesFuturas = distFutura.atribuicoes.filter(
-    (a) => a.status === 'pendente'
-  );
-
-  if (tarefasPendentesFuturas.length === 0) {
-    return { tarefasAdiantadas: [] };
-  }
+  const tarefasPendentesFuturas = distFutura.atribuicoes.filter((a) => a.status === 'pendente');
+  if (tarefasPendentesFuturas.length === 0) return { tarefasAdiantadas: [] };
 
   const tarefasParaAdiantar = tarefasPendentesFuturas.slice(0, quantidadeMaxima);
   const tarefasAdiantadas: Atribuicao[] = [];
 
   for (const atrib of tarefasParaAdiantar) {
-    const sortedMoradores = [...moradores].sort(
-      (a, b) => (cargaAtual[a.uid] || 0) - (cargaAtual[b.uid] || 0)
-    );
+    const sortedMoradores = [...moradores].sort((a, b) => (cargaAtual[a.uid] || 0) - (cargaAtual[b.uid] || 0));
     const novoResponsavel = sortedMoradores[0];
     if (!novoResponsavel) break;
 
@@ -566,12 +662,9 @@ async function adiantarTarefas(
     );
   }
 
-  // Remove as tarefas adiantadas da semana futura
   const idsAdiantados = new Set(tarefasAdiantadas.map((a) => a.tarefaId + '-' + a.diaSemana));
   const atribuicoesFuturasAtualizadas = distFutura.atribuicoes.filter(
-    (a) =>
-      a.status !== 'pendente' ||
-      !idsAdiantados.has(a.tarefaId + '-' + a.diaSemana)
+    (a) => a.status !== 'pendente' || !idsAdiantados.has(a.tarefaId + '-' + a.diaSemana)
   );
 
   return {
@@ -585,10 +678,6 @@ async function adiantarTarefas(
 // GERAR DISTRIBUIÇÃO COM HISTÓRICO
 // ==========================================
 
-/**
- * Cria uma nova distribuição de tarefas com histórico de distribuição inicial.
- * Usado quando a distribuição é gerada pela primeira vez.
- */
 export function criarAtribuicaoComHistorico(
   tarefaId: string,
   titulo: string,

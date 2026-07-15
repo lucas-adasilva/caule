@@ -600,7 +600,11 @@ export function ConfiguracoesPage() {
         const semanaAtual = getSemanaDaData(new Date());
         try {
           if (!estavaPresente && ficaraPresente) {
-            const resultado = await redistribuirPorEntrada(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'estadia_iniciada');
+            const resultado = await redistribuirPorEntrada(
+              editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'estadia_iniciada',
+              dadosParaSalvar.estadiaInicio || formMoradorCompleto.estadiaInicio,
+              dadosParaSalvar.estadiaFim || formMoradorCompleto.estadiaFim
+            );
             setSucesso(`Hóspede presente! ${resultado.redistribuidas} tarefas redistribuídas${resultado.adiantadas > 0 ? `, ${resultado.adiantadas} adiantadas` : ''}.`);
           } else if (estavaPresente && !ficaraPresente) {
             const resultado = await redistribuirPorSaida(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'estadia_terminada');

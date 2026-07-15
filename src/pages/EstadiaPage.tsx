@@ -62,7 +62,7 @@ export function EstadiaPage() {
         const weekId = `${ano}-W${String(numSemana).padStart(2, '0')}`;
         try {
           if (!estavaAtiva && estadiaAtiva) {
-            await redistribuirPorEntrada(user.uid, user.houseId, weekId, 'estadia_iniciada');
+            await redistribuirPorEntrada(user.uid, user.houseId, weekId, 'estadia_iniciada', estadiaInicio, estadiaFim);
           } else if (estavaAtiva && !estadiaAtiva) {
             await redistribuirPorSaida(user.uid, user.houseId, weekId, 'estadia_terminada');
           }
