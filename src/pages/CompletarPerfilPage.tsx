@@ -95,7 +95,7 @@ export function CompletarPerfilPage() {
         houseId: casaEncontrada.id,
         role: 'hospede' as const,
         isActive: true,
-        isPresent: true,
+        isPresent: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -112,7 +112,7 @@ export function CompletarPerfilPage() {
         fullName: userData.fullName,
         role: userData.role,
         isActive: true,
-        isPresent: true,
+        isPresent: false,
         phone: userData.phone,
         cpf: userData.cpf,
         pixKey: userData.pixKey,

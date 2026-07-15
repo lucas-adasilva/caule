@@ -58,7 +58,9 @@ export function useFirestoreUser() {
             pixKey: userData.pixKey || user.pixKey || '',
             houseId: userData.houseId || user.houseId || '',
             isActive: userData.isActive !== false,
-            isPresent: userData.isPresent !== false,
+            isPresent: (userData.role || 'hospede') === 'hospede'
+              ? (userData.estadiaInicio && userData.estadiaFim && userData.estadiaInicio <= new Date().toISOString().split('T')[0] && userData.estadiaFim > new Date().toISOString().split('T')[0])
+              : userData.isPresent !== false,
           };
 
           setUser(updatedUser);

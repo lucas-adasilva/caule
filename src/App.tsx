@@ -89,7 +89,9 @@ async function buildUserObject(firebaseUser: any) {
     fullName: userData.fullName || '',
     role: role,
     isActive: userData.isActive !== false,
-    isPresent: userData.isPresent !== false,
+    isPresent: role === 'hospede'
+      ? verificarEstadiaAtiva(userData.estadiaInicio, userData.estadiaFim)
+      : userData.isPresent !== false,
     phone: userData.phone || '',
     cpf: userData.cpf || '',
     pixKey: userData.pixKey || '',

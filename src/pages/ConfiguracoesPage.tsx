@@ -571,6 +571,13 @@ export function ConfiguracoesPage() {
           dadosParaSalvar[key] = value;
         }
       });
+      // Se for hospede, sincroniza isPresent com o periodo de estadia
+      if (dadosParaSalvar.role === 'hospede' || formMoradorCompleto.role === 'hospede') {
+        const estadiaInicio = dadosParaSalvar.estadiaInicio || formMoradorCompleto.estadiaInicio || '';
+        const estadiaFim = dadosParaSalvar.estadiaFim || formMoradorCompleto.estadiaFim || '';
+        const hoje = new Date().toISOString().split('T')[0];
+        dadosParaSalvar.isPresent = estadiaInicio && estadiaFim && estadiaInicio <= hoje && estadiaFim > hoje;
+      }
       await updateDoc(doc(db, 'users', editandoMoradorId), dadosParaSalvar);
       setEditandoMoradorId(null);
       setFormMoradorCompleto({});
@@ -1565,7 +1572,7 @@ export function ConfiguracoesPage() {
                 )}
 
                 <div className="flex gap-2">
-                  <button onClick={handleSalvarMoradorCompleto} className="flex-1 bg-primary text-on-primary font-bold py-2 rounded-lg text-sm hover:brightness-110 transition-all">Salvar Alteracoes</button>
+                  <button onClick={handleSalvarMoradorCompleto} className="flex-1 bg-primary text-on-primary font-bold py-2 rounded-lg text-sm hover:brightness-110 transition-all">Salvar Alterações</button>
                   <button onClick={() => { setEditandoMoradorId(null); setFormMoradorCompleto({}); }} className="px-4 py-2 bg-surface-container text-on-surface rounded-lg text-sm border border-outline-variant">Cancelar</button>
                 </div>
               </div>
@@ -1595,7 +1602,7 @@ export function ConfiguracoesPage() {
                         {(() => {
                           const hoje = new Date().toISOString().split('T')[0];
                           const emViagem = moradorViagens[m.uid] || false;
-                          const estadiaFora = m.role === 'hospede' && m.estadiaInicio && m.estadiaFim && (hoje < m.estadiaInicio || hoje >= m.estadiaFim);
+                          const estadiaFora = m.role === 'hospede' && (!m.estadiaInicio || !m.estadiaFim || hoje < m.estadiaInicio || hoje >= m.estadiaFim);
                           const estaAusente = !m.isPresent || emViagem || estadiaFora;
                           return estaAusente ? <span className="flex-shrink-0 px-2 py-0.5 bg-error/10 rounded-full text-[9px] text-error font-bold">ausente</span> : null;
                         })()}

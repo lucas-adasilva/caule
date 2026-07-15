@@ -45,7 +45,9 @@ export function LoginForm() {
         fullName: userData.fullName || '',
         role: userData.role || 'hospede',
         isActive: userData.isActive !== false,
-        isPresent: userData.isPresent !== false,
+        isPresent: (userData.role || 'hospede') === 'hospede'
+          ? (userData.estadiaInicio && userData.estadiaFim && userData.estadiaInicio <= new Date().toISOString().split('T')[0] && userData.estadiaFim > new Date().toISOString().split('T')[0])
+          : userData.isPresent !== false,
         phone: userData.phone || '',
         cpf: userData.cpf || '',
         pixKey: userData.pixKey || '',
