@@ -244,7 +244,9 @@ export function TarefasPage() {
         <div className="mb-stack-lg"><h2 className="font-headline-lg-mobile text-headline-lg-mobile text-page-folhas">Folhas</h2><p className="text-text-muted font-body-md">Minhas tarefas da semana</p></div>
 
         {/* Weekly Filter - dia da semana + dia do mes + qtd de tarefas (modelo visual da pagina Flores, em verde) */}
-        <div className="flex gap-3 overflow-x-auto pb-4 mb-stack-lg">
+        {/* py-2 (nao só pb) evita que o pill selecionado (scale-110) seja cortado no topo:
+            overflow-x-auto sem overflow-y explicito faz o eixo Y virar "auto" tambem, recortando conteudo. */}
+        <div className="flex gap-3 overflow-x-auto py-2 mb-stack-lg">
           {DIAS_SEMANA.map((dia, idx) => {
             const count = distribuicao?.atribuicoes.filter(a => a.responsavelId === user?.uid && a.diaSemana === idx && a.status === 'pendente').length || 0;
             const isSelected = diaSelecionado === idx;
