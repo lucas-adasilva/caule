@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useApp } from '@/App';
 import { TopAppBar } from '@/components/TopAppBar';
 import { UserAvatar } from '@/components/UserAvatar';
+import { redistribuirPorSaida, redistribuirPorEntrada } from '@/utils/distribuicao';
 
 interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; foto?: string; }
 interface Comodo { id: string; nome: string; icone: string; cor: string; tipo: 'coletivo' | 'privado'; casaId: string; ordem: number; createdBy: string; responsavelId?: string; }
@@ -572,17 +573,43 @@ export function ConfiguracoesPage() {
         }
       });
       // Se for hospede, sincroniza isPresent com o periodo de estadia
-      if (dadosParaSalvar.role === 'hospede' || formMoradorCompleto.role === 'hospede') {
+      const role = dadosParaSalvar.role || formMoradorCompleto.role || 'hospede';
+      let estavaPresente = false;
+      let ficaraPresente = false;
+      if (role === 'hospede') {
         const estadiaInicio = dadosParaSalvar.estadiaInicio || formMoradorCompleto.estadiaInicio || '';
         const estadiaFim = dadosParaSalvar.estadiaFim || formMoradorCompleto.estadiaFim || '';
         const hoje = new Date().toISOString().split('T')[0];
-        dadosParaSalvar.isPresent = estadiaInicio && estadiaFim && estadiaInicio <= hoje && estadiaFim > hoje;
+        ficaraPresente = estadiaInicio && estadiaFim && estadiaInicio <= hoje && estadiaFim > hoje;
+        dadosParaSalvar.isPresent = ficaraPresente;
+        // Verifica estado anterior
+        const moradorAnterior = moradores.find(m => m.uid === editandoMoradorId);
+        if (moradorAnterior) {
+          const prevInicio = moradorAnterior.estadiaInicio || '';
+          const prevFim = moradorAnterior.estadiaFim || '';
+          estavaPresente = prevInicio && prevFim && prevInicio <= hoje && prevFim > hoje;
+        }
       }
       await updateDoc(doc(db, 'users', editandoMoradorId), dadosParaSalvar);
       setEditandoMoradorId(null);
       setFormMoradorCompleto({});
       setSucesso('Morador atualizado!');
       carregarMoradores();
+      // Se hóspede mudou de estado, dispara redistribuição
+      if (role === 'hospede' && casaSelecionada?.id && estavaPresente !== ficaraPresente) {
+        const semanaAtual = getSemanaDaData(new Date());
+        try {
+          if (!estavaPresente && ficaraPresente) {
+            const resultado = await redistribuirPorEntrada(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'estadia_iniciada');
+            setSucesso(`Hóspede presente! ${resultado.redistribuidas} tarefas redistribuídas${resultado.adiantadas > 0 ? `, ${resultado.adiantadas} adiantadas` : ''}.`);
+          } else if (estavaPresente && !ficaraPresente) {
+            const resultado = await redistribuirPorSaida(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'estadia_terminada');
+            setSucesso(`Hóspede ausente. ${resultado.redistribuidas} tarefas redistribuídas, ${resultado.realocadas} realocadas.`);
+          }
+        } catch (err: any) {
+          console.error('Erro ao redistribuir por mudança de estadia:', err);
+        }
+      }
     } catch (e: any) { setErro('Erro ao salvar: ' + e.message); }
   }
 
@@ -646,6 +673,19 @@ export function ConfiguracoesPage() {
       setSucesso('Viagem salva!');
       await carregarViagensMorador(editandoMoradorId);
       await carregarViagensMoradores();
+      // Se a viagem já começou, redistribui tarefas da semana atual
+      const hoje = new Date().toISOString().split('T')[0];
+      if (novaViagem.dataSaida <= hoje && casaSelecionada?.id) {
+        const semanaAtual = getSemanaDaData(new Date());
+        try {
+          const resultado = await redistribuirPorSaida(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'viagem');
+          if (resultado.redistribuidas > 0 || resultado.realocadas > 0) {
+            setSucesso(`Viagem salva! ${resultado.redistribuidas} tarefas redistribuídas, ${resultado.realocadas} realocadas para próxima semana.`);
+          }
+        } catch (err: any) {
+          console.error('Erro ao redistribuir por viagem:', err);
+        }
+      }
     } catch (e: any) { setErro('Erro ao salvar viagem: ' + e.message); }
   }
 

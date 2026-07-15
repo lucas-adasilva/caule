@@ -6,6 +6,7 @@ import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { UserAvatar } from '@/components/UserAvatar';
 import { usuarioViajandoAgora, buscarViagemAtiva, interromperViagem, redistribuirTarefasPorRetorno } from '@/utils/viagens';
+import { redistribuirPorEntrada } from '@/utils/distribuicao';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,8 +67,20 @@ export function TopAppBar({
         // Atualizar data de retorno para hoje
         await interromperViagem(viagem.id);
         
-        // Redistribuir tarefas
-        await redistribuirTarefasPorRetorno(user.uid, user.houseId);
+        // Redistribuir tarefas usando o novo sistema
+        const hoje = new Date();
+        const ano = hoje.getFullYear();
+        const jan4 = new Date(ano, 0, 4);
+        const jan4Dia = jan4.getDay();
+        const jan4Segunda = new Date(ano, 0, 4 - (jan4Dia === 0 ? 6 : jan4Dia - 1));
+        const targetSegunda = new Date(hoje);
+        const targetDia = targetSegunda.getDay();
+        targetSegunda.setDate(targetSegunda.getDate() - (targetDia === 0 ? 6 : targetDia - 1));
+        const diasDiff = Math.floor((targetSegunda.getTime() - jan4Segunda.getTime()) / (7 * 24 * 60 * 60 * 1000));
+        const numSemana = diasDiff + 1;
+        const weekId = `${ano}-W${String(numSemana).padStart(2, '0')}`;
+        
+        await redistribuirPorEntrada(user.uid, user.houseId, weekId, 'retorno_viagem');
         
         // Atualizar estado local
         setIsTraveling(false);

@@ -4,6 +4,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { TopAppBar } from '@/components/TopAppBar';
+import { redistribuirPorEntrada, redistribuirPorSaida } from '@/utils/distribuicao';
 
 export function EstadiaPage() {
   const { user } = useAuthStore();
@@ -37,6 +38,7 @@ export function EstadiaPage() {
     try {
       const hoje = new Date().toISOString().split('T')[0];
       const estadiaAtiva = estadiaInicio <= hoje && estadiaFim > hoje;
+      const estavaAtiva = user?.estadiaInicio && user?.estadiaFim && user.estadiaInicio <= hoje && user.estadiaFim > hoje;
       await updateDoc(doc(db, 'users', user.uid), {
         estadiaInicio,
         estadiaFim,
@@ -46,6 +48,28 @@ export function EstadiaPage() {
       setSucesso(estadiaAtiva
         ? 'Estadia definida! Você pode usar o app normalmente.'
         : `Estadia definida, mas ainda não está ativa. Volte em ${estadiaInicio}.`);
+      // Redistribui tarefas se o estado mudou
+      if (user?.houseId && estavaAtiva !== estadiaAtiva) {
+        const ano = new Date().getFullYear();
+        const jan4 = new Date(ano, 0, 4);
+        const jan4Dia = jan4.getDay();
+        const jan4Segunda = new Date(ano, 0, 4 - (jan4Dia === 0 ? 6 : jan4Dia - 1));
+        const targetSegunda = new Date();
+        const targetDia = targetSegunda.getDay();
+        targetSegunda.setDate(targetSegunda.getDate() - (targetDia === 0 ? 6 : targetDia - 1));
+        const diasDiff = Math.floor((targetSegunda.getTime() - jan4Segunda.getTime()) / (7 * 24 * 60 * 60 * 1000));
+        const numSemana = diasDiff + 1;
+        const weekId = `${ano}-W${String(numSemana).padStart(2, '0')}`;
+        try {
+          if (!estavaAtiva && estadiaAtiva) {
+            await redistribuirPorEntrada(user.uid, user.houseId, weekId, 'estadia_iniciada');
+          } else if (estavaAtiva && !estadiaAtiva) {
+            await redistribuirPorSaida(user.uid, user.houseId, weekId, 'estadia_terminada');
+          }
+        } catch (err: any) {
+          console.error('Erro ao redistribuir por mudança de estadia:', err);
+        }
+      }
       // Atualiza localmente e redireciona se ativa
       if (estadiaAtiva) {
         setTimeout(() => navigate('/app', { replace: true }), 1500);
