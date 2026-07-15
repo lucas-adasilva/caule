@@ -408,7 +408,11 @@ export function CadastroPage() {
                 )}
                 <input
                   value={isBrasil ? formatPhoneNumberOnly(phoneNumber) : phoneNumber}
-                  onChange={(e) => { setPhoneNumber(e.target.value); limparErro(); }}
+                  onChange={(e) => { 
+                    const raw = e.target.value.replace(/\D/g, '');
+                    setPhoneNumber(raw); 
+                    limparErro(); 
+                  }}
                   placeholder={isBrasil ? '9 9999-9999' : 'Número'}
                   className="flex-1 bg-surface-container-high border-2 border-outline-variant focus:border-primary text-on-surface rounded-xl py-3 px-4 text-sm"
                 />
