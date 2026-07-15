@@ -7,6 +7,7 @@ import { useApp } from '@/App';
 import { TopAppBar } from '@/components/TopAppBar';
 import { UserAvatar } from '@/components/UserAvatar';
 import { redistribuirPorSaida, redistribuirPorEntrada } from '@/utils/distribuicao';
+import { getSemanaDaData } from '@/utils/semana';
 
 interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; foto?: string; }
 interface Comodo { id: string; nome: string; icone: string; cor: string; tipo: 'coletivo' | 'privado'; casaId: string; ordem: number; createdBy: string; responsavelId?: string; }
@@ -260,19 +261,6 @@ export function ConfiguracoesPage() {
     const primeiraSegunda = new Date(primeiroDiaMes.getTime() - (diaSemana === 0 ? 6 : diaSemana - 1) * 24 * 60 * 60 * 1000);
     const diasDiff = Math.floor((inicioSemana.getTime() - primeiraSegunda.getTime()) / (7 * 24 * 60 * 60 * 1000));
     return diasDiff + 1;
-  }
-
-  function getSemanaDaData(date: Date): { ano: number; num: number; weekId: string } {
-    const ano = date.getFullYear();
-    const jan4 = new Date(ano, 0, 4);
-    const jan4Dia = jan4.getDay();
-    const jan4Segunda = new Date(ano, 0, 4 - (jan4Dia === 0 ? 6 : jan4Dia - 1));
-    const targetSegunda = new Date(date);
-    const targetDia = targetSegunda.getDay();
-    targetSegunda.setDate(targetSegunda.getDate() - (targetDia === 0 ? 6 : targetDia - 1));
-    const diasDiff = Math.floor((targetSegunda.getTime() - jan4Segunda.getTime()) / (7 * 24 * 60 * 60 * 1000));
-    const numSemana = diasDiff + 1;
-    return { ano, num: numSemana, weekId: `${ano}-W${String(numSemana).padStart(2, '0')}` };
   }
 
   useEffect(() => { if (user?.uid) { carregarCasas(); } }, [user?.uid]);
@@ -667,19 +655,28 @@ export function ConfiguracoesPage() {
     if (!novaViagem.destino.trim() || !novaViagem.dataSaida || !novaViagem.dataRetorno) { setErro('Preencha destino, data de saída e retorno'); return; }
     if (novaViagem.dataSaida > novaViagem.dataRetorno) { setErro('Data de retorno deve ser após a data de saída'); return; }
     try {
+      let estadoMudou = false;
+      const hoje = new Date().toISOString().split('T')[0];
       if (editandoViagemId) {
+        const viagemOriginal = viagensMoradorEditando.find(v => v.id === editandoViagemId);
+        if (viagemOriginal) {
+          const estavaEmViagem = viagemOriginal.dataSaida <= hoje && viagemOriginal.dataRetorno >= hoje;
+          const estaEmViagem = novaViagem.dataSaida <= hoje && novaViagem.dataRetorno >= hoje;
+          estadoMudou = estavaEmViagem !== estaEmViagem;
+        }
         await updateDoc(doc(db, 'viagens', editandoViagemId), { ...novaViagem, updatedAt: serverTimestamp() });
       } else {
         await addDoc(collection(db, 'viagens'), { ...novaViagem, uid: editandoMoradorId, createdAt: serverTimestamp() });
+        // Nova viagem: redistribui se já começou (dataSaida <= hoje)
+        estadoMudou = novaViagem.dataSaida <= hoje;
       }
       setNovaViagem({ destino: '', dataSaida: '', dataRetorno: '', motivo: '' });
       setEditandoViagemId(null);
       setSucesso('Viagem salva!');
       await carregarViagensMorador(editandoMoradorId);
       await carregarViagensMoradores();
-      // Se a viagem já começou, redistribui tarefas da semana atual
-      const hoje = new Date().toISOString().split('T')[0];
-      if (novaViagem.dataSaida <= hoje && casaSelecionada?.id) {
+      // Redistribui se o estado de viagem mudou e a viagem afeta a semana atual
+      if (estadoMudou && casaSelecionada?.id) {
         const semanaAtual = getSemanaDaData(new Date());
         try {
           const resultado = await redistribuirPorSaida(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'viagem');
