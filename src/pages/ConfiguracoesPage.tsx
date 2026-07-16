@@ -11,7 +11,7 @@ import { getSemanaDaData, getIntervaloSemana, sobrepoeSemanaAtual } from '@/util
 import { existeViagemSobrepondoPeriodo } from '@/utils/viagens';
 
 interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; foto?: string; }
-interface Comodo { id: string; nome: string; icone: string; cor: string; tipo: 'coletivo' | 'privado'; casaId: string; ordem: number; createdBy: string; responsavelId?: string; }
+interface Comodo { id: string; nome: string; icone: string; cor: string; tipo: 'coletivo' | 'privado'; casaId: string; ordem: number; createdBy: string; responsavelId?: string; aceitaEventos?: boolean; }
 interface Tarefa { id: string; titulo: string; descricao: string; comodoId: string; responsavelId: string; casaId: string; prioridade: 'alta' | 'media' | 'baixa'; frequencia: 'unica' | 'diaria' | 'semanal' | 'quinzenal' | 'mensal'; status: 'aguardando_responsavel' | 'pendente' | 'em_andamento' | 'concluída'; tipo: 'coletiva' | 'privada'; diasSemana: string[]; diaMes: number; createdBy: string; dataUnica?: string; vezesPorSemana?: number; }
 interface UserData {
   uid: string;
@@ -64,7 +64,7 @@ export function ConfiguracoesPage() {
   // Comodos
   const [comodos, setComodos] = useState<Comodo[]>([]);
   const [editandoComodoId, setEditandoComodoId] = useState<string | null>(null);
-  const [formComodo, setFormComodo] = useState({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo' as 'coletivo' | 'privado', responsavelId: '' });
+  const [formComodo, setFormComodo] = useState({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo' as 'coletivo' | 'privado', responsavelId: '', aceitaEventos: false });
   const [modalComodoOpen, setModalComodoOpen] = useState(false);
 
   // Emoji automático baseado no nome do cômodo
@@ -361,7 +361,7 @@ export function ConfiguracoesPage() {
       } else {
         await addDoc(collection(db, 'comodos'), { ...formComodo, casaId: casaSelecionada.id, ordem: comodos.length, createdBy: user?.uid, createdAt: serverTimestamp() });
       }
-      setFormComodo({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo', responsavelId: '' });
+      setFormComodo({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo', responsavelId: '', aceitaEventos: false });
       setEditandoComodoId(null);
       setModalComodoOpen(false);
       setSucesso('Cômodo salvo!');
@@ -371,7 +371,7 @@ export function ConfiguracoesPage() {
 
   function abrirModalNovoComodo() {
     setEditandoComodoId(null);
-    setFormComodo({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo', responsavelId: '' });
+    setFormComodo({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo', responsavelId: '', aceitaEventos: false });
     setErro('');
     setSucesso('');
     setModalComodoOpen(true);
@@ -379,7 +379,7 @@ export function ConfiguracoesPage() {
 
   function abrirModalEditarComodo(c: Comodo) {
     setEditandoComodoId(c.id);
-    setFormComodo({ nome: c.nome, icone: c.icone, cor: c.cor, tipo: c.tipo, responsavelId: c.responsavelId || '' });
+    setFormComodo({ nome: c.nome, icone: c.icone, cor: c.cor, tipo: c.tipo, responsavelId: c.responsavelId || '', aceitaEventos: c.aceitaEventos === true });
     setErro('');
     setSucesso('');
     setModalComodoOpen(true);
@@ -388,7 +388,7 @@ export function ConfiguracoesPage() {
   function fecharModalComodo() {
     setModalComodoOpen(false);
     setEditandoComodoId(null);
-    setFormComodo({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo', responsavelId: '' });
+    setFormComodo({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo', responsavelId: '', aceitaEventos: false });
     setErro('');
     setSucesso('');
   }
@@ -1285,6 +1285,18 @@ export function ConfiguracoesPage() {
                         ))}
                       </select>
                     </div>
+                  )}
+                  {formComodo.tipo === 'coletivo' && (
+                    <button
+                      type="button"
+                      onClick={() => setFormComodo({ ...formComodo, aceitaEventos: !formComodo.aceitaEventos })}
+                      className="w-full flex items-center justify-between p-3 bg-surface-container-high border border-outline-variant rounded-lg"
+                    >
+                      <span className="text-sm text-on-surface text-left">Aceita eventos? <span className="block text-[10px] text-on-surface-variant font-normal">Aparece como opção de local ao criar um evento</span></span>
+                      <div className={`w-10 h-6 rounded-full flex items-center px-0.5 transition-colors flex-shrink-0 ${formComodo.aceitaEventos ? 'bg-primary justify-end' : 'bg-surface-container-highest justify-start'}`}>
+                        <div className="w-5 h-5 rounded-full bg-white" />
+                      </div>
+                    </button>
                   )}
                   <div className="flex gap-2">
                     <button onClick={handleSalvarComodo} className="flex-1 bg-primary-container text-on-primary-container font-bold py-2 rounded-lg text-sm hover:brightness-110 transition-all">{editandoComodoId ? 'Atualizar' : 'Criar'}</button>

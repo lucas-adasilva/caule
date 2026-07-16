@@ -22,7 +22,7 @@ function getDatasDaSemanaAtual(): Date[] {
 }
 
 interface Morador { uid: string; name: string; }
-interface Comodo { id: string; nome: string; icone: string; tipo: string; }
+interface Comodo { id: string; nome: string; icone: string; tipo: string; aceitaEventos: boolean; }
 
 interface FormEvento {
   titulo: string;
@@ -97,7 +97,7 @@ export function EventosPage() {
       const qComodos = query(collection(db, 'comodos'), where('casaId', '==', user.houseId));
       const sComodos = await getDocs(qComodos);
       const comodosData: Comodo[] = [];
-      sComodos.forEach(d => { const data = d.data(); comodosData.push({ id: d.id, nome: data.nome || 'Cômodo', icone: data.icone || '🏠', tipo: data.tipo || 'coletivo' }); });
+      sComodos.forEach(d => { const data = d.data(); comodosData.push({ id: d.id, nome: data.nome || 'Cômodo', icone: data.icone || '🏠', tipo: data.tipo || 'coletivo', aceitaEventos: data.aceitaEventos === true }); });
       setComodos(comodosData);
     } catch (e) { console.error('[Eventos] Erro ao carregar:', e); }
     setLoading(false);
@@ -109,18 +109,18 @@ export function EventosPage() {
   }
 
   function contarEventosNoDia(dia: Date): number {
-    return eventosVisiveis.filter(ev => eventoOcorreEm(ev, dia)).length;
+    return eventos.filter(ev => eventoOcorreEm(ev, dia)).length;
   }
 
-  // Eventos privados so aparecem pra quem criou
-  const eventosVisiveis = eventos.filter(ev => ev.tipo === 'coletivo' || ev.criadoPor === user?.uid);
-
-  const eventosComOcorrencia = eventosVisiveis
+  // Coletivo/Privado nao e sobre visibilidade (todo evento e visivel pra casa toda) - e sobre
+  // quem pode participar: coletivo = qualquer morador confirma presenca; privado = evento de
+  // um morador com convidados dele, sem RSVP da casa nem notificacao pros outros.
+  const eventosComOcorrencia = eventos
     .map(ev => ({ evento: ev, ocorrencia: proximaOcorrencia(ev, hoje) }))
     .filter((x): x is { evento: Evento; ocorrencia: Date } => x.ocorrencia !== null)
     .sort((a, b) => a.ocorrencia.getTime() - b.ocorrencia.getTime());
 
-  const comodosPublicos = comodos.filter(c => c.tipo === 'coletivo');
+  const comodosPublicos = comodos.filter(c => c.tipo === 'coletivo' && c.aceitaEventos);
 
   function abrirNovo() {
     setEditandoId(null);
@@ -482,12 +482,16 @@ export function EventosPage() {
             </div>
 
             <div>
-              <label className="text-label-sm text-on-surface-variant block mb-1">Visibilidade</label>
+              <label className="text-label-sm text-on-surface-variant block mb-1">Participação</label>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setForm({ ...form, tipo: 'coletivo' })} className={`flex-1 py-2 rounded-lg text-sm ${form.tipo === 'coletivo' ? 'bg-page-flores text-white' : 'bg-surface-container-high text-on-surface-variant'}`}>Pública</button>
-                <button type="button" onClick={() => setForm({ ...form, tipo: 'privado' })} className={`flex-1 py-2 rounded-lg text-sm ${form.tipo === 'privado' ? 'bg-page-flores text-white' : 'bg-surface-container-high text-on-surface-variant'}`}>Privada</button>
+                <button type="button" onClick={() => setForm({ ...form, tipo: 'coletivo' })} className={`flex-1 py-2 rounded-lg text-sm ${form.tipo === 'coletivo' ? 'bg-page-flores text-white' : 'bg-surface-container-high text-on-surface-variant'}`}>Coletivo</button>
+                <button type="button" onClick={() => setForm({ ...form, tipo: 'privado' })} className={`flex-1 py-2 rounded-lg text-sm ${form.tipo === 'privado' ? 'bg-page-flores text-white' : 'bg-surface-container-high text-on-surface-variant'}`}>Privado</button>
               </div>
-              {form.tipo === 'privado' && <p className="text-[10px] text-on-surface-variant mt-1">Só você vê este evento. Ninguém é notificado.</p>}
+              {form.tipo === 'coletivo' ? (
+                <p className="text-[10px] text-on-surface-variant mt-1">Qualquer morador da casa pode confirmar presença.</p>
+              ) : (
+                <p className="text-[10px] text-on-surface-variant mt-1">Evento seu com convidados próprios — sem confirmação de presença da casa nem notificação pros outros. Continua visível pra todo mundo.</p>
+              )}
             </div>
 
             {erro && <div className="p-2 bg-error-container/20 border border-error/30 rounded-lg text-error text-xs">{erro}</div>}
