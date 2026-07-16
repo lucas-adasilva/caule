@@ -25,7 +25,9 @@ export interface Evento {
   lembretes: number[];         // subset de LEMBRETE_OPCOES (minutos antes do evento)
   criadoPor: string;
   criadoPorNome: string;
-  respostas: Record<string, 'confirmado' | 'recusado'>;
+  // RSVP por ocorrência - chave YYYY-MM-DD (a ocorrência específica, não a série toda).
+  // Assim, num evento recorrente, confirmar uma semana não confirma automaticamente as próximas.
+  respostas: Record<string, Record<string, 'confirmado' | 'recusado'>>;
   createdAt?: any;
   updatedAt?: any;
 }
@@ -86,6 +88,11 @@ export function proximaOcorrencia(evento: EventoOcorrencia, referencia: Date): D
     if (eventoOcorreEm(evento, candidato)) return candidato;
   }
   return null;
+}
+
+/** Respostas (uid -> confirmado/recusado) de uma ocorrência específica do evento. */
+export function respostasDaOcorrencia(evento: Pick<Evento, 'respostas'>, dataOcorrencia: string): Record<string, 'confirmado' | 'recusado'> {
+  return (evento.respostas && evento.respostas[dataOcorrencia]) || {};
 }
 
 const DIAS_SEMANA_LABEL = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];

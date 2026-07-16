@@ -112,21 +112,8 @@ function paraDataSaoPaulo(dataUTC) {
   return { ano: local.getUTCFullYear(), mes: local.getUTCMonth() + 1, dia: local.getUTCDate() };
 }
 
-async function buscarMembrosCasa(casaId) {
-  const snap = await db.collection('users').where('houseId', '==', casaId).get();
-  const membros = [];
-  snap.forEach((d) => {
-    const data = d.data();
-    if (data.isActive === false) return;
-    membros.push({ uid: d.id, role: data.role || 'hospede' });
-  });
-  return membros;
-}
-
-function destinatariosPorTipo(membros, tipo) {
-  if (tipo === 'privado') return [];
-  if (tipo === 'apenas_moradores') return membros.filter((m) => m.role !== 'hospede');
-  return membros;
+function formatarDataLocal(ano, mes, dia) {
+  return `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
 }
 
 // Roda a cada 10 minutos: para cada evento com lembretes configurados, verifica se alguma
@@ -155,11 +142,18 @@ exports.verificarLembretesEventos = onSchedule({ schedule: `every ${JANELA_MIN} 
         const ocorrencia = ocorrenciaUTC(dc.ano, dc.mes, dc.dia, evento.horario);
         if (ocorrencia < janelaInicio || ocorrencia >= janelaFim) continue;
 
-        // Lembrete devido agora - dispara notificacao
+        // Lembrete devido agora - so notifica quem confirmou presenca NESSA ocorrencia
+        // especifica (data), mais o criador do evento (que nao precisa confirmar o proprio
+        // evento pra querer ser lembrado dele). Eventos privados nao tem RSVP na casa, entao
+        // so o criador recebe.
         try {
-          const membros = await buscarMembrosCasa(evento.casaId);
-          const destinatarios = destinatariosPorTipo(membros, evento.tipo || 'coletivo');
-          if (destinatarios.length === 0) continue;
+          const dataOcorrenciaStr = formatarDataLocal(dc.ano, dc.mes, dc.dia);
+          const respostasOcorrencia = (evento.respostas && evento.respostas[dataOcorrenciaStr]) || {};
+          const destinatariosUids = new Set(
+            Object.keys(respostasOcorrencia).filter((uid) => respostasOcorrencia[uid] === 'confirmado')
+          );
+          if (evento.criadoPor) destinatariosUids.add(evento.criadoPor);
+          if (destinatariosUids.size === 0) continue;
 
           const localTexto = evento.locais && evento.locais.length > 0 ? ` · 📍 ${escapeHtml(evento.locais.join(', '))}` : '';
           const titulo = `Lembrete: ${escapeHtml(evento.titulo || 'Evento')}`;
@@ -177,9 +171,9 @@ exports.verificarLembretesEventos = onSchedule({ schedule: `every ${JANELA_MIN} 
             </div>
           `;
 
-          for (const membro of destinatarios) {
+          for (const uid of destinatariosUids) {
             await db.collection('notificacoes').add({
-              destinatarioId: membro.uid,
+              destinatarioId: uid,
               titulo,
               mensagem,
               tipo: 'sistema',

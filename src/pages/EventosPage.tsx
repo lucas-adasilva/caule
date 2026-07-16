@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { TopAppBar } from '@/components/TopAppBar';
+import { UserAvatar } from '@/components/UserAvatar';
 import { useApp } from '@/App';
 import { useAuthStore } from '@/stores/authStore';
 import type { Evento, Recorrencia, TipoEvento } from '@/utils/eventos';
-import { proximaOcorrencia, eventoOcorreEm, notificarEvento, formatarDataLocal, sugerirEmojiEvento, descreverRecorrencia, LEMBRETE_OPCOES } from '@/utils/eventos';
+import { proximaOcorrencia, eventoOcorreEm, notificarEvento, formatarDataLocal, sugerirEmojiEvento, descreverRecorrencia, respostasDaOcorrencia, LEMBRETE_OPCOES } from '@/utils/eventos';
 
 const LEMBRETE_LABEL: Record<number, string> = { 1440: '1 dia antes', 60: '1 hora antes', 30: '30 minutos antes' };
 
@@ -23,7 +24,7 @@ function getDatasDaSemanaAtual(): Date[] {
   return Array.from({ length: 7 }, (_, i) => { const d = new Date(segunda); d.setDate(segunda.getDate() + i); return d; });
 }
 
-interface Morador { uid: string; name: string; }
+interface Morador { uid: string; name: string; photoURL?: string; }
 interface Comodo { id: string; nome: string; icone: string; tipo: string; aceitaEventos: boolean; }
 
 interface FormEvento {
@@ -93,7 +94,7 @@ export function EventosPage() {
       sUsers.forEach(d => {
         const data = d.data();
         if (data.isActive === false) return;
-        membros.push({ uid: d.id, name: data.name || 'Morador' });
+        membros.push({ uid: d.id, name: data.name || 'Morador', photoURL: data.photoURL || '' });
       });
       setMoradores(membros);
 
@@ -106,9 +107,10 @@ export function EventosPage() {
     setLoading(false);
   }
 
-  function nomeDe(uid: string): string {
-    if (uid === user?.uid) return 'Você';
-    return moradores.find(m => m.uid === uid)?.name || 'Alguém';
+  function moradorDe(uid: string): { name: string; photoURL?: string } {
+    if (uid === user?.uid) return { name: 'Você', photoURL: user?.photoURL };
+    const m = moradores.find(m => m.uid === uid);
+    return { name: m?.name || 'Alguém', photoURL: m?.photoURL };
   }
 
   function contarEventosNoDia(dia: Date): number {
@@ -210,12 +212,16 @@ export function EventosPage() {
     }
   }
 
-  async function responder(ev: Evento, resposta: 'confirmado' | 'recusado') {
+  // RSVP e por ocorrencia especifica (data), nao pela serie toda - confirmar uma semana de um
+  // evento recorrente nao confirma automaticamente as proximas.
+  async function responder(ev: Evento, dataOcorrencia: string, resposta: 'confirmado' | 'recusado') {
     if (!user?.uid) return;
     const respostasAntigas = ev.respostas;
-    setEventos(prev => prev.map(e => e.id === ev.id ? { ...e, respostas: { ...e.respostas, [user.uid]: resposta } } : e));
+    setEventos(prev => prev.map(e => e.id === ev.id
+      ? { ...e, respostas: { ...e.respostas, [dataOcorrencia]: { ...(e.respostas[dataOcorrencia] || {}), [user.uid]: resposta } } }
+      : e));
     try {
-      await updateDoc(doc(db, 'eventos', ev.id), { [`respostas.${user.uid}`]: resposta });
+      await updateDoc(doc(db, 'eventos', ev.id), { [`respostas.${dataOcorrencia}.${user.uid}`]: resposta });
     } catch (e) {
       console.error('[Eventos] Erro ao responder:', e);
       setEventos(prev => prev.map(ev2 => ev2.id === ev.id ? { ...ev2, respostas: respostasAntigas } : ev2));
@@ -284,8 +290,10 @@ export function EventosPage() {
               <p className="text-text-muted">Nenhum evento agendado</p>
             </div>
           ) : eventosComOcorrencia.map(({ evento, ocorrencia }) => {
-            const confirmados = Object.entries(evento.respostas).filter(([, r]) => r === 'confirmado').map(([uid]) => uid);
-            const minhaResposta = user?.uid ? evento.respostas[user.uid] : undefined;
+            const dataOcorrenciaStr = formatarDataLocal(ocorrencia);
+            const respostasOcorrencia = respostasDaOcorrencia(evento, dataOcorrenciaStr);
+            const confirmados = Object.entries(respostasOcorrencia).filter(([, r]) => r === 'confirmado').map(([uid]) => uid);
+            const minhaResposta = user?.uid ? respostasOcorrencia[user.uid] : undefined;
             const ehPrivado = evento.tipo === 'privado';
             const podeParticipar = evento.tipo === 'coletivo' || (evento.tipo === 'apenas_moradores' && user?.role !== 'hospede');
             const podeEditarEste = user?.role === 'admin' || evento.criadoPor === user?.uid;
@@ -328,28 +336,30 @@ export function EventosPage() {
                   </div>
                   {evento.descricao && <p className="text-sm text-on-surface-variant mb-3">{evento.descricao}</p>}
                   {!ehPrivado && (
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex -space-x-3">
-                        {confirmados.slice(0, 4).map((uid) => (
-                          <div
-                            key={uid}
-                            title={nomeDe(uid)}
-                            className="w-8 h-8 rounded-full border-2 border-surface-card bg-surface-container-high flex items-center justify-center text-[10px] font-bold text-primary"
-                          >
-                            {nomeDe(uid).charAt(0).toUpperCase()}
-                          </div>
-                        ))}
-                        {confirmados.length > 4 && (
-                          <div className="w-8 h-8 rounded-full border-2 border-surface-card bg-surface-container flex items-center justify-center text-[10px] font-bold">
-                            +{confirmados.length - 4}
+                    <div className="flex items-end justify-between gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        {confirmados.length === 0 && <span className="text-xs text-text-muted self-center">Ninguém confirmou ainda</span>}
+                        {confirmados.slice(0, 5).map((uid) => {
+                          const m = moradorDe(uid);
+                          return (
+                            <div key={uid} className="flex flex-col items-center gap-0.5 w-9">
+                              <UserAvatar photoURL={m.photoURL} name={m.name} size={32} showPresence={false} />
+                              <span className="text-[9px] text-on-surface-variant leading-none truncate w-full text-center">{m.name.split(' ')[0]}</span>
+                            </div>
+                          );
+                        })}
+                        {confirmados.length > 5 && (
+                          <div className="flex flex-col items-center gap-0.5 w-9">
+                            <div className="w-8 h-8 rounded-full border-2 border-surface-card bg-surface-container flex items-center justify-center text-[10px] font-bold">
+                              +{confirmados.length - 5}
+                            </div>
                           </div>
                         )}
-                        {confirmados.length === 0 && <span className="text-xs text-text-muted">Ninguém confirmou ainda</span>}
                       </div>
                       {podeParticipar && (
                         <div className="flex gap-1.5 flex-shrink-0">
                           <button
-                            onClick={() => responder(evento, 'confirmado')}
+                            onClick={() => responder(evento, dataOcorrenciaStr, 'confirmado')}
                             className={`px-3 py-1.5 rounded-lg font-label-sm text-xs active:scale-95 transition-all ${
                               minhaResposta === 'confirmado'
                                 ? 'bg-page-flores text-white'
@@ -359,7 +369,7 @@ export function EventosPage() {
                             Confirmar
                           </button>
                           <button
-                            onClick={() => responder(evento, 'recusado')}
+                            onClick={() => responder(evento, dataOcorrenciaStr, 'recusado')}
                             className={`px-3 py-1.5 rounded-lg font-label-sm text-xs active:scale-95 transition-all ${
                               minhaResposta === 'recusado'
                                 ? 'bg-surface-container-highest text-on-surface-variant'
