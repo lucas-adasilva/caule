@@ -6,7 +6,6 @@ import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithRedirect,
   signInWithCredential,
   linkWithCredential,
 } from 'firebase/auth';
@@ -61,16 +60,6 @@ export function LoginForm() {
     } finally {
       setLoading(false);
     }
-  }
-
-  /**
-   * Detecta se o navegador é mobile (para escolher popup vs redirect)
-   */
-  function isMobileBrowser(): boolean {
-    const ua = navigator.userAgent;
-    const isMobileUA = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-    const isSmallScreen = window.innerWidth <= 768;
-    return isMobileUA || isSmallScreen;
   }
 
   /**
@@ -152,38 +141,36 @@ export function LoginForm() {
       }
 
       // ==========================================
-      // WEB (desktop e mobile/PWA)
+      // WEB (desktop, mobile web e PWA instalado)
       // ==========================================
+      // Sempre popup: o fluxo de redirect depende do sessionStorage sobreviver
+      // a ida-e-volta pelo dominio de auth, o que nao e confiavel num PWA
+      // instalado (o SO as vezes abre o redirect num contexto de navegacao
+      // separado, sem acesso ao storage da aba original) - o usuario escolhia
+      // a conta, via a tela "carregar" e caia de volta no login sem erro nenhum.
       const provider = new GoogleAuthProvider();
       provider.addScope('profile');
       provider.addScope('email');
 
-      if (isMobileBrowser()) {
-        // Mobile web / PWA: usa redirect
-        await signInWithRedirect(auth, provider);
-        // A página recarrega; o App.tsx processa via getRedirectResult
-      } else {
-        // Desktop web: usa popup
-        try {
-          await signInWithPopup(auth, provider);
-          // onAuthStateChanged no App.tsx detecta o usuário novo e navega
-        } catch (popupErr: any) {
-          if (popupErr.code === 'auth/account-exists-with-different-credential') {
-            const pendingEmail = popupErr.customData?.email;
-            const pendingCredential = GoogleAuthProvider.credentialFromError(popupErr);
-            if (pendingEmail && pendingCredential) {
-              setLinkingState({
-                pending: true,
-                email: pendingEmail,
-                credential: pendingCredential,
-              });
-              setEmail(pendingEmail);
-            } else {
-              setError('Esta conta Google já existe com outro método de login. Use email e senha.');
-            }
+      try {
+        await signInWithPopup(auth, provider);
+        // onAuthStateChanged no App.tsx detecta o usuário novo e navega
+      } catch (popupErr: any) {
+        if (popupErr.code === 'auth/account-exists-with-different-credential') {
+          const pendingEmail = popupErr.customData?.email;
+          const pendingCredential = GoogleAuthProvider.credentialFromError(popupErr);
+          if (pendingEmail && pendingCredential) {
+            setLinkingState({
+              pending: true,
+              email: pendingEmail,
+              credential: pendingCredential,
+            });
+            setEmail(pendingEmail);
           } else {
-            throw popupErr;
+            setError('Esta conta Google já existe com outro método de login. Use email e senha.');
           }
+        } else {
+          throw popupErr;
         }
       }
     } catch (err: any) {

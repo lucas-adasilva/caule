@@ -1,7 +1,6 @@
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { useState, useEffect, createContext, useContext } from 'react';
-import { onAuthStateChanged, getRedirectResult } from 'firebase/auth';
-import { Capacitor } from '@capacitor/core';
+import { useState, useEffect, useRef, createContext, useContext } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import { useAuthStore } from './stores/authStore';
 import { LoginForm } from './components/auth/LoginForm';
@@ -117,43 +116,33 @@ function AuthListener() {
   const { setUser, setLoading } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+  // A rota atual e lida dentro do callback do onAuthStateChanged, que pode
+  // disparar a qualquer momento - um ref evita ter que colocar location.pathname
+  // nas deps do efeito abaixo (o que forçava reinscrever o listener a cada
+  // navegação, causando refetch do Firestore e um flash de loading em cada troca de rota).
+  const pathnameRef = useRef(location.pathname);
+  useEffect(() => { pathnameRef.current = location.pathname; }, [location.pathname]);
 
   useEffect(() => {
-    // ==========================================
-    // WEB: processa resultado de redirect (logging apenas)
-    // ==========================================
-    const isNative = Capacitor.isNativePlatform();
-    if (!isNative) {
-      getRedirectResult(auth).then((redirectResult) => {
-        if (redirectResult?.user) {
-          console.log('[AuthListener] Redirect result processado:', redirectResult.user.email);
-        }
-      }).catch((err) => {
-        console.log('[AuthListener] Sem redirect pendente:', err);
-      });
-    }
-
-    // ==========================================
-    // Listener unificado para TODAS as plataformas
-    // ==========================================
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
         const user = await buildUserObject(firebaseUser);
         setUser(user);
         syncBadgeCount(user.uid);
+        const pathname = pathnameRef.current;
         if (user.isNewUser) {
-          if (location.pathname !== '/completar-perfil') {
+          if (pathname !== '/completar-perfil') {
             navigate('/completar-perfil', { replace: true });
           }
         } else if (!user.houseId) {
           // Usuário existe mas não tem casa vinculada → manda escolher casa
-          if (location.pathname !== '/vincular-casa') {
+          if (pathname !== '/vincular-casa') {
             navigate('/vincular-casa', { replace: true });
           }
-        } else if (user.role === 'hospede' && !user.estadiaAtiva && location.pathname !== '/estadia') {
+        } else if (user.role === 'hospede' && !user.estadiaAtiva && pathname !== '/estadia') {
           navigate('/estadia', { replace: true });
-        } else if (location.pathname === '/login' || location.pathname === '/cadastro') {
+        } else if (pathname === '/login' || pathname === '/cadastro') {
           navigate('/app', { replace: true });
         }
       } else {
@@ -163,7 +152,7 @@ function AuthListener() {
     });
 
     return () => unsubscribe();
-  }, [setUser, setLoading, navigate, location.pathname]);
+  }, [setUser, setLoading, navigate]);
 
   return null;
 }
