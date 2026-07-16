@@ -79,15 +79,15 @@ function TaskRow({ atribuicao, onToggle, onEditDate, comodo }: { atribuicao: Atr
           </button>
           {/* Content */}
           <div className="flex-1 min-w-0">
-            <h4 className={`font-bold text-sm ${isConcluida ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{atribuicao.titulo}</h4>
+            <h4 className={`font-bold text-base ${isConcluida ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{atribuicao.titulo}</h4>
             {comodo && (
-              <p className="text-[10px] text-on-surface-variant flex items-center gap-1 mt-0.5">
-                <span className="text-xs">{comodo.icone}</span>{comodo.nome}
+              <p className="text-xs text-on-surface-variant flex items-center gap-1 mt-0.5">
+                <span className="text-sm">{comodo.icone}</span>{comodo.nome}
               </p>
             )}
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-bold border ${pClasses[atribuicao.prioridade]}`}>{atribuicao.prioridade === 'alta' ? 'Alta' : atribuicao.prioridade === 'media' ? 'Media' : 'Baixa'}</span>
-              {atribuicao.horarioLimite && <span className="text-[10px] text-on-surface-variant flex items-center gap-0.5"><span className="material-symbols-outlined text-[10px]">schedule</span>{atribuicao.horarioLimite}</span>}
+              <span className={`px-2 py-0.5 rounded-full text-xs uppercase font-bold border ${pClasses[atribuicao.prioridade]}`}>{atribuicao.prioridade === 'alta' ? 'Alta' : atribuicao.prioridade === 'media' ? 'Media' : 'Baixa'}</span>
+              {atribuicao.horarioLimite && <span className="text-xs text-on-surface-variant flex items-center gap-0.5"><span className="material-symbols-outlined text-xs">schedule</span>{atribuicao.horarioLimite}</span>}
               {atribuicao.descricao && (
                 <button onClick={() => setMostrarDesc(!mostrarDesc)} className="p-0.5 text-on-surface-variant hover:text-primary transition-colors" title="Ver descricao">
                   <span className="material-symbols-outlined text-[14px]">{mostrarDesc ? 'expand_less' : 'info'}</span>
@@ -260,10 +260,10 @@ export function TarefasPage() {
                     : 'bg-surface-card border border-outline-variant/30 text-on-surface'
                 }`}
               >
-                <span className={`text-[10px] uppercase ${isSelected ? 'opacity-80' : 'text-text-muted'}`}>{dia}</span>
+                <span className={`text-xs uppercase ${isSelected ? 'opacity-80' : 'text-text-muted'}`}>{dia}</span>
                 <span className={isSelected ? 'text-xl' : 'font-bold text-lg'}>{datasDaSemana[idx].getDate()}</span>
                 {count > 0 && (
-                  <span className={`text-[9px] font-bold mt-0.5 px-1.5 rounded-full ${isSelected ? 'bg-on-primary/20 text-on-primary' : 'bg-page-folhas/15 text-page-folhas'}`}>{count}</span>
+                  <span className={`text-[10px] font-bold mt-0.5 px-1.5 rounded-full ${isSelected ? 'bg-on-primary/20 text-on-primary' : 'bg-page-folhas/15 text-page-folhas'}`}>{count}</span>
                 )}
               </button>
             );
@@ -272,8 +272,8 @@ export function TarefasPage() {
 
         {/* Status summary */}
         <div className="flex gap-3 mb-4">
-          <div className="flex-1 bg-surface-card rounded-xl border border-outline-variant p-3 text-center"><p className="text-2xl font-bold text-primary">{pendentesSemana.length}</p><p className="text-[10px] text-on-surface-variant uppercase">Pendentes</p></div>
-          <div className="flex-1 bg-surface-card rounded-xl border border-outline-variant p-3 text-center"><p className="text-2xl font-bold text-secondary">{distribuicao?.atribuicoes.filter(a => a.responsavelId === user?.uid && a.status === 'concluida').length || 0}</p><p className="text-[10px] text-on-surface-variant uppercase">Concluidas</p></div>
+          <div className="flex-1 bg-surface-card rounded-xl border border-outline-variant p-3 text-center"><p className="text-2xl font-bold text-primary">{pendentesSemana.length}</p><p className="text-xs text-on-surface-variant uppercase">Pendentes</p></div>
+          <div className="flex-1 bg-surface-card rounded-xl border border-outline-variant p-3 text-center"><p className="text-2xl font-bold text-secondary">{distribuicao?.atribuicoes.filter(a => a.responsavelId === user?.uid && a.status === 'concluida').length || 0}</p><p className="text-xs text-on-surface-variant uppercase">Concluidas</p></div>
         </div>
 
         {/* Task List */}
@@ -284,13 +284,13 @@ export function TarefasPage() {
           {pendentes.length > 0 && (
             <div className="mb-4">
               <h3 className="text-label-sm text-on-surface-variant font-bold mb-1 uppercase">Pendentes ({pendentes.length})</h3>
-              <p className="text-[10px] text-primary mb-3 flex items-center gap-1"><span className="material-symbols-outlined text-[12px]">swipe_right</span>Deslize para a direita para concluir</p>
+              <p className="text-xs text-primary mb-3 flex items-center gap-1"><span className="material-symbols-outlined text-sm">swipe_right</span>Deslize para a direita para concluir</p>
               {pendentesPorComodo.map(({ comodo, atribuicoes }) => (
                 <div key={comodo.id} className="mb-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-lg">{comodo.icone}</span>
-                    <h4 className="font-bold text-sm text-on-surface">{comodo.nome}</h4>
-                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full ml-auto">{atribuicoes.length}</span>
+                    <h4 className="font-bold text-base text-on-surface">{comodo.nome}</h4>
+                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full ml-auto">{atribuicoes.length}</span>
                   </div>
                   {atribuicoes.map(a => <TaskRow key={a.id} atribuicao={a} onToggle={toggleTarefa} onEditDate={(atrib) => { setEditandoAtrib(atrib); setNovaData(isoToInputDate(atrib.dataConclusao)); }} comodo={comodo} />)}
                 </div>
@@ -300,13 +300,13 @@ export function TarefasPage() {
           {concluidas.length > 0 && (
             <div>
               <h3 className="text-label-sm text-on-surface-variant font-bold mb-1 uppercase">Concluidas ({concluidas.length})</h3>
-              <p className="text-[10px] text-error mb-3 flex items-center gap-1"><span className="material-symbols-outlined text-[12px]">swipe_left</span>Deslize para a esquerda para desfazer</p>
+              <p className="text-xs text-error mb-3 flex items-center gap-1"><span className="material-symbols-outlined text-sm">swipe_left</span>Deslize para a esquerda para desfazer</p>
               {concluidasPorComodo.map(({ comodo, atribuicoes }) => (
                 <div key={comodo.id} className="mb-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-lg">{comodo.icone}</span>
-                    <h4 className="font-bold text-sm text-on-surface-variant">{comodo.nome}</h4>
-                    <span className="text-[10px] bg-secondary/10 text-secondary px-2 py-0.5 rounded-full ml-auto">{atribuicoes.length}</span>
+                    <h4 className="font-bold text-base text-on-surface-variant">{comodo.nome}</h4>
+                    <span className="text-xs bg-secondary/10 text-secondary px-2 py-0.5 rounded-full ml-auto">{atribuicoes.length}</span>
                   </div>
                   {atribuicoes.map(a => <TaskRow key={a.id} atribuicao={a} onToggle={toggleTarefa} onEditDate={(atrib) => { setEditandoAtrib(atrib); setNovaData(isoToInputDate(atrib.dataConclusao)); }} comodo={comodo} />)}
                 </div>
