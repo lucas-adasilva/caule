@@ -8,12 +8,15 @@ import { useAuthStore } from '@/stores/authStore';
 import { buscarMoradoresEmViagem } from '@/utils/viagens';
 import { formatPhoneCompleto } from '@/utils/formatters';
 
+type Pronome = 'ela' | 'ele' | 'elu';
+
 interface Pessoa {
   uid: string;
   name: string;
   photoURL?: string;
   phone?: string;
   role: string;
+  pronome?: Pronome;
 }
 
 function estadiaAtiva(estadiaInicio?: string, estadiaFim?: string): boolean {
@@ -22,25 +25,35 @@ function estadiaAtiva(estadiaInicio?: string, estadiaFim?: string): boolean {
   return estadiaInicio <= hoje && estadiaFim > hoje;
 }
 
-function PessoaCard({ pessoa, tag }: { pessoa: Pessoa; tag?: string }) {
+// Mesma concordancia de genero por pronome usada no cadastro (CadastroPage.tsx)
+function rotuloPessoa(pessoa: Pessoa): string {
+  if (pessoa.role === 'hospede') return 'Hóspede';
+  if (pessoa.pronome === 'ela') return 'Moradora';
+  if (pessoa.pronome === 'elu') return 'Moradore';
+  return 'Morador';
+}
+
+function PessoaCard({ pessoa }: { pessoa: Pessoa }) {
   const telefone = pessoa.phone ? pessoa.phone.replace(/\D/g, '') : '';
+  // Sem o "+55" pra caber no card - o link do WhatsApp usa o numero completo de qualquer forma.
+  const telefoneCurto = formatPhoneCompleto(pessoa.phone || '').replace(/^\+55\s*/, '');
   return (
-    <div className="flex flex-col items-center gap-1 w-20 text-center">
+    <div className="flex flex-col items-center gap-1 w-24 text-center">
       <UserAvatar photoURL={pessoa.photoURL} name={pessoa.name} size={56} showPresence={false} />
       <span className="text-xs font-bold text-on-surface truncate w-full">{pessoa.name.split(' ')[0]}</span>
-      {tag && <span className="text-[9px] text-page-ramos -mt-1">{tag}</span>}
+      <span className="text-[9px] text-page-ramos leading-none">{rotuloPessoa(pessoa)}</span>
       {telefone ? (
         <a
           href={`https://wa.me/${telefone}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-0.5 text-[10px] text-on-surface-variant hover:text-primary transition-colors"
+          className="flex items-center gap-0.5 w-full text-[9px] text-on-surface-variant hover:text-primary transition-colors"
         >
-          <span className="material-symbols-outlined text-[12px]">call</span>
-          <span className="truncate">{formatPhoneCompleto(pessoa.phone || '')}</span>
+          <span className="material-symbols-outlined text-[11px] flex-shrink-0">call</span>
+          <span className="truncate min-w-0">{telefoneCurto}</span>
         </a>
       ) : (
-        <span className="text-[10px] text-on-surface-variant">Sem contato</span>
+        <span className="text-[9px] text-on-surface-variant">Sem contato</span>
       )}
     </div>
   );
@@ -65,7 +78,7 @@ export function UsersPage() {
       snap.forEach(d => {
         const data = d.data();
         if (data.isActive === false) return;
-        const pessoa: Pessoa = { uid: d.id, name: data.name || 'Sem nome', photoURL: data.photoURL || '', phone: data.phone || '', role: data.role || 'hospede' };
+        const pessoa: Pessoa = { uid: d.id, name: data.name || 'Sem nome', photoURL: data.photoURL || '', phone: data.phone || '', role: data.role || 'hospede', pronome: data.pronome };
         if (pessoa.role === 'hospede') {
           if (estadiaAtiva(data.estadiaInicio, data.estadiaFim)) hospedesPresentes.push(pessoa);
           // hospede sem estadia ativa nao aparece em lugar nenhum
@@ -108,7 +121,7 @@ export function UsersPage() {
                 <p className="text-sm text-text-muted">Ninguém presente no momento.</p>
               ) : (
                 <div className="flex flex-wrap gap-4">
-                  {presentes.map(p => <PessoaCard key={p.uid} pessoa={p} tag={p.role === 'hospede' ? 'Hóspede' : undefined} />)}
+                  {presentes.map(p => <PessoaCard key={p.uid} pessoa={p} />)}
                 </div>
               )}
             </section>
