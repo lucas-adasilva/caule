@@ -16,6 +16,25 @@ export function formatPhoneNumberOnly(phone: string): string {
   return `${cleaned.slice(0, 1)} ${cleaned.slice(1, 5)}-${cleaned.slice(5, 9)}`;
 }
 
+/** Formata telefone completo (com DDI já incluso no valor salvo): +55 (11) 9 9999-9999 */
+export function formatPhoneCompleto(phone: string): string {
+  const cleaned = phone.replace(/\D/g, '');
+  if (!cleaned) return '';
+  // Brasil: 55 + DDD (2) + celular (9) = 13 digitos
+  if (cleaned.startsWith('55') && cleaned.length === 13) {
+    const ddd = cleaned.slice(2, 4);
+    const numero = cleaned.slice(4);
+    return `+55 (${ddd}) ${formatPhoneNumberOnly(numero)}`;
+  }
+  // Internacional generico: assume os ultimos 8 digitos como numero local
+  if (cleaned.length > 8) {
+    const ddi = cleaned.slice(0, cleaned.length - 8);
+    const numero = cleaned.slice(-8);
+    return `+${ddi} ${numero.slice(0, 4)}-${numero.slice(4)}`;
+  }
+  return `+${cleaned}`;
+}
+
 export function formatCpf(cpf: string): string {
   const cleaned = cpf.replace(/\D/g, '');
   if (cleaned.length > 11) return cleaned.slice(0, 11);
