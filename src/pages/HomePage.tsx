@@ -7,6 +7,10 @@ import { TopAppBar } from '@/components/TopAppBar';
 import { UserAvatar } from '@/components/UserAvatar';
 import { buscarMoradoresEmViagem } from '@/utils/viagens';
 
+const BEM_VINDO: Record<string, string> = { ela: 'Bem-vinda', ele: 'Bem-vindo', elu: 'Bem-vinde' };
+// Exibir os 4 cards de estatisticas e a sessao Ciclos/calendario
+const MOSTRAR_STATS_E_CICLOS = false;
+
 interface FirestoreUser {
   uid: string;
   name: string;
@@ -206,7 +210,7 @@ export function HomePage() {
       <main className="px-margin-page py-stack-md space-y-stack-lg">
         {/* House Identity */}
         <section className="space-y-stack-sm pt-4">
-          <p className="text-page-copa text-label-sm font-label-sm tracking-widest uppercase">Bem-vindo a Copa</p>
+          <p className="text-page-copa text-label-sm font-label-sm tracking-widest uppercase">{BEM_VINDO[user?.pronome || ''] || 'Bem-vindo'}</p>
           <h2 className="text-page-copa font-headline-lg-mobile text-4xl leading-tight">Casa Abacateira</h2>
           <div className="flex items-center gap-2 text-on-surface-variant text-body-md">
             <span className="material-symbols-outlined text-sm">potted_plant</span>
@@ -215,7 +219,7 @@ export function HomePage() {
         </section>
 
         {/* Stats Grid (Bento Style) */}
-        <section className="grid grid-cols-2 gap-4">
+        <section className={`grid grid-cols-2 gap-4 ${MOSTRAR_STATS_E_CICLOS ? '' : 'hidden'}`}>
           {[
             { label: 'Ramos', value: stats.ramos, icon: 'account_tree', color: 'text-[#818cf8]', bg: 'bg-[#818cf8]/10' },
             { label: 'Folhas', value: stats.folhas, icon: 'eco', color: 'text-secondary', bg: 'bg-secondary/10' },
@@ -278,7 +282,7 @@ export function HomePage() {
         {/* Bottom Grid: Ciclos & Tarefas Pendentes */}
         <section className="grid grid-cols-1 gap-stack-lg pb-10">
           {/* Ciclos (Mini Calendar) */}
-          <div className="space-y-4">
+          <div className={`space-y-4 ${MOSTRAR_STATS_E_CICLOS ? '' : 'hidden'}`}>
             <div className="flex justify-between items-center">
               <h3 className="font-section-heading text-section-heading flex items-center gap-2">Ciclos</h3>
             </div>

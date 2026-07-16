@@ -98,6 +98,7 @@ async function buildUserObject(firebaseUser: any) {
     pixKey: userData.pixKey || '',
     birthDate: userData.birthDate || '',
     photoURL: photoURL,
+    pronome: userData.pronome || '',
     houseId: userData.houseId || '',
     estadiaInicio: userData.estadiaInicio || '',
     estadiaFim: userData.estadiaFim || '',

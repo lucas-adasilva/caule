@@ -14,6 +14,7 @@ interface UserData {
   pixKey?: string;
   birthDate?: string;
   photoURL?: string;
+  pronome?: 'ela' | 'ele' | 'elu' | '';
   houseId?: string;
   estadiaInicio?: string;
   estadiaFim?: string;
