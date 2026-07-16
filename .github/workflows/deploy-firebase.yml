@@ -23,6 +23,12 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Write app version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "export const APP_VERSION = '$VERSION';" > src/version.ts
+          cat src/version.ts
+
       - name: Build
         run: npm run build
 
