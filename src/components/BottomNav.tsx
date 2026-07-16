@@ -7,18 +7,19 @@ interface NavItem {
   labelPoetic: string;
   path: string;
   color: string;
+  activeBg: string;
   showFor: ('admin' | 'morador' | 'hospede')[];
 }
 
-// Menu inferior - visibilidade por role (mesma ordem e seções do MenuDrawer)
+// Menu inferior - visibilidade por role e cores por pagina (mesma ordem e cores do MenuDrawer)
 const navItems: NavItem[] = [
-  { icon: 'forest', iconFilled: 'forest', labelPoetic: 'Copa', path: '/app', color: 'text-[#2ECC71]', showFor: ['admin', 'morador'] },
-  { icon: 'eco', iconFilled: 'eco', labelPoetic: 'Folhas', path: '/tarefas', color: 'text-[#90EE90]', showFor: ['admin', 'morador', 'hospede'] },
-  { icon: 'local_florist', iconFilled: 'local_florist', labelPoetic: 'Flores', path: '/eventos', color: 'text-[#FFB6C1]', showFor: ['admin', 'morador', 'hospede'] },
-  { icon: 'account_tree', iconFilled: 'account_tree', labelPoetic: 'Ramos', path: '/admin/users', color: 'text-[#A5B4FC]', showFor: ['admin', 'morador'] },
-  { icon: 'cycle', iconFilled: 'cycle', labelPoetic: 'Ciclos', path: '/calendario', color: 'text-[#D8BFD8]', showFor: ['admin', 'morador', 'hospede'] },
-  { icon: 'device_hub', iconFilled: 'device_hub', labelPoetic: 'Raízes', path: '/comunicacao', color: 'text-[#8A2BE2]', showFor: ['admin', 'morador', 'hospede'] },
-  { icon: 'yard', iconFilled: 'yard', labelPoetic: 'Caule', path: '/configuracoes', color: 'text-[#A9A9A9]', showFor: ['admin'] },
+  { icon: 'forest', iconFilled: 'forest', labelPoetic: 'Copa', path: '/app', color: 'text-page-copa', activeBg: 'bg-page-copa/20', showFor: ['admin', 'morador'] },
+  { icon: 'eco', iconFilled: 'eco', labelPoetic: 'Folhas', path: '/tarefas', color: 'text-page-folhas', activeBg: 'bg-page-folhas/20', showFor: ['admin', 'morador', 'hospede'] },
+  { icon: 'local_florist', iconFilled: 'local_florist', labelPoetic: 'Flores', path: '/eventos', color: 'text-page-flores', activeBg: 'bg-page-flores/20', showFor: ['admin', 'morador', 'hospede'] },
+  { icon: 'account_tree', iconFilled: 'account_tree', labelPoetic: 'Ramos', path: '/admin/users', color: 'text-page-ramos', activeBg: 'bg-page-ramos/20', showFor: ['admin', 'morador'] },
+  { icon: 'cycle', iconFilled: 'cycle', labelPoetic: 'Ciclos', path: '/calendario', color: 'text-page-ciclos', activeBg: 'bg-page-ciclos/20', showFor: ['admin', 'morador', 'hospede'] },
+  { icon: 'device_hub', iconFilled: 'device_hub', labelPoetic: 'Raízes', path: '/comunicacao', color: 'text-page-raizes', activeBg: 'bg-page-raizes/20', showFor: ['admin', 'morador', 'hospede'] },
+  { icon: 'yard', iconFilled: 'yard', labelPoetic: 'Caule', path: '/configuracoes', color: 'text-page-caule', activeBg: 'bg-page-caule/20', showFor: ['admin'] },
 ];
 
 export function BottomNav() {
@@ -39,7 +40,7 @@ export function BottomNav() {
             onClick={() => navigate(item.path)}
             className={`flex flex-col items-center justify-center py-1 px-0.5 rounded-lg transition-all duration-300 active:scale-90 flex-1 min-w-0 ${
               isActive
-                ? 'bg-primary-container/20 text-primary scale-105'
+                ? `${item.activeBg} scale-105`
                 : 'text-on-surface-variant hover:text-primary-fixed-dim'
             }`}
           >
