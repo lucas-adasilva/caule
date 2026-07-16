@@ -5,7 +5,9 @@ import { TopAppBar } from '@/components/TopAppBar';
 import { useApp } from '@/App';
 import { useAuthStore } from '@/stores/authStore';
 import type { Evento, Recorrencia, TipoEvento } from '@/utils/eventos';
-import { proximaOcorrencia, eventoOcorreEm, notificarEvento, formatarDataLocal, sugerirEmojiEvento, descreverRecorrencia } from '@/utils/eventos';
+import { proximaOcorrencia, eventoOcorreEm, notificarEvento, formatarDataLocal, sugerirEmojiEvento, descreverRecorrencia, LEMBRETE_OPCOES } from '@/utils/eventos';
+
+const LEMBRETE_LABEL: Record<number, string> = { 1440: '1 dia antes', 60: '1 hora antes', 30: '30 minutos antes' };
 
 const DIAS_SEMANA = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM'];
 const DIAS_SEMANA_SEL = [
@@ -27,7 +29,7 @@ interface Comodo { id: string; nome: string; icone: string; tipo: string; aceita
 interface FormEvento {
   titulo: string;
   emoji: string;
-  local: string;
+  locais: string[];
   horario: string;
   descricao: string;
   recorrencia: Recorrencia;
@@ -35,11 +37,12 @@ interface FormEvento {
   diasSemana: string[];
   diasMes: number[];
   tipo: TipoEvento;
+  lembretes: number[];
 }
 
 const FORM_VAZIO: FormEvento = {
-  titulo: '', emoji: '📅', local: '', horario: '19:00', descricao: '',
-  recorrencia: 'nenhuma', data: '', diasSemana: [], diasMes: [], tipo: 'coletivo',
+  titulo: '', emoji: '📅', locais: [], horario: '19:00', descricao: '',
+  recorrencia: 'nenhuma', data: '', diasSemana: [], diasMes: [], tipo: 'coletivo', lembretes: [],
 };
 
 export function EventosPage() {
@@ -132,10 +135,10 @@ export function EventosPage() {
   function abrirEditar(ev: Evento) {
     setEditandoId(ev.id);
     setForm({
-      titulo: ev.titulo, emoji: ev.emoji || '📅', local: ev.local || '', horario: ev.horario,
+      titulo: ev.titulo, emoji: ev.emoji || '📅', locais: ev.locais || [], horario: ev.horario,
       descricao: ev.descricao || '', recorrencia: ev.recorrencia || 'nenhuma',
       data: ev.data || formatarDataLocal(hoje), diasSemana: ev.diasSemana || [], diasMes: ev.diasMes || [],
-      tipo: ev.tipo || 'coletivo',
+      tipo: ev.tipo || 'coletivo', lembretes: ev.lembretes || [],
     });
     setErro('');
     setModalAberto(true);
@@ -159,11 +162,12 @@ export function EventosPage() {
       const dados: Record<string, any> = {
         titulo: form.titulo.trim(),
         emoji: form.emoji || '📅',
-        local: form.local,
+        locais: form.locais,
         horario: form.horario,
         descricao: form.descricao.trim(),
         recorrencia: form.recorrencia,
         tipo: form.tipo,
+        lembretes: form.lembretes,
       };
       if (form.recorrencia === 'nenhuma') dados.data = form.data;
       if (form.recorrencia === 'semanal') dados.diasSemana = form.diasSemana;
@@ -283,6 +287,7 @@ export function EventosPage() {
             const confirmados = Object.entries(evento.respostas).filter(([, r]) => r === 'confirmado').map(([uid]) => uid);
             const minhaResposta = user?.uid ? evento.respostas[user.uid] : undefined;
             const ehPrivado = evento.tipo === 'privado';
+            const podeParticipar = evento.tipo === 'coletivo' || (evento.tipo === 'apenas_moradores' && user?.role !== 'hospede');
             const podeEditarEste = user?.role === 'admin' || evento.criadoPor === user?.uid;
             const dataOuRecorrencia = evento.recorrencia === 'nenhuma'
               ? ocorrencia.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
@@ -298,6 +303,9 @@ export function EventosPage() {
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {ehPrivado && (
                         <span className="material-symbols-outlined text-[16px] text-text-muted" title="Evento privado">lock</span>
+                      )}
+                      {evento.tipo === 'apenas_moradores' && (
+                        <span className="material-symbols-outlined text-[16px] text-text-muted" title="Apenas moradores">home</span>
                       )}
                       {evento.recorrencia !== 'nenhuma' && (
                         <span className="material-symbols-outlined text-[16px] text-text-muted" title={descreverRecorrencia(evento)}>repeat</span>
@@ -316,7 +324,7 @@ export function EventosPage() {
                   </div>
                   <div className="flex items-center gap-2 text-text-muted text-sm mb-3">
                     <span className="material-symbols-outlined text-[16px]">schedule</span>
-                    <span>{dataOuRecorrencia} · {evento.horario}{evento.local ? ` · ${evento.local}` : ''}</span>
+                    <span>{dataOuRecorrencia} · {evento.horario}{evento.locais && evento.locais.length > 0 ? ` · ${evento.locais.join(', ')}` : ''}</span>
                   </div>
                   {evento.descricao && <p className="text-sm text-on-surface-variant mb-3">{evento.descricao}</p>}
                   {!ehPrivado && (
@@ -338,28 +346,30 @@ export function EventosPage() {
                         )}
                         {confirmados.length === 0 && <span className="text-xs text-text-muted">Ninguém confirmou ainda</span>}
                       </div>
-                      <div className="flex gap-1.5 flex-shrink-0">
-                        <button
-                          onClick={() => responder(evento, 'confirmado')}
-                          className={`px-3 py-1.5 rounded-lg font-label-sm text-xs active:scale-95 transition-all ${
-                            minhaResposta === 'confirmado'
-                              ? 'bg-page-flores text-white'
-                              : 'border border-page-flores text-page-flores'
-                          }`}
-                        >
-                          Confirmar
-                        </button>
-                        <button
-                          onClick={() => responder(evento, 'recusado')}
-                          className={`px-3 py-1.5 rounded-lg font-label-sm text-xs active:scale-95 transition-all ${
-                            minhaResposta === 'recusado'
-                              ? 'bg-surface-container-highest text-on-surface-variant'
-                              : 'border border-outline-variant text-text-muted'
-                          }`}
-                        >
-                          Recusar
-                        </button>
-                      </div>
+                      {podeParticipar && (
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={() => responder(evento, 'confirmado')}
+                            className={`px-3 py-1.5 rounded-lg font-label-sm text-xs active:scale-95 transition-all ${
+                              minhaResposta === 'confirmado'
+                                ? 'bg-page-flores text-white'
+                                : 'border border-page-flores text-page-flores'
+                            }`}
+                          >
+                            Confirmar
+                          </button>
+                          <button
+                            onClick={() => responder(evento, 'recusado')}
+                            className={`px-3 py-1.5 rounded-lg font-label-sm text-xs active:scale-95 transition-all ${
+                              minhaResposta === 'recusado'
+                                ? 'bg-surface-container-highest text-on-surface-variant'
+                                : 'border border-outline-variant text-text-muted'
+                            }`}
+                          >
+                            Recusar
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -469,11 +479,26 @@ export function EventosPage() {
             </div>
 
             <div>
-              <label className="text-label-sm text-on-surface-variant block mb-1">Local (opcional)</label>
-              <select value={form.local} onChange={e => setForm({ ...form, local: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm">
-                <option value="">Nenhum local específico</option>
-                {comodosPublicos.map(c => <option key={c.id} value={c.nome}>{c.icone} {c.nome}</option>)}
-              </select>
+              <label className="text-label-sm text-on-surface-variant block mb-1">Local (opcional, múltipla escolha)</label>
+              {comodosPublicos.length === 0 ? (
+                <p className="text-xs text-on-surface-variant">Nenhum cômodo está marcado como "aceita eventos" ainda.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {comodosPublicos.map(c => {
+                    const ativo = form.locais.includes(c.nome);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setForm({ ...form, locais: ativo ? form.locais.filter(x => x !== c.nome) : [...form.locais, c.nome] })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${ativo ? 'bg-page-flores text-white' : 'bg-surface-container-high text-on-surface-variant border border-outline-variant'}`}
+                      >
+                        {c.icone} {c.nome}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div>
@@ -484,14 +509,39 @@ export function EventosPage() {
             <div>
               <label className="text-label-sm text-on-surface-variant block mb-1">Participação</label>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setForm({ ...form, tipo: 'coletivo' })} className={`flex-1 py-2 rounded-lg text-sm ${form.tipo === 'coletivo' ? 'bg-page-flores text-white' : 'bg-surface-container-high text-on-surface-variant'}`}>Coletivo</button>
-                <button type="button" onClick={() => setForm({ ...form, tipo: 'privado' })} className={`flex-1 py-2 rounded-lg text-sm ${form.tipo === 'privado' ? 'bg-page-flores text-white' : 'bg-surface-container-high text-on-surface-variant'}`}>Privado</button>
+                <button type="button" onClick={() => setForm({ ...form, tipo: 'apenas_moradores' })} className={`flex-1 py-2 rounded-lg text-xs ${form.tipo === 'apenas_moradores' ? 'bg-page-flores text-white' : 'bg-surface-container-high text-on-surface-variant'}`}>Só Moradores</button>
+                <button type="button" onClick={() => setForm({ ...form, tipo: 'coletivo' })} className={`flex-1 py-2 rounded-lg text-xs ${form.tipo === 'coletivo' ? 'bg-page-flores text-white' : 'bg-surface-container-high text-on-surface-variant'}`}>Coletivo</button>
+                <button type="button" onClick={() => setForm({ ...form, tipo: 'privado' })} className={`flex-1 py-2 rounded-lg text-xs ${form.tipo === 'privado' ? 'bg-page-flores text-white' : 'bg-surface-container-high text-on-surface-variant'}`}>Privado</button>
               </div>
-              {form.tipo === 'coletivo' ? (
-                <p className="text-[10px] text-on-surface-variant mt-1">Qualquer morador da casa pode confirmar presença.</p>
-              ) : (
+              {form.tipo === 'apenas_moradores' && (
+                <p className="text-[10px] text-on-surface-variant mt-1">Só moradores e admin recebem aviso e confirmam presença. Hóspedes não são notificados.</p>
+              )}
+              {form.tipo === 'coletivo' && (
+                <p className="text-[10px] text-on-surface-variant mt-1">Todo mundo da casa (moradores e hóspedes) recebe aviso e pode confirmar presença.</p>
+              )}
+              {form.tipo === 'privado' && (
                 <p className="text-[10px] text-on-surface-variant mt-1">Evento seu com convidados próprios — sem confirmação de presença da casa nem notificação pros outros. Continua visível pra todo mundo.</p>
               )}
+            </div>
+
+            <div>
+              <label className="text-label-sm text-on-surface-variant block mb-1">Lembrete (opcional, múltipla escolha)</label>
+              <div className="flex flex-col gap-1.5">
+                {LEMBRETE_OPCOES.map(min => {
+                  const ativo = form.lembretes.includes(min);
+                  return (
+                    <button
+                      key={min}
+                      type="button"
+                      onClick={() => setForm({ ...form, lembretes: ativo ? form.lembretes.filter(x => x !== min) : [...form.lembretes, min] })}
+                      className={`flex items-center gap-2 py-2 px-3 rounded-lg text-sm text-left transition-all ${ativo ? 'bg-page-flores/15 border border-page-flores text-page-flores' : 'bg-surface-container-high border border-outline-variant text-on-surface-variant'}`}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">{ativo ? 'notifications_active' : 'notifications_none'}</span>
+                      {LEMBRETE_LABEL[min]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {erro && <div className="p-2 bg-error-container/20 border border-error/30 rounded-lg text-error text-xs">{erro}</div>}

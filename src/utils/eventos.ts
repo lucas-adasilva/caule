@@ -2,7 +2,12 @@ import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'fire
 import { db } from '@/lib/firebase';
 
 export type Recorrencia = 'nenhuma' | 'semanal' | 'mensal';
-export type TipoEvento = 'coletivo' | 'privado';
+// coletivo = casa toda participa; apenas_moradores = so moradores/admin (hospede nao e avisado
+// nem participa); privado = evento de um morador com convidados proprios, sem RSVP da casa.
+export type TipoEvento = 'coletivo' | 'apenas_moradores' | 'privado';
+
+// Minutos de antecedencia para lembretes: 1 dia, 1 hora, 30 minutos.
+export const LEMBRETE_OPCOES = [1440, 60, 30] as const;
 
 export interface Evento {
   id: string;
@@ -10,13 +15,14 @@ export interface Evento {
   titulo: string;
   emoji: string;
   descricao: string;
-  local: string;             // nome do comodo (opcional) - texto livre vazio se nao definido
+  locais: string[];          // nomes dos comodos (opcional) - array vazio = nenhum local especifico
   horario: string;           // HH:MM
   recorrencia: Recorrencia;
   data?: string;              // YYYY-MM-DD - so quando recorrencia === 'nenhuma'
   diasSemana?: string[];       // '0'..'6' (Seg=0..Dom=6) - so quando recorrencia === 'semanal'
   diasMes?: number[];          // 1..31 - so quando recorrencia === 'mensal'
   tipo: TipoEvento;
+  lembretes: number[];         // subset de LEMBRETE_OPCOES (minutos antes do evento)
   criadoPor: string;
   criadoPorNome: string;
   respostas: Record<string, 'confirmado' | 'recusado'>;
@@ -130,39 +136,47 @@ export function sugerirEmojiEvento(titulo: string): string {
   return '📅';
 }
 
-async function buscarMembrosCasa(casaId: string): Promise<{ uid: string; name: string }[]> {
+async function buscarMembrosCasa(casaId: string): Promise<{ uid: string; name: string; role: string }[]> {
   const q = query(collection(db, 'users'), where('houseId', '==', casaId));
   const snap = await getDocs(q);
-  const membros: { uid: string; name: string }[] = [];
+  const membros: { uid: string; name: string; role: string }[] = [];
   snap.forEach((d) => {
     const data = d.data();
     if (data.isActive === false) return;
-    membros.push({ uid: d.id, name: data.name || 'Morador' });
+    membros.push({ uid: d.id, name: data.name || 'Morador', role: data.role || 'hospede' });
   });
   return membros;
 }
 
+/** Quem deve ser avisado de um evento, conforme o tipo. Privado nunca notifica ninguem. */
+export function destinatariosPorTipo<T extends { uid: string; role: string }>(membros: T[], tipo: TipoEvento): T[] {
+  if (tipo === 'privado') return [];
+  if (tipo === 'apenas_moradores') return membros.filter((m) => m.role !== 'hospede');
+  return membros;
+}
+
 /**
- * Notifica os demais moradores/hospedes da casa sobre um evento criado/editado/cancelado.
- * Eventos privados nao notificam ninguem. Reusa a colecao `notificacoes` - a Cloud Function
- * `enviarPushNotificacao` ja dispara o push real automaticamente para qualquer doc criado ali.
+ * Notifica os moradores/hospedes relevantes sobre um evento criado/editado/cancelado, conforme
+ * o tipo (coletivo = todos, apenas_moradores = so nao-hospede, privado = ninguem). Reusa a
+ * colecao `notificacoes` - a Cloud Function `enviarPushNotificacao` ja dispara o push real
+ * automaticamente para qualquer doc criado ali.
  */
 export async function notificarEvento(
   casaId: string,
   autorUid: string,
   autorNome: string,
   acao: 'criado' | 'editado' | 'cancelado',
-  evento: { titulo: string; emoji: string; horario: string; local: string; tipo: TipoEvento }
+  evento: { titulo: string; emoji: string; horario: string; locais: string[]; tipo: TipoEvento }
 ): Promise<void> {
   if (evento.tipo === 'privado') return;
 
   const membros = await buscarMembrosCasa(casaId);
-  const destinatarios = membros.filter((m) => m.uid !== autorUid);
+  const destinatarios = destinatariosPorTipo(membros, evento.tipo).filter((m) => m.uid !== autorUid);
   if (destinatarios.length === 0) return;
 
   const tituloAcao = acao === 'criado' ? 'Novo Evento' : acao === 'editado' ? 'Evento Alterado' : 'Evento Cancelado';
   const titulo = `${tituloAcao} (${escapeHtml(autorNome)})`;
-  const localTexto = evento.local ? ` · 📍 ${escapeHtml(evento.local)}` : '';
+  const localTexto = evento.locais && evento.locais.length > 0 ? ` · 📍 ${escapeHtml(evento.locais.join(', '))}` : '';
   const mensagem = `
     <div style="font-family:system-ui,sans-serif;line-height:1.5;color:#1f2937;background:#ffffff;border-radius:14px;padding:14px;">
       <div style="display:flex;align-items:center;gap:8px;">
