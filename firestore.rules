@@ -71,6 +71,10 @@ service cloud.firestore {
     match /eventos/{eventoId} {
       allow read, write: if request.auth != null;
     }
+    // Hospedagens (historico de estadias de hospedes)
+    match /hospedagens/{hospedagemId} {
+      allow read, write: if request.auth != null;
+    }
     // Chats
     match /chats/{chatId} {
       allow read, write: if request.auth != null;

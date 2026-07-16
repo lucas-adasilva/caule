@@ -10,8 +10,8 @@ import { redistribuirPorSaida, redistribuirPorEntrada } from '@/utils/distribuic
 import { getSemanaDaData, getIntervaloSemana, sobrepoeSemanaAtual } from '@/utils/semana';
 import { existeViagemSobrepondoPeriodo } from '@/utils/viagens';
 
-interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; foto?: string; }
-interface Comodo { id: string; nome: string; icone: string; cor: string; tipo: 'coletivo' | 'privado'; casaId: string; ordem: number; createdBy: string; responsavelId?: string; aceitaEventos?: boolean; }
+interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; foto?: string; contribuicaoMinima?: number; contribuicaoIdeal?: number; contribuicaoAbundante?: number; }
+interface Comodo { id: string; nome: string; icone: string; cor: string; tipo: 'coletivo' | 'privado'; casaId: string; ordem: number; createdBy: string; responsavelId?: string; aceitaEventos?: boolean; aceitaHospedes?: boolean; }
 interface Tarefa { id: string; titulo: string; descricao: string; comodoId: string; responsavelId: string; casaId: string; prioridade: 'alta' | 'media' | 'baixa'; frequencia: 'unica' | 'diaria' | 'semanal' | 'quinzenal' | 'mensal'; status: 'aguardando_responsavel' | 'pendente' | 'em_andamento' | 'concluída'; tipo: 'coletiva' | 'privada'; diasSemana: string[]; diaMes: number; createdBy: string; dataUnica?: string; vezesPorSemana?: number; }
 interface UserData {
   uid: string;
@@ -32,7 +32,7 @@ interface UserData {
   pixKey?: string;
   [key: string]: any;
 }
-type Aba = 'casas' | 'comodos' | 'tarefas' | 'moradores' | 'distribuição' | 'notificações';
+type Aba = 'casas' | 'comodos' | 'tarefas' | 'moradores' | 'distribuição' | 'notificações' | 'financeiro';
 
 interface Atribuicao { id: string; tarefaId: string; titulo: string; descricao: string; prioridade: 'alta' | 'media' | 'baixa'; responsavelId: string; responsavelNome: string; diaSemana: number; status: 'pendente' | 'concluída'; dataConclusao?: string; execucaoId?: string; }
 interface Distribuicao { id: string; weekId: string; houseId: string; atribuicoes: Atribuicao[]; }
@@ -61,10 +61,14 @@ export function ConfiguracoesPage() {
   const [uploadingFotoCasa, setUploadingFotoCasa] = useState(false);
   const fileInputCasaRef = useRef<HTMLInputElement>(null);
 
+  // Financeiro
+  const [formFinanceiro, setFormFinanceiro] = useState({ contribuicaoMinima: 0, contribuicaoIdeal: 0, contribuicaoAbundante: 0 });
+  const [salvandoFinanceiro, setSalvandoFinanceiro] = useState(false);
+
   // Comodos
   const [comodos, setComodos] = useState<Comodo[]>([]);
   const [editandoComodoId, setEditandoComodoId] = useState<string | null>(null);
-  const [formComodo, setFormComodo] = useState({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo' as 'coletivo' | 'privado', responsavelId: '', aceitaEventos: false });
+  const [formComodo, setFormComodo] = useState({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo' as 'coletivo' | 'privado', responsavelId: '', aceitaEventos: false, aceitaHospedes: false });
   const [modalComodoOpen, setModalComodoOpen] = useState(false);
 
   // Emoji automático baseado no nome do cômodo
@@ -266,6 +270,15 @@ export function ConfiguracoesPage() {
 
   useEffect(() => { if (user?.uid) { carregarCasas(); } }, [user?.uid]);
   useEffect(() => { if (casaSelecionada?.id) { carregarComodos(); carregarTarefas(); carregarMoradores(); } }, [casaSelecionada?.id]);
+  useEffect(() => {
+    if (casaSelecionada) {
+      setFormFinanceiro({
+        contribuicaoMinima: casaSelecionada.contribuicaoMinima || 0,
+        contribuicaoIdeal: casaSelecionada.contribuicaoIdeal || 0,
+        contribuicaoAbundante: casaSelecionada.contribuicaoAbundante || 0,
+      });
+    }
+  }, [casaSelecionada?.id]);
   useEffect(() => { if (abaAtiva === 'distribuição' && casaSelecionada?.id) { carregarDadosDistribuicao(); } }, [abaAtiva, casaSelecionada?.id, semanaSelecionada]);
   useEffect(() => { if (abaAtiva === 'moradores' && moradores.length > 0) { carregarViagensMoradores(); } }, [abaAtiva, moradores]);
 
@@ -340,6 +353,26 @@ export function ConfiguracoesPage() {
     catch (e: any) { setErro('Erro: ' + e.message); }
   }
 
+  async function salvarFinanceiro() {
+    if (!casaSelecionada?.id) return;
+    setSalvandoFinanceiro(true);
+    setErro(''); setSucesso('');
+    try {
+      await updateDoc(doc(db, 'casas', casaSelecionada.id), {
+        contribuicaoMinima: formFinanceiro.contribuicaoMinima,
+        contribuicaoIdeal: formFinanceiro.contribuicaoIdeal,
+        contribuicaoAbundante: formFinanceiro.contribuicaoAbundante,
+        updatedAt: serverTimestamp(),
+      });
+      setCasaSelecionada({ ...casaSelecionada, ...formFinanceiro });
+      setCasas(prev => prev.map(c => c.id === casaSelecionada.id ? { ...c, ...formFinanceiro } : c));
+      setSucesso('Valores de contribuição salvos!');
+    } catch (e: any) {
+      setErro('Erro ao salvar: ' + e.message);
+    }
+    setSalvandoFinanceiro(false);
+  }
+
   async function carregarComodos() {
     if (!casaSelecionada?.id) return;
     try {
@@ -361,7 +394,7 @@ export function ConfiguracoesPage() {
       } else {
         await addDoc(collection(db, 'comodos'), { ...formComodo, casaId: casaSelecionada.id, ordem: comodos.length, createdBy: user?.uid, createdAt: serverTimestamp() });
       }
-      setFormComodo({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo', responsavelId: '', aceitaEventos: false });
+      setFormComodo({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo', responsavelId: '', aceitaEventos: false, aceitaHospedes: false });
       setEditandoComodoId(null);
       setModalComodoOpen(false);
       setSucesso('Cômodo salvo!');
@@ -371,7 +404,7 @@ export function ConfiguracoesPage() {
 
   function abrirModalNovoComodo() {
     setEditandoComodoId(null);
-    setFormComodo({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo', responsavelId: '', aceitaEventos: false });
+    setFormComodo({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo', responsavelId: '', aceitaEventos: false, aceitaHospedes: false });
     setErro('');
     setSucesso('');
     setModalComodoOpen(true);
@@ -379,7 +412,7 @@ export function ConfiguracoesPage() {
 
   function abrirModalEditarComodo(c: Comodo) {
     setEditandoComodoId(c.id);
-    setFormComodo({ nome: c.nome, icone: c.icone, cor: c.cor, tipo: c.tipo, responsavelId: c.responsavelId || '', aceitaEventos: c.aceitaEventos === true });
+    setFormComodo({ nome: c.nome, icone: c.icone, cor: c.cor, tipo: c.tipo, responsavelId: c.responsavelId || '', aceitaEventos: c.aceitaEventos === true, aceitaHospedes: c.aceitaHospedes === true });
     setErro('');
     setSucesso('');
     setModalComodoOpen(true);
@@ -388,7 +421,7 @@ export function ConfiguracoesPage() {
   function fecharModalComodo() {
     setModalComodoOpen(false);
     setEditandoComodoId(null);
-    setFormComodo({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo', responsavelId: '', aceitaEventos: false });
+    setFormComodo({ nome: '', icone: EMOJI_SUGESTOES[0], cor: CORES_COMODO[0], tipo: 'coletivo', responsavelId: '', aceitaEventos: false, aceitaHospedes: false });
     setErro('');
     setSucesso('');
   }
@@ -1030,6 +1063,7 @@ export function ConfiguracoesPage() {
     { key: 'moradores', label: 'Moradores', icon: '👥' },
     { key: 'distribuição', label: 'Distribuição', icon: '📊' },
     { key: 'notificações', label: 'Notificações', icon: '🔔' },
+    { key: 'financeiro', label: 'Financeiro', icon: '💰' },
   ];
 
   return (
@@ -1298,6 +1332,16 @@ export function ConfiguracoesPage() {
                       </div>
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => setFormComodo({ ...formComodo, aceitaHospedes: !formComodo.aceitaHospedes })}
+                    className="w-full flex items-center justify-between p-3 bg-surface-container-high border border-outline-variant rounded-lg"
+                  >
+                    <span className="text-sm text-on-surface text-left">Aceita hóspedes? <span className="block text-[10px] text-on-surface-variant font-normal">Aparece como opção de dormitório ao definir uma estadia</span></span>
+                    <div className={`w-10 h-6 rounded-full flex items-center px-0.5 transition-colors flex-shrink-0 ${formComodo.aceitaHospedes ? 'bg-primary justify-end' : 'bg-surface-container-highest justify-start'}`}>
+                      <div className="w-5 h-5 rounded-full bg-white" />
+                    </div>
+                  </button>
                   <div className="flex gap-2">
                     <button onClick={handleSalvarComodo} className="flex-1 bg-primary-container text-on-primary-container font-bold py-2 rounded-lg text-sm hover:brightness-110 transition-all">{editandoComodoId ? 'Atualizar' : 'Criar'}</button>
                     <button onClick={fecharModalComodo} className="px-4 py-2 bg-surface-container text-on-surface rounded-lg text-sm border border-outline-variant">Cancelar</button>
@@ -1976,6 +2020,31 @@ export function ConfiguracoesPage() {
         {/* === NOTIFICACOES === */}
         {abaAtiva === 'notificações' && (
           <NotificacoesTab user={user} token={notifToken} setToken={setNotifToken} perm={notifPerm} setPerm={setNotifPerm} loading={notifLoading} setLoading={setNotifLoading} testTitle={testTitle} setTestTitle={setTestTitle} testBody={testBody} setTestBody={setTestBody} logs={logs} setLogs={setLogs} addLog={addLog} />
+        )}
+
+        {/* === FINANCEIRO === */}
+        {abaAtiva === 'financeiro' && (
+          <div className="space-y-4">
+            <h3 className="font-section-heading text-section-heading">Faixas de Contribuição</h3>
+            <p className="text-sm text-on-surface-variant">
+              Esses valores aparecem pro hóspede escolher ao definir o período de estadia.
+            </p>
+            <div>
+              <label className="text-label-sm text-on-surface-variant block mb-1">Mínima (R$)</label>
+              <input type="number" min={0} step="0.01" value={formFinanceiro.contribuicaoMinima} onChange={e => setFormFinanceiro({ ...formFinanceiro, contribuicaoMinima: parseFloat(e.target.value) || 0 })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+            </div>
+            <div>
+              <label className="text-label-sm text-on-surface-variant block mb-1">Ideal (R$)</label>
+              <input type="number" min={0} step="0.01" value={formFinanceiro.contribuicaoIdeal} onChange={e => setFormFinanceiro({ ...formFinanceiro, contribuicaoIdeal: parseFloat(e.target.value) || 0 })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+            </div>
+            <div>
+              <label className="text-label-sm text-on-surface-variant block mb-1">Abundante (R$)</label>
+              <input type="number" min={0} step="0.01" value={formFinanceiro.contribuicaoAbundante} onChange={e => setFormFinanceiro({ ...formFinanceiro, contribuicaoAbundante: parseFloat(e.target.value) || 0 })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+            </div>
+            <button onClick={salvarFinanceiro} disabled={salvandoFinanceiro || !casaSelecionada?.id} className="w-full bg-primary-container text-on-primary-container font-bold py-2 rounded-lg text-sm hover:brightness-110 transition-all disabled:opacity-50">
+              {salvandoFinanceiro ? 'Salvando...' : 'Salvar Valores'}
+            </button>
+          </div>
         )}
       </main>
     </div>
