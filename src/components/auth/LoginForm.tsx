@@ -8,6 +8,8 @@ import {
   signInWithPopup,
   signInWithCredential,
   linkWithCredential,
+  fetchSignInMethodsForEmail,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
@@ -24,6 +26,10 @@ export function LoginForm() {
     email: string;
     credential: any;
   } | null>(null);
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotResult, setForgotResult] = useState<{ type: 'success' | 'info' | 'error'; message: string } | null>(null);
   const navigate = useNavigate();
   const { setUser, setLoading: setAuthLoading } = useAuthStore();
 
@@ -87,6 +93,50 @@ export function LoginForm() {
       setError(err.message || 'Erro ao vincular conta. Verifique a senha.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  /**
+   * Envia link de redefinição de senha - trata contas que só têm login
+   * por Google (sem senha) mostrando uma orientação em vez de mandar o email.
+   */
+  async function handleForgotPassword() {
+    if (!forgotEmail) return;
+    setForgotLoading(true);
+    setForgotResult(null);
+    try {
+      let methods: string[] = [];
+      try {
+        methods = await fetchSignInMethodsForEmail(auth, forgotEmail);
+      } catch {
+        // Alguns projetos tem "email enumeration protection" ligado, o que faz
+        // fetchSignInMethodsForEmail sempre falhar/retornar vazio - nesse caso
+        // seguimos direto pro reset, que tem seu proprio tratamento de erro.
+        methods = [];
+      }
+
+      if (methods.length > 0 && !methods.includes('password')) {
+        // Só tem login por Google (ou outro provider) cadastrado - não há senha pra redefinir
+        setForgotResult({
+          type: 'info',
+          message: 'Essa conta usa login com Google. Feche esta janela e use o botão "Continuar com Google" para entrar.',
+        });
+        return;
+      }
+
+      await sendPasswordResetEmail(auth, forgotEmail);
+      setForgotResult({
+        type: 'success',
+        message: `Enviamos um link de redefinição de senha para ${forgotEmail}. Confira sua caixa de entrada (e o spam).`,
+      });
+    } catch (err: any) {
+      let msg = 'Erro ao enviar o link de redefinição.';
+      if (err.code === 'auth/user-not-found') msg = 'Não encontramos nenhuma conta com esse e-mail.';
+      else if (err.code === 'auth/invalid-email') msg = 'E-mail inválido.';
+      else if (err.code === 'auth/too-many-requests') msg = 'Muitas tentativas. Aguarde um pouco e tente novamente.';
+      setForgotResult({ type: 'error', message: msg });
+    } finally {
+      setForgotLoading(false);
     }
   }
 
@@ -256,6 +306,61 @@ export function LoginForm() {
             </div>
           )}
 
+          {/* Painel de Esqueci Minha Senha */}
+          {forgotPasswordOpen && (
+            <div className="mb-6 bg-secondary-container/30 border border-secondary/30 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-label-sm font-label-sm text-on-surface">Redefinir senha</h3>
+                <button
+                  type="button"
+                  onClick={() => { setForgotPasswordOpen(false); setForgotResult(null); }}
+                  className="text-on-surface-variant hover:text-on-surface transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+              <p className="text-caption font-caption text-on-surface-variant mb-3">
+                Digite seu e-mail. Se a conta tiver senha, mandamos um link de redefinição; se o login for feito com Google, avisamos pra você entrar por lá.
+              </p>
+              <div className="relative group mb-3">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">mail</span>
+                <input
+                  className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-3 pl-11 pr-4 focus:ring-2 focus:ring-secondary/30 focus:border-secondary transition-all outline-none"
+                  type="email"
+                  placeholder="seu@email.com"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                />
+              </div>
+              {forgotResult && (
+                <div className={`mb-3 rounded-lg p-3 text-sm ${
+                  forgotResult.type === 'success' ? 'bg-primary/10 border border-primary/30 text-primary' :
+                  forgotResult.type === 'info' ? 'bg-secondary/10 border border-secondary/30 text-secondary' :
+                  'bg-error-container/20 border border-error/30 text-error'
+                }`}>
+                  {forgotResult.message}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={forgotLoading || !forgotEmail}
+                  className="flex-1 bg-secondary-container text-on-secondary-container font-bold py-2 rounded-lg hover:brightness-110 transition-all text-label-sm font-label-sm disabled:opacity-50"
+                >
+                  {forgotLoading ? 'Enviando...' : 'Enviar link'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setForgotPasswordOpen(false); setForgotResult(null); }}
+                  className="px-4 py-2 text-on-surface-variant hover:text-on-surface transition-colors text-label-sm font-label-sm"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          )}
+
           <form className="space-y-stack-md" onSubmit={handleEmailLogin}>
             {/* Email Input */}
             <div className="space-y-2">
@@ -278,7 +383,13 @@ export function LoginForm() {
             <div className="space-y-2">
               <div className="flex justify-between items-center px-1">
                 <label className="text-label-sm font-label-sm text-on-surface-variant" htmlFor="password">Senha</label>
-                <a className="text-caption font-caption text-primary hover:underline" href="#" onClick={(e) => e.preventDefault()}>Esqueceu?</a>
+                <button
+                  type="button"
+                  className="text-caption font-caption text-primary hover:underline"
+                  onClick={() => { setForgotPasswordOpen(true); setForgotEmail(email); setForgotResult(null); }}
+                >
+                  Esqueceu?
+                </button>
               </div>
               <div className="relative group">
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors text-lg">lock</span>
