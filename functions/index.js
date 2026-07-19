@@ -188,3 +188,336 @@ exports.verificarLembretesEventos = onSchedule({ schedule: `every ${JANELA_MIN} 
     }
   }
 });
+
+// ==========================================
+// DISTRIBUIÇÃO SEMANAL AUTOMÁTICA (agendado)
+// ==========================================
+// Mesmo algoritmo de "Gerar Tarefas da Semana" (ConfiguracoesPage.tsx), portado pro backend
+// pra rodar sozinho toda semana - mantém as mesmas convenções de weekId e as mesmas regras de
+// desempate, pra gerar a MESMA distribuição que um admin geraria clicando o botão manual.
+
+const DIA_SEMANA_MAP = {
+  '0': 0, seg: 0, segunda: 0,
+  '1': 1, ter: 1, terca: 1, 'terça': 1,
+  '2': 2, qua: 2, quarta: 2,
+  '3': 3, qui: 3, quinta: 3,
+  '4': 4, sex: 4, sexta: 4,
+  '5': 5, sab: 5, sabado: 5, 'sábado': 5,
+  '6': 6, dom: 6, domingo: 6,
+};
+function parseDiaSemana(d) {
+  const num = DIA_SEMANA_MAP[String(d || '').toLowerCase().trim()];
+  return num !== undefined ? num : null;
+}
+
+// Mesma fórmula (não-ISO, ancorada em 1º de janeiro) usada em TarefasPage.tsx / HomePage.tsx /
+// ConfiguracoesPage.tsx pra rotular e procurar a distribuição "desta semana" - precisa bater com
+// o que essas páginas calculam, senão a distribuição gerada aqui nunca aparece pro usuário.
+function weekIdDoDia(data) {
+  const ano = data.getFullYear();
+  const primeiraSegunda = new Date(ano, 0, 1);
+  const diasDesdeInicio = Math.floor((data.getTime() - primeiraSegunda.getTime()) / (24 * 60 * 60 * 1000));
+  const semana = Math.ceil((diasDesdeInicio + primeiraSegunda.getDay()) / 7);
+  return `${ano}-W${String(semana).padStart(2, '0')}`;
+}
+
+// Mesmo cálculo (ancorado em 4 de janeiro / ISO) usado em moradorViajandoNaSemana no app -
+// mantido idêntico de propósito, mesmo divergindo de weekIdDoDia em anos de virada; é assim
+// que o app já calcula hoje, então replicamos para não ter comportamento diferente do manual.
+function intervaloDaSemana(weekId) {
+  const match = weekId.match(/(\d+)-W(\d+)/);
+  const ano = parseInt(match[1], 10);
+  const semana = parseInt(match[2], 10);
+  const jan4 = new Date(ano, 0, 4);
+  const primeiraSegunda = new Date(jan4.getTime() - ((jan4.getDay() + 6) % 7) * 24 * 60 * 60 * 1000);
+  const inicioSemana = new Date(primeiraSegunda.getTime() + (semana - 1) * 7 * 24 * 60 * 60 * 1000);
+  const fimSemana = new Date(inicioSemana.getTime() + 6 * 24 * 60 * 60 * 1000);
+  return { inicioSemana, fimSemana };
+}
+
+function moradorViajandoNaSemana(uid, weekId, viagens, considerarDomingo) {
+  const { inicioSemana, fimSemana } = intervaloDaSemana(weekId);
+  const inicioStr = inicioSemana.toISOString().split('T')[0];
+  const fimStr = fimSemana.toISOString().split('T')[0];
+  const diasFora = [];
+  viagens.filter((v) => v.uid === uid).forEach((v) => {
+    if (v.dataSaida <= fimStr && v.dataRetorno >= inicioStr) {
+      for (let d = 0; d < 7; d++) {
+        const diaData = new Date(inicioSemana.getTime() + d * 24 * 60 * 60 * 1000);
+        const diaStr = diaData.toISOString().split('T')[0];
+        if (diaStr >= v.dataSaida && diaStr <= v.dataRetorno) diasFora.push(d);
+      }
+    }
+  });
+  return { viajando: diasFora.length > 0, diasFora: [...new Set(diasFora)].filter((d) => considerarDomingo || d !== 6).sort() };
+}
+
+function getSemanaDoMes(weekId) {
+  const match = weekId.match(/(\d+)-W(\d+)/);
+  const ano = parseInt(match[1], 10);
+  const semanaISO = parseInt(match[2], 10);
+  const jan4 = new Date(ano, 0, 4);
+  const jan4Dia = jan4.getDay();
+  const jan4Segunda = new Date(ano, 0, 4 - (jan4Dia === 0 ? 6 : jan4Dia - 1));
+  const inicioSemana = new Date(jan4Segunda.getTime() + (semanaISO - 1) * 7 * 24 * 60 * 60 * 1000);
+  const mes = inicioSemana.getMonth();
+  const primeiroDiaMes = new Date(ano, mes, 1);
+  const diaSemana = primeiroDiaMes.getDay();
+  const primeiraSegunda = new Date(primeiroDiaMes.getTime() - (diaSemana === 0 ? 6 : diaSemana - 1) * 24 * 60 * 60 * 1000);
+  const diasDiff = Math.floor((inicioSemana.getTime() - primeiraSegunda.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  return diasDiff + 1;
+}
+
+// Gera as atribuições de uma semana pra uma casa - mesma lógica de gerarTarefasSemana() em
+// ConfiguracoesPage.tsx (round-robin por carga, desempate por histórico de execuções, respeita
+// viagens e limite diário de tarefas por morador).
+function gerarAtribuicoesSemana({ weekId, tarefasBase, execucoes, moradoresPresentes, viagens, considerarDomingo }) {
+  const atribuicoes = [];
+  const tarefasPorMorador = {};
+  moradoresPresentes.forEach((m) => { tarefasPorMorador[m.uid] = 0; });
+  const tarefasExpandidas = [];
+  const matchWeek = weekId.match(/-W(\d+)$/);
+  const numSemana = matchWeek ? parseInt(matchWeek[1], 10) : 0;
+  const semanaPar = numSemana % 2 === 0;
+
+  tarefasBase.forEach((tarefa) => {
+    const diasUteis = considerarDomingo ? 7 : 6;
+    if (tarefa.frequencia === 'diaria') {
+      for (let d = 0; d < diasUteis; d++) tarefasExpandidas.push({ tarefa, dia: d });
+    } else if (tarefa.frequencia === 'semanal' && tarefa.diasSemana && tarefa.diasSemana.length > 0) {
+      const diasUnicos = [...new Set(tarefa.diasSemana.map((d) => parseDiaSemana(d)).filter((d) => d !== null))]
+        .filter((d) => considerarDomingo || d !== 6);
+      diasUnicos.forEach((d) => tarefasExpandidas.push({ tarefa, dia: d }));
+    } else if (tarefa.frequencia === 'semanal') {
+      const vezes = tarefa.vezesPorSemana || 1;
+      for (let v = 0; v < vezes; v++) tarefasExpandidas.push({ tarefa, dia: 0 });
+    } else if (tarefa.frequencia === 'quinzenal') {
+      if (!semanaPar) tarefasExpandidas.push({ tarefa, dia: 0 });
+    } else if (tarefa.frequencia === 'mensal') {
+      if (getSemanaDoMes(weekId) === 1) tarefasExpandidas.push({ tarefa, dia: 0 });
+    } else if (tarefa.frequencia === 'unica') {
+      // O valor de "dia" aqui é ignorado no despacho abaixo (tarefas sem diasSemana sempre
+      // passam por distribuirTarefa(tarefa, null), que escolhe o dia menos carregado sozinho) -
+      // faz sentido pra uma tarefa "hoje" no fluxo manual, mas pra uma semana futura o
+      // algoritmo já resolve isso automaticamente.
+      tarefasExpandidas.push({ tarefa, dia: 0 });
+    }
+  });
+
+  const prioridadeFrequencia = { alta: 0, diaria: 1, semanal: 2, quinzenal: 3, mensal: 4, unica: 5 };
+  tarefasExpandidas.sort((a, b) => {
+    const pa = a.tarefa.prioridade === 'alta' ? 0 : a.tarefa.prioridade === 'media' ? 1 : 2;
+    const pb = b.tarefa.prioridade === 'alta' ? 0 : b.tarefa.prioridade === 'media' ? 1 : 2;
+    if (pa !== pb) return pa - pb;
+    const fa = prioridadeFrequencia[a.tarefa.frequencia] ?? 99;
+    const fb = prioridadeFrequencia[b.tarefa.frequencia] ?? 99;
+    return fa - fb;
+  });
+
+  const LIMITE_TAREFAS_DIA = 5;
+  const DIAS_UTEIS = considerarDomingo ? 7 : 6;
+  const capacidadeTotal = moradoresPresentes.length * DIAS_UTEIS * LIMITE_TAREFAS_DIA;
+  if (tarefasExpandidas.length > capacidadeTotal) {
+    return { atribuicoes: null, erro: `Capacidade excedida: ${tarefasExpandidas.length} tarefas para ${capacidadeTotal} slots` };
+  }
+
+  const cargaPorDia = {};
+  moradoresPresentes.forEach((m) => { cargaPorDia[m.uid] = new Array(DIAS_UTEIS).fill(0); });
+  const tarefasAlocadasPorMorador = {};
+  moradoresPresentes.forEach((m) => { tarefasAlocadasPorMorador[m.uid] = {}; });
+  let roundRobinIdx = 0;
+
+  function distribuirTarefa(tarefa, diaFixo) {
+    if (!considerarDomingo && diaFixo === 6) return null;
+    const moradoresDisponiveis = moradoresPresentes.filter((m) => {
+      const { viajando, diasFora } = moradorViajandoNaSemana(m.uid, weekId, viagens, considerarDomingo);
+      if (diaFixo !== null) {
+        if (viajando && diasFora.includes(diaFixo)) return false;
+        if (cargaPorDia[m.uid][diaFixo] >= LIMITE_TAREFAS_DIA) return false;
+        const diasJaUsados = tarefasAlocadasPorMorador[m.uid][tarefa.id] || [];
+        if (diasJaUsados.includes(diaFixo)) return false;
+        return true;
+      }
+      for (let d = 0; d < DIAS_UTEIS; d++) {
+        if (viajando && diasFora.includes(d)) continue;
+        if (cargaPorDia[m.uid][d] >= LIMITE_TAREFAS_DIA) continue;
+        const diasJaUsados = tarefasAlocadasPorMorador[m.uid][tarefa.id] || [];
+        if (diasJaUsados.includes(d)) continue;
+        return true;
+      }
+      return false;
+    });
+    if (moradoresDisponiveis.length === 0) return null;
+    const sortedMoradores = moradoresDisponiveis.sort((a, b) => {
+      const cargaA = tarefasPorMorador[a.uid] || 0;
+      const cargaB = tarefasPorMorador[b.uid] || 0;
+      if (cargaA !== cargaB) return cargaA - cargaB;
+      const execsA = execucoes.filter((e) => e.tarefaId === tarefa.id && e.executorId === a.uid).length;
+      const execsB = execucoes.filter((e) => e.tarefaId === tarefa.id && e.executorId === b.uid).length;
+      if (execsA !== execsB) return execsA - execsB;
+      const idxA = moradoresPresentes.findIndex((m) => m.uid === a.uid);
+      const idxB = moradoresPresentes.findIndex((m) => m.uid === b.uid);
+      const posA = (idxA + roundRobinIdx) % moradoresPresentes.length;
+      const posB = (idxB + roundRobinIdx) % moradoresPresentes.length;
+      return posA - posB;
+    });
+    const responsavel = sortedMoradores[0];
+    tarefasPorMorador[responsavel.uid] = (tarefasPorMorador[responsavel.uid] || 0) + 1;
+    roundRobinIdx = (roundRobinIdx + 1) % moradoresPresentes.length;
+    let dia = diaFixo;
+    if (dia === null) {
+      const { diasFora } = moradorViajandoNaSemana(responsavel.uid, weekId, viagens, considerarDomingo);
+      const diasJaUsados = tarefasAlocadasPorMorador[responsavel.uid][tarefa.id] || [];
+      let melhorDia = -1;
+      let menorCarga = Infinity;
+      for (let d = 0; d < DIAS_UTEIS; d++) {
+        if (diasFora.includes(d)) continue;
+        if (diasJaUsados.includes(d)) continue;
+        const c = cargaPorDia[responsavel.uid][d];
+        if (c >= LIMITE_TAREFAS_DIA) continue;
+        if (c < menorCarga) { menorCarga = c; melhorDia = d; }
+      }
+      if (melhorDia === -1) return null;
+      dia = melhorDia;
+    }
+    if (!tarefasAlocadasPorMorador[responsavel.uid][tarefa.id]) tarefasAlocadasPorMorador[responsavel.uid][tarefa.id] = [];
+    tarefasAlocadasPorMorador[responsavel.uid][tarefa.id].push(dia);
+    cargaPorDia[responsavel.uid][dia] = (cargaPorDia[responsavel.uid][dia] || 0) + 1;
+    return { tarefa, dia, responsavel };
+  }
+
+  tarefasExpandidas.filter(({ tarefa }) => tarefa.diasSemana && tarefa.diasSemana.length > 0).forEach(({ tarefa, dia }) => {
+    const result = distribuirTarefa(tarefa, dia);
+    if (result) {
+      atribuicoes.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        tarefaId: tarefa.id, titulo: tarefa.titulo, descricao: tarefa.descricao || '', prioridade: tarefa.prioridade,
+        responsavelId: result.responsavel.uid, responsavelNome: result.responsavel.name, diaSemana: result.dia, status: 'pendente',
+      });
+    }
+  });
+  tarefasExpandidas.filter(({ tarefa }) => !(tarefa.diasSemana && tarefa.diasSemana.length > 0)).forEach(({ tarefa }) => {
+    const result = distribuirTarefa(tarefa, null);
+    if (result) {
+      atribuicoes.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        tarefaId: tarefa.id, titulo: tarefa.titulo, descricao: tarefa.descricao || '', prioridade: tarefa.prioridade,
+        responsavelId: result.responsavel.uid, responsavelNome: result.responsavel.name, diaSemana: result.dia, status: 'pendente',
+      });
+    }
+  });
+
+  return { atribuicoes, tarefasPorMorador, erro: null };
+}
+
+async function notificarAdminsDistribuicaoSemanal(casaId, weekId, atribuicoes, tarefasPorMorador, moradoresPresentes) {
+  const usersSnap = await db.collection('users').where('houseId', '==', casaId).get();
+  const admins = [];
+  usersSnap.forEach((d) => { if (d.data().role === 'admin') admins.push(d.id); });
+  if (admins.length === 0) return;
+
+  const resumo = moradoresPresentes.map((m) => `${escapeHtml(m.name)}: ${tarefasPorMorador[m.uid] || 0}`).join(' · ');
+  const titulo = 'Tarefas da Semana Distribuídas';
+  const mensagem = `
+    <div style="font-family:system-ui,sans-serif;line-height:1.5;color:#1f2937;">
+      <p style="margin:0 0 8px 0;font-size:15px;">📋 <strong>${atribuicoes.length}</strong> tarefas distribuídas automaticamente para a semana <strong>${escapeHtml(weekId)}</strong>.</p>
+      <p style="margin:0;font-size:13px;color:#374151;">${resumo}</p>
+      <p style="margin-top:12px;font-size:11px;color:#9ca3af;text-align:center;">✨ Caule — Sistema de Gestão da Casa</p>
+    </div>
+  `;
+
+  for (const uid of admins) {
+    await db.collection('notificacoes').add({
+      destinatarioId: uid,
+      titulo,
+      mensagem,
+      tipo: 'sistema',
+      lida: false,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+}
+
+async function distribuirTarefasDaCasa(casaId, weekId) {
+  const [tarefasSnap, execucoesSnap, usersSnap] = await Promise.all([
+    db.collection('tarefas').where('casaId', '==', casaId).get(),
+    db.collection('execucoes').where('casaId', '==', casaId).get(),
+    db.collection('users').where('houseId', '==', casaId).get(),
+  ]);
+
+  const tarefasBase = tarefasSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  if (tarefasBase.length === 0) return;
+
+  const execucoes = execucoesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  const hoje = new Date().toISOString().split('T')[0];
+  const moradoresPresentes = [];
+  const uidsMoradores = [];
+  usersSnap.forEach((d) => {
+    const data = d.data();
+    if (data.isActive === false || data.isPresent !== true) return;
+    if (data.role === 'hospede') {
+      const estadiaAtiva = data.estadiaInicio && data.estadiaFim && data.estadiaInicio <= hoje && data.estadiaFim > hoje;
+      if (!estadiaAtiva) return;
+    }
+    moradoresPresentes.push({ uid: d.id, name: data.name || 'Morador', role: data.role || 'morador' });
+    uidsMoradores.push(d.id);
+  });
+  if (moradoresPresentes.length === 0) return;
+
+  const viagens = [];
+  for (let i = 0; i < uidsMoradores.length; i += 10) {
+    const batch = uidsMoradores.slice(i, i + 10);
+    const snap = await db.collection('viagens').where('uid', 'in', batch).get();
+    snap.forEach((d) => viagens.push({ id: d.id, ...d.data() }));
+  }
+
+  // Mesmo padrão do toggle "considerar domingo" em ConfiguracoesPage.tsx: nunca foi persistido
+  // no Firestore (é só estado local da tela), então usamos o mesmo default (segunda a sábado).
+  const considerarDomingo = false;
+
+  const { atribuicoes, tarefasPorMorador, erro } = gerarAtribuicoesSemana({
+    weekId, tarefasBase, execucoes, moradoresPresentes, viagens, considerarDomingo,
+  });
+
+  if (erro) {
+    console.error('[DistribuicaoSemanal] Casa', casaId, ':', erro);
+    return;
+  }
+
+  const distSnap = await db.collection('distribuicoes').where('casaId', '==', casaId).get();
+  const jaExiste = distSnap.docs.some((d) => d.data().weekId === weekId);
+  if (jaExiste) {
+    console.log('[DistribuicaoSemanal] Casa', casaId, 'já tem distribuição para', weekId, '- pulando');
+    return;
+  }
+
+  await db.collection('distribuicoes').add({
+    casaId,
+    weekId,
+    atribuicoes,
+    createdAt: FieldValue.serverTimestamp(),
+    geradoAutomaticamente: true,
+  });
+
+  await notificarAdminsDistribuicaoSemanal(casaId, weekId, atribuicoes, tarefasPorMorador, moradoresPresentes);
+}
+
+// Roda todo domingo às 16h (America/Sao_Paulo) e gera a distribuição da semana que começa na
+// segunda seguinte (amanhã, no momento em que isso roda), para cada casa cadastrada.
+exports.distribuirTarefasSemanais = onSchedule(
+  { schedule: '0 16 * * 0', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' },
+  async () => {
+    const amanha = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const weekId = weekIdDoDia(amanha);
+
+    const casasSnap = await db.collection('casas').get();
+    for (const casaDoc of casasSnap.docs) {
+      try {
+        await distribuirTarefasDaCasa(casaDoc.id, weekId);
+      } catch (e) {
+        console.error('[DistribuicaoSemanal] Erro na casa', casaDoc.id, e);
+      }
+    }
+  }
+);
