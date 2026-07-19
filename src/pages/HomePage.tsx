@@ -51,6 +51,11 @@ interface Distribuicao {
   atribuicoes: Atribuicao[];
 }
 
+// Segunda=0 ... Domingo=6, mesma convencao de diaSemana em Atribuicao
+function diaSemanaHoje(): number {
+  return (new Date().getDay() + 6) % 7;
+}
+
 function getWeekDays() {
   const today = new Date();
   const currentDay = today.getDay();
@@ -79,7 +84,7 @@ export function HomePage() {
   const [tarefas, setTarefas] = useState<TarefaBase[]>([]);
   const [distribuicao, setDistribuicao] = useState<Distribuicao | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedDay, setSelectedDay] = useState(2);
+  const [selectedDay, setSelectedDay] = useState(diaSemanaHoje());
   const [moradoresEmViagem, setMoradoresEmViagem] = useState<Set<string>>(new Set());
 
   const weekDays = getWeekDays();
