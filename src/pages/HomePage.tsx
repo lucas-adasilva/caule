@@ -270,8 +270,7 @@ export function HomePage() {
                       isPresent={resident.isPresent}
                       isTraveling={moradoresEmViagem.has(resident.uid)}
                       size={64}
-                      className="transition-transform group-hover:scale-105"
-                      imgClassName="border-2 border-primary"
+                      className="transition-transform group-hover:scale-105 rounded-full ring-2 ring-primary"
                     />
                   </div>
                   <span className="text-caption text-on-surface-variant font-medium">{resident.name.split(' ')[0]}</span>
