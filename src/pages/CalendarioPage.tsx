@@ -1,64 +1,67 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { TopAppBar } from '@/components/TopAppBar';
 import { useApp } from '@/App';
+import { useAuthStore } from '@/stores/authStore';
+import type { Evento } from '@/utils/eventos';
+import { eventoOcorreEm } from '@/utils/eventos';
 
-interface TarefaDia {
-  id: string;
-  titulo: string;
-  horario: string;
-  local: string;
-  tipo: 'tarefa' | 'evento' | 'limpeza';
-  xp: number;
-}
+function getDiasDoMes(referencia: Date): { data: Date; noMesAtual: boolean }[] {
+  const ano = referencia.getFullYear();
+  const mes = referencia.getMonth();
+  const primeiroDiaMes = new Date(ano, mes, 1);
+  const ultimoDiaMes = new Date(ano, mes + 1, 0);
+  const diaSemanaPrimeiro = (primeiroDiaMes.getDay() + 6) % 7; // Seg=0
 
-const tarefasDoDia: TarefaDia[] = [
-  { id: '1', titulo: 'Regar as Plantas', horario: 'Manha', local: 'Area Externa', tipo: 'tarefa', xp: 12 },
-  { id: '2', titulo: 'Jantar de Caule', horario: '19:30', local: 'Todos os Residentes', tipo: 'evento', xp: 0 },
-  { id: '3', titulo: 'Limpeza da Cozinha', horario: 'Apos Almoco', local: 'Cozinha', tipo: 'limpeza', xp: 8 },
-];
-
-function getDaysInMonth(year: number, month: number) {
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const daysInMonth = lastDay.getDate();
-  const startDayOfWeek = firstDay.getDay();
-  const days: { day: number; isCurrentMonth: boolean; hasEvent: boolean; isToday: boolean }[] = [];
-
-  // Previous month padding
-  const prevMonthLastDay = new Date(year, month, 0).getDate();
-  for (let i = startDayOfWeek - 1; i >= 0; i--) {
-    days.push({ day: prevMonthLastDay - i, isCurrentMonth: false, hasEvent: false, isToday: false });
+  const dias: { data: Date; noMesAtual: boolean }[] = [];
+  for (let i = diaSemanaPrimeiro; i > 0; i--) dias.push({ data: new Date(ano, mes, 1 - i), noMesAtual: false });
+  for (let dia = 1; dia <= ultimoDiaMes.getDate(); dia++) dias.push({ data: new Date(ano, mes, dia), noMesAtual: true });
+  while (dias.length % 7 !== 0) {
+    const ultimo = dias[dias.length - 1].data;
+    const d = new Date(ultimo);
+    d.setDate(d.getDate() + 1);
+    dias.push({ data: d, noMesAtual: false });
   }
-
-  // Current month
-  const today = new Date();
-  for (let d = 1; d <= daysInMonth; d++) {
-    days.push({
-      day: d,
-      isCurrentMonth: true,
-      hasEvent: [2, 5, 14].includes(d),
-      isToday: today.getDate() === d && today.getMonth() === month && today.getFullYear() === year,
-    });
-  }
-
-  return days;
+  return dias;
 }
 
 export function CalendarioPage() {
   const { openMenu, openNotifications } = useApp();
-  const [currentDate] = useState(new Date());
-  const [selectedDay, setSelectedDay] = useState(currentDate.getDate());
+  const { user } = useAuthStore();
+  const [eventos, setEventos] = useState<Evento[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mesReferencia, setMesReferencia] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+  const hoje = new Date();
+  const [diaSelecionado, setDiaSelecionado] = useState(hoje);
 
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  const monthName = currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-  const days = getDaysInMonth(year, month);
+  useEffect(() => {
+    async function carregar() {
+      if (!user?.houseId) { setLoading(false); return; }
+      try {
+        const q = query(collection(db, 'eventos'), where('casaId', '==', user.houseId));
+        const snap = await getDocs(q);
+        const lista: Evento[] = [];
+        snap.forEach(d => lista.push({ id: d.id, ...d.data(), respostas: d.data().respostas || {} } as Evento));
+        setEventos(lista);
+      } catch (e) { console.error('[Calendario] Erro ao carregar eventos:', e); }
+      setLoading(false);
+    }
+    carregar();
+  }, [user?.houseId]);
 
-  const tipoClasses = {
-    tarefa: { icon: 'local_florist', iconColor: 'text-primary', bg: 'bg-primary-container/20' },
-    evento: { icon: 'restaurant', iconColor: 'text-tertiary', bg: 'bg-tertiary-container/30' },
-    limpeza: { icon: 'sanitizer', iconColor: 'text-secondary', bg: 'bg-secondary-container/20' },
-  };
+  function mesAnterior() { setMesReferencia(prev => { const d = new Date(prev); d.setMonth(d.getMonth() - 1); return d; }); }
+  function mesSeguinte() { setMesReferencia(prev => { const d = new Date(prev); d.setMonth(d.getMonth() + 1); return d; }); }
+
+  const monthName = mesReferencia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  const dias = getDiasDoMes(mesReferencia);
+
+  function eventosNoDia(dia: Date): Evento[] {
+    return eventos.filter(ev => eventoOcorreEm(ev, dia));
+  }
+
+  const eventosDoDiaSelecionado = eventosNoDia(diaSelecionado);
+  const diaSelecionadoLabel = diaSelecionado.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });
 
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body-md overflow-x-hidden pb-32">
@@ -87,77 +90,84 @@ export function CalendarioPage() {
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-section-heading text-body-md text-on-surface capitalize">{monthName}</h3>
             <div className="flex gap-2">
-              <button className="material-symbols-outlined text-on-surface-variant p-1 hover:bg-surface-variant rounded transition-colors">chevron_left</button>
-              <button className="material-symbols-outlined text-on-surface-variant p-1 hover:bg-surface-variant rounded transition-colors">chevron_right</button>
+              <button onClick={mesAnterior} className="material-symbols-outlined text-on-surface-variant p-1 hover:bg-surface-variant rounded transition-colors">chevron_left</button>
+              <button onClick={mesSeguinte} className="material-symbols-outlined text-on-surface-variant p-1 hover:bg-surface-variant rounded transition-colors">chevron_right</button>
             </div>
           </div>
 
           {/* Calendar Days Header */}
           <div className="grid grid-cols-7 mb-2 text-center">
-            {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d) => (
-              <span key={d} className="text-label-sm font-label-sm text-on-surface-variant opacity-60">{d}</span>
+            {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => (
+              <span key={i} className="text-label-sm font-label-sm text-on-surface-variant opacity-60">{d}</span>
             ))}
           </div>
 
           {/* Calendar Grid */}
           <div className="grid grid-cols-7 gap-1">
-            {days.map((day, idx) => (
-              <button
-                key={idx}
-                onClick={() => day.isCurrentMonth && setSelectedDay(day.day)}
-                className={`aspect-square flex items-center justify-center rounded-lg transition-all text-sm font-label-sm relative ${
-                  !day.isCurrentMonth
-                    ? 'text-on-surface-variant opacity-20'
-                    : day.isToday
-                    ? 'bg-page-ciclos text-on-primary font-bold shadow-[0_0_15px_rgba(216,191,216,0.4)]'
-                    : selectedDay === day.day
-                    ? 'bg-page-ciclos/20 text-page-ciclos font-bold'
-                    : 'hover:bg-surface-variant text-on-surface'
-                }`}
-              >
-                {day.day}
-                {day.hasEvent && day.isCurrentMonth && (
-                  <span className={`absolute bottom-1.5 w-1 h-1 rounded-full ${day.isToday ? 'bg-on-primary' : 'bg-tertiary'}`} />
-                )}
-              </button>
-            ))}
+            {dias.map(({ data, noMesAtual }, idx) => {
+              const isToday = data.toDateString() === hoje.toDateString();
+              const isSelected = data.toDateString() === diaSelecionado.toDateString();
+              const qtdEventos = noMesAtual ? eventosNoDia(data).length : 0;
+              return (
+                <button
+                  key={idx}
+                  onClick={() => noMesAtual && setDiaSelecionado(data)}
+                  disabled={!noMesAtual}
+                  className={`aspect-square flex items-center justify-center rounded-lg transition-all text-sm font-label-sm relative ${
+                    !noMesAtual
+                      ? 'text-on-surface-variant opacity-20'
+                      : isToday
+                      ? 'bg-page-ciclos text-on-primary font-bold shadow-[0_0_15px_rgba(216,191,216,0.4)]'
+                      : isSelected
+                      ? 'bg-page-ciclos/20 text-page-ciclos font-bold'
+                      : 'hover:bg-surface-variant text-on-surface'
+                  }`}
+                >
+                  {data.getDate()}
+                  {qtdEventos > 0 && (
+                    <span className={`absolute bottom-1.5 w-1 h-1 rounded-full ${isToday ? 'bg-on-primary' : 'bg-tertiary'}`} />
+                  )}
+                </button>
+              );
+            })}
           </div>
         </section>
 
         {/* Daily Schedule Section */}
         <section className="space-y-stack-md">
           <div className="flex items-center justify-between">
-            <h3 className="text-section-heading font-section-heading text-on-surface">Programacao do Dia</h3>
-            <span className="text-caption font-caption text-primary">Terca-feira</span>
+            <h3 className="text-section-heading font-section-heading text-on-surface">Programação do Dia</h3>
+            <span className="text-caption font-caption text-primary capitalize">{diaSelecionadoLabel}</span>
           </div>
 
-          <div className="space-y-3">
-            {tarefasDoDia.map((tarefa) => {
-              const tipo = tipoClasses[tarefa.tipo];
-              return (
+          {loading ? (
+            <div className="flex justify-center py-8"><span className="material-symbols-outlined animate-spin text-page-ciclos text-3xl">refresh</span></div>
+          ) : eventosDoDiaSelecionado.length === 0 ? (
+            <div className="glass-card rounded-xl p-6 text-center">
+              <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-2">event_available</span>
+              <p className="text-text-muted">Nenhum evento neste dia</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {eventosDoDiaSelecionado.map((evento) => (
                 <div
-                  key={tarefa.id}
+                  key={evento.id}
                   className="glass-card p-4 rounded-xl flex items-center gap-4 group transition-all hover:translate-x-1"
                 >
-                  <div className={`w-10 h-10 rounded-lg ${tipo.bg} flex items-center justify-center ${tipo.iconColor}`}>
-                    <span className="material-symbols-outlined">{tipo.icon}</span>
+                  <div className="w-10 h-10 rounded-lg bg-tertiary-container/30 flex items-center justify-center text-lg">
+                    {evento.emoji || '📅'}
                   </div>
-                  <div className="flex-1">
-                    <h4 className="text-label-sm font-label-sm text-on-surface">{tarefa.titulo}</h4>
-                    <p className="text-caption font-caption text-on-surface-variant">{tarefa.horario} • {tarefa.local}</p>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-label-sm font-label-sm text-on-surface truncate">{evento.titulo}</h4>
+                    <p className="text-caption font-caption text-on-surface-variant truncate">
+                      {evento.horario}{evento.locais && evento.locais.length > 0 ? ` · ${evento.locais.join(', ')}` : ''}
+                    </p>
                   </div>
-                  {tarefa.tipo === 'evento' ? (
-                    <button className="bg-tertiary/20 text-tertiary px-3 py-1 rounded-full text-caption font-label-sm">Evento</button>
-                  ) : (
-                    <div className="flex items-center gap-1 text-primary">
-                      <span className="material-symbols-outlined text-[18px]">bolt</span>
-                      <span className="text-label-sm font-label-sm">+{tarefa.xp} XP</span>
-                    </div>
-                  )}
+                  <span className="bg-tertiary/20 text-tertiary px-3 py-1 rounded-full text-caption font-label-sm flex-shrink-0">Evento</span>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Insights / Progress Section */}

@@ -24,6 +24,26 @@ function getDatasDaSemanaAtual(): Date[] {
   return Array.from({ length: 7 }, (_, i) => { const d = new Date(segunda); d.setDate(segunda.getDate() + i); return d; });
 }
 
+// Grade do mes (semanas completas de 7 dias, com dias de padding do mes anterior/seguinte)
+function getDiasDoMes(referencia: Date): { data: Date; noMesAtual: boolean }[] {
+  const ano = referencia.getFullYear();
+  const mes = referencia.getMonth();
+  const primeiroDiaMes = new Date(ano, mes, 1);
+  const ultimoDiaMes = new Date(ano, mes + 1, 0);
+  const diaSemanaPrimeiro = (primeiroDiaMes.getDay() + 6) % 7; // Seg=0
+
+  const dias: { data: Date; noMesAtual: boolean }[] = [];
+  for (let i = diaSemanaPrimeiro; i > 0; i--) dias.push({ data: new Date(ano, mes, 1 - i), noMesAtual: false });
+  for (let dia = 1; dia <= ultimoDiaMes.getDate(); dia++) dias.push({ data: new Date(ano, mes, dia), noMesAtual: true });
+  while (dias.length % 7 !== 0) {
+    const ultimo = dias[dias.length - 1].data;
+    const d = new Date(ultimo);
+    d.setDate(d.getDate() + 1);
+    dias.push({ data: d, noMesAtual: false });
+  }
+  return dias;
+}
+
 interface Morador { uid: string; name: string; photoURL?: string; }
 interface Comodo { id: string; nome: string; icone: string; tipo: string; aceitaEventos: boolean; }
 
@@ -56,6 +76,9 @@ export function EventosPage() {
   const hoje = new Date();
   const diaHojeIdx = (hoje.getDay() + 6) % 7;
   const [diaSelecionado, setDiaSelecionado] = useState(diaHojeIdx);
+  const [visaoCalendario, setVisaoCalendario] = useState<'semana' | 'mes'>('semana');
+  const [mesReferencia, setMesReferencia] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+  const [diaFocadoMes, setDiaFocadoMes] = useState<Date | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [form, setForm] = useState<FormEvento>(FORM_VAZIO);
@@ -116,6 +139,13 @@ export function EventosPage() {
   function contarEventosNoDia(dia: Date): number {
     return eventos.filter(ev => eventoOcorreEm(ev, dia)).length;
   }
+
+  function mesAnterior() { setMesReferencia(prev => { const d = new Date(prev); d.setMonth(d.getMonth() - 1); return d; }); }
+  function mesSeguinte() { setMesReferencia(prev => { const d = new Date(prev); d.setMonth(d.getMonth() + 1); return d; }); }
+  function voltarParaSemana() { setVisaoCalendario('semana'); setDiaFocadoMes(null); }
+
+  const diasDoMes = getDiasDoMes(mesReferencia);
+  const eventosDoDiaFocado = diaFocadoMes ? eventos.filter(ev => eventoOcorreEm(ev, diaFocadoMes)) : [];
 
   // Coletivo/Privado nao e sobre visibilidade (todo evento e visivel pra casa toda) - e sobre
   // quem pode participar: coletivo = qualquer morador confirma presenca; privado = evento de
@@ -268,31 +298,120 @@ export function EventosPage() {
           </div>
         )}
 
-        {/* Weekly Mini Calendar */}
-        <section className="mb-stack-lg overflow-x-auto">
-          <div className="flex gap-3 min-w-max py-2">
-            {DIAS_SEMANA.map((dia, idx) => {
-              const isSelected = diaSelecionado === idx;
-              const qtdEventos = contarEventosNoDia(datasDaSemana[idx]);
-              return (
-                <button
-                  key={idx}
-                  onClick={() => setDiaSelecionado(idx)}
-                  className={`relative flex flex-col items-center justify-center w-14 h-20 rounded-2xl transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-page-flores text-white font-bold shadow-[0_0_15px_rgba(252,124,120,0.4)] scale-110 mx-2'
-                      : 'bg-surface-container text-text-muted'
-                  }`}
-                >
-                  <span className={`text-xs ${isSelected ? 'opacity-90' : ''}`}>{dia}</span>
-                  <span className={isSelected ? 'text-xl' : 'font-bold text-lg'}>{datasDaSemana[idx].getDate()}</span>
-                  {qtdEventos > 0 && (
-                    <span className={`absolute bottom-1.5 w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-page-flores'}`} />
-                  )}
+        {/* Mini Calendario - semana atual ou mes, alternavel */}
+        <section className="mb-stack-lg">
+          <div className="flex items-center justify-between mb-2">
+            {visaoCalendario === 'mes' ? (
+              <>
+                <div className="flex items-center gap-1">
+                  <button onClick={mesAnterior} className="p-1 text-on-surface-variant hover:text-page-flores rounded-full transition-colors">
+                    <span className="material-symbols-outlined">chevron_left</span>
+                  </button>
+                  <h3 className="font-bold text-on-surface capitalize text-sm w-32 text-center">
+                    {mesReferencia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                  </h3>
+                  <button onClick={mesSeguinte} className="p-1 text-on-surface-variant hover:text-page-flores rounded-full transition-colors">
+                    <span className="material-symbols-outlined">chevron_right</span>
+                  </button>
+                </div>
+                <button onClick={voltarParaSemana} className="px-3 py-1.5 rounded-lg text-xs font-bold border border-page-flores text-page-flores flex items-center gap-1 flex-shrink-0">
+                  <span className="material-symbols-outlined text-[16px]">view_week</span>
+                  Semana atual
                 </button>
-              );
-            })}
+              </>
+            ) : (
+              <>
+                <h3 className="font-bold text-on-surface text-sm">Esta semana</h3>
+                <button onClick={() => setVisaoCalendario('mes')} className="px-3 py-1.5 rounded-lg text-xs font-bold border border-page-flores text-page-flores flex items-center gap-1 flex-shrink-0">
+                  <span className="material-symbols-outlined text-[16px]">calendar_month</span>
+                  Ver mês
+                </button>
+              </>
+            )}
           </div>
+
+          {visaoCalendario === 'semana' ? (
+            <div className="overflow-x-auto">
+              <div className="flex gap-3 min-w-max py-2">
+                {DIAS_SEMANA.map((dia, idx) => {
+                  const isSelected = diaSelecionado === idx;
+                  const qtdEventos = contarEventosNoDia(datasDaSemana[idx]);
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => setDiaSelecionado(idx)}
+                      className={`relative flex flex-col items-center justify-center w-14 h-20 rounded-2xl transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-page-flores text-white font-bold shadow-[0_0_15px_rgba(252,124,120,0.4)] scale-110 mx-2'
+                          : 'bg-surface-container text-text-muted'
+                      }`}
+                    >
+                      <span className={`text-xs ${isSelected ? 'opacity-90' : ''}`}>{dia}</span>
+                      <span className={isSelected ? 'text-xl' : 'font-bold text-lg'}>{datasDaSemana[idx].getDate()}</span>
+                      {qtdEventos > 0 && (
+                        <span className={`absolute bottom-1.5 w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-page-flores'}`} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="glass-card rounded-xl p-3">
+              <div className="grid grid-cols-7 mb-1 text-center">
+                {DIAS_SEMANA.map(d => <span key={d} className="text-[10px] font-bold text-on-surface-variant opacity-60">{d[0]}</span>)}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {diasDoMes.map(({ data, noMesAtual }, idx) => {
+                  const qtd = noMesAtual ? contarEventosNoDia(data) : 0;
+                  const isHoje = data.toDateString() === hoje.toDateString();
+                  const isFocado = !!diaFocadoMes && data.toDateString() === diaFocadoMes.toDateString();
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => noMesAtual && setDiaFocadoMes(data)}
+                      disabled={!noMesAtual}
+                      className={`aspect-square flex items-center justify-center rounded-lg text-xs relative transition-all ${
+                        !noMesAtual
+                          ? 'text-on-surface-variant opacity-20'
+                          : isHoje
+                          ? 'bg-page-flores text-white font-bold shadow-[0_0_15px_rgba(252,124,120,0.4)]'
+                          : isFocado
+                          ? 'bg-page-flores/20 text-page-flores font-bold'
+                          : 'hover:bg-surface-variant text-on-surface'
+                      }`}
+                    >
+                      {data.getDate()}
+                      {qtd > 0 && (
+                        <span className={`absolute bottom-1 w-1 h-1 rounded-full ${isHoje ? 'bg-white' : 'bg-page-flores'}`} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {diaFocadoMes && (
+                <div className="mt-3 pt-3 border-t border-outline-variant/30">
+                  <p className="text-xs font-bold text-on-surface-variant mb-2">
+                    Eventos em {diaFocadoMes.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                  </p>
+                  {eventosDoDiaFocado.length === 0 ? (
+                    <p className="text-xs text-text-muted">Nenhum evento neste dia</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {eventosDoDiaFocado.map(ev => (
+                        <div key={ev.id} className="flex items-center gap-2 text-xs bg-surface-container-low rounded-lg px-2 py-1.5">
+                          <span>{ev.emoji || '📅'}</span>
+                          <span className="flex-1 truncate text-on-surface">{ev.titulo}</span>
+                          <span className="text-on-surface-variant flex-shrink-0">{ev.horario}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         {/* Upcoming Events */}
@@ -316,6 +435,7 @@ export function EventosPage() {
             const ehPrivado = evento.tipo === 'privado';
             const podeParticipar = evento.tipo === 'coletivo' || (evento.tipo === 'apenas_moradores' && user?.role !== 'hospede');
             const podeEditarEste = user?.role === 'admin' || evento.criadoPor === user?.uid;
+            const souAdmin = user?.role === 'admin';
             const dataOuRecorrencia = evento.recorrencia === 'nenhuma'
               ? ocorrencia.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
               : descreverRecorrencia(evento);
@@ -356,22 +476,22 @@ export function EventosPage() {
                   {evento.descricao && <p className="text-sm text-on-surface-variant mb-3">{evento.descricao}</p>}
                   {!ehPrivado && (
                     <div className="space-y-2">
-                      <div className="flex flex-col gap-1.5">
+                      <div className="flex flex-wrap gap-2">
                         {confirmados.length === 0 ? (
                           <span className="text-xs text-text-muted">Ninguém confirmou ainda</span>
                         ) : confirmados.map((uid) => {
                           const m = moradorDe(uid);
                           return (
-                            <div key={uid} className="flex items-center gap-2">
-                              <UserAvatar photoURL={m.photoURL} name={m.name} size={28} showPresence={false} />
-                              <span className="text-xs text-on-surface-variant truncate flex-1">{m.name}</span>
-                              {podeEditarEste && (
+                            <div key={uid} className="flex items-center gap-1.5 bg-surface-container-low rounded-full pl-1 pr-2 py-1">
+                              <UserAvatar photoURL={m.photoURL} name={m.name} size={24} showPresence={false} />
+                              <span className="text-xs text-on-surface-variant truncate max-w-[90px]">{m.name.split(' ')[0]}</span>
+                              {souAdmin && (
                                 <button
                                   onClick={() => removerConfirmado(evento, dataOcorrenciaStr, uid)}
-                                  className="p-1 text-on-surface-variant hover:text-error rounded-full transition-colors flex-shrink-0"
+                                  className="p-0.5 -mr-1 text-on-surface-variant hover:text-error rounded-full transition-colors flex-shrink-0"
                                   title="Remover confirmação"
                                 >
-                                  <span className="material-symbols-outlined text-[16px]">close</span>
+                                  <span className="material-symbols-outlined text-[14px]">close</span>
                                 </button>
                               )}
                             </div>
