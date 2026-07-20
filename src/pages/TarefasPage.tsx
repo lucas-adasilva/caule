@@ -25,6 +25,7 @@ function getDatasDaSemanaAtual(): Date[] {
   return Array.from({ length: 7 }, (_, i) => { const d = new Date(segunda); d.setDate(segunda.getDate() + i); return d; });
 }
 function formatarDataBr(dataIso?: string): string { if (!dataIso) return ''; const d = new Date(dataIso); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; }
+function formatarDataCompleta(dataIso?: string): string { if (!dataIso) return ''; const d = new Date(dataIso); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; }
 function isoToInputDate(dataIso?: string): string { if (!dataIso) return ''; const d = new Date(dataIso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function inputDateToIso(dataStr: string): string { return new Date(`${dataStr}T12:00:00`).toISOString(); }
 function getHojeStr(): string { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
@@ -40,6 +41,13 @@ interface TarefaBase {
   titulo: string;
   comodoId: string;
   prioridade: 'alta' | 'media' | 'baixa';
+}
+
+interface ExecucaoHistorico {
+  id: string;
+  executorId: string;
+  executorNome: string;
+  data: string;
 }
 
 /* ===== Componente de Tarefa com Swipe ===== */
@@ -125,8 +133,14 @@ export function TarefasPage() {
   const [diaSelecionado, setDiaSelecionado] = useState(getDiaAtual() === 0 ? 6 : getDiaAtual() - 1);
   const [editandoAtrib, setEditandoAtrib] = useState<Atribuicao | null>(null);
   const [novaData, setNovaData] = useState('');
+  const [buscaTarefa, setBuscaTarefa] = useState('');
+  const [menuTarefasOpen, setMenuTarefasOpen] = useState(false);
+  const [tarefaHistorico, setTarefaHistorico] = useState<TarefaBase | null>(null);
+  const [execucoesHistorico, setExecucoesHistorico] = useState<ExecucaoHistorico[] | null>(null);
+  const [carregandoHistorico, setCarregandoHistorico] = useState(false);
   const semanaAtual = getSemanaAtual();
   const datasDaSemana = getDatasDaSemanaAtual();
+  const podeVerHistorico = user?.role === 'admin' || user?.role === 'morador';
 
   async function carregarDados() {
     if (!user?.uid || !user?.houseId) { setLoading(false); return; }
@@ -157,6 +171,35 @@ export function TarefasPage() {
   }
 
   useEffect(() => { carregarDados(); }, [user?.uid, user?.houseId]);
+
+  async function abrirHistoricoTarefa(tarefa: TarefaBase) {
+    if (!user?.houseId) return;
+    setTarefaHistorico(tarefa);
+    setCarregandoHistorico(true);
+    setExecucoesHistorico(null);
+    setBuscaTarefa('');
+    setMenuTarefasOpen(false);
+    try {
+      const q = query(collection(db, 'execucoes'), where('tarefaId', '==', tarefa.id), where('casaId', '==', user.houseId));
+      const snap = await getDocs(q);
+      const lista: ExecucaoHistorico[] = [];
+      snap.forEach(d => {
+        const data = d.data();
+        lista.push({ id: d.id, executorId: data.executorId || '', executorNome: data.executorNome || 'Morador', data: data.data || '' });
+      });
+      lista.sort((a, b) => b.data.localeCompare(a.data));
+      setExecucoesHistorico(lista);
+    } catch (e) {
+      console.error('Erro ao buscar histórico de execução:', e);
+      setExecucoesHistorico([]);
+    }
+    setCarregandoHistorico(false);
+  }
+
+  function fecharHistorico() {
+    setTarefaHistorico(null);
+    setExecucoesHistorico(null);
+  }
 
   async function toggleTarefa(atribuicao: Atribuicao) {
     if (!distribuicao || !user?.uid || !user?.houseId) return;
@@ -233,6 +276,22 @@ export function TarefasPage() {
   const pendentesPorComodo = agruparPorComodo(pendentes);
   const concluidasPorComodo = agruparPorComodo(concluidas);
 
+  // Busca/menu de todas as tarefas cadastradas (nao so as da semana/dia atual)
+  const tarefasFiltradas = buscaTarefa.trim()
+    ? tarefas.filter(t => t.titulo.toLowerCase().includes(buscaTarefa.trim().toLowerCase()))
+    : [];
+  const tarefasPorComodoTodas = (() => {
+    const grupos: Record<string, { comodo: Comodo; tarefas: TarefaBase[] }> = {};
+    tarefas.forEach(t => {
+      const comodo = comodos.find(c => c.id === t.comodoId);
+      if (!comodo) return;
+      if (!grupos[comodo.id]) grupos[comodo.id] = { comodo, tarefas: [] };
+      grupos[comodo.id].tarefas.push(t);
+    });
+    return Object.values(grupos).sort((a, b) => a.comodo.nome.localeCompare(b.comodo.nome));
+  })();
+  const comodoDoHistorico = tarefaHistorico ? comodos.find(c => c.id === tarefaHistorico.comodoId) : undefined;
+
   return (
     <div className="min-h-screen bg-surface text-text-body font-body-md pb-32">
       <TopAppBar
@@ -242,6 +301,71 @@ export function TarefasPage() {
         titleColor="text-page-folhas" />
       <main className="px-margin-page mt-stack-md">
         <div className="mb-stack-lg"><h2 className="font-headline-lg-mobile text-headline-lg-mobile text-page-folhas">Folhas</h2><p className="text-text-muted font-body-md">Minhas tarefas da semana</p></div>
+
+        {/* Busca de tarefas + historico de execucao - so pra moradores/admin */}
+        {podeVerHistorico && (
+          <div className="mb-stack-lg">
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+              <input
+                type="text"
+                value={buscaTarefa}
+                onChange={e => { setBuscaTarefa(e.target.value); if (e.target.value.trim()) setMenuTarefasOpen(false); }}
+                placeholder="Buscar tarefa cadastrada..."
+                className="w-full bg-surface-card border border-outline-variant text-on-surface rounded-xl py-3 pl-11 pr-11 text-sm focus:ring-2 focus:ring-page-folhas/30 focus:border-page-folhas transition-all outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => { setMenuTarefasOpen(o => !o); setBuscaTarefa(''); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-on-surface-variant hover:text-page-folhas transition-colors"
+                title="Ver todas as tarefas"
+              >
+                <span className="material-symbols-outlined text-lg">{menuTarefasOpen ? 'expand_less' : 'menu'}</span>
+              </button>
+            </div>
+
+            {buscaTarefa.trim() && (
+              <div className="mt-2 bg-surface-card border border-outline-variant rounded-xl overflow-hidden max-h-72 overflow-y-auto">
+                {tarefasFiltradas.length === 0 ? (
+                  <p className="p-3 text-sm text-on-surface-variant text-center">Nenhuma tarefa encontrada</p>
+                ) : tarefasFiltradas.map(t => {
+                  const comodo = comodos.find(c => c.id === t.comodoId);
+                  return (
+                    <button key={t.id} onClick={() => abrirHistoricoTarefa(t)} className="w-full flex items-center gap-2 p-3 border-b border-outline-variant/50 last:border-0 hover:bg-surface-container-low transition-colors text-left">
+                      <span className="text-base">{comodo?.icone || '📋'}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-on-surface truncate">{t.titulo}</p>
+                        {comodo && <p className="text-[11px] text-on-surface-variant">{comodo.nome}</p>}
+                      </div>
+                      <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_right</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {menuTarefasOpen && !buscaTarefa.trim() && (
+              <div className="mt-2 bg-surface-card border border-outline-variant rounded-xl overflow-hidden max-h-96 overflow-y-auto">
+                {tarefasPorComodoTodas.length === 0 ? (
+                  <p className="p-3 text-sm text-on-surface-variant text-center">Nenhuma tarefa cadastrada</p>
+                ) : tarefasPorComodoTodas.map(({ comodo, tarefas: tarefasDoComodo }) => (
+                  <div key={comodo.id}>
+                    <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-low sticky top-0">
+                      <span className="text-base">{comodo.icone}</span>
+                      <span className="text-xs font-bold text-on-surface-variant uppercase">{comodo.nome}</span>
+                    </div>
+                    {tarefasDoComodo.map(t => (
+                      <button key={t.id} onClick={() => abrirHistoricoTarefa(t)} className="w-full flex items-center gap-2 p-3 pl-4 border-b border-outline-variant/50 last:border-0 hover:bg-surface-container-low transition-colors text-left">
+                        <p className="flex-1 min-w-0 text-sm font-medium text-on-surface truncate">{t.titulo}</p>
+                        <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_right</span>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Weekly Filter - dia da semana + dia do mes + qtd de tarefas (modelo visual da pagina Flores, em verde) */}
         {/* py-2 (nao só pb) evita que o pill selecionado (scale-110) seja cortado no topo:
@@ -349,6 +473,47 @@ export function TarefasPage() {
               <button onClick={() => { setEditandoAtrib(null); setNovaData(''); }} className="w-full py-2 text-on-surface-variant text-sm hover:text-on-surface transition-colors">
                 Cancelar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal historico de execucao */}
+      {tarefaHistorico && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={fecharHistorico}>
+          <div className="bg-surface-card w-full max-w-md rounded-2xl p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-on-surface text-lg">{tarefaHistorico.titulo}</h3>
+                {comodoDoHistorico && (
+                  <p className="text-xs text-on-surface-variant flex items-center gap-1 mt-0.5">
+                    <span>{comodoDoHistorico.icone}</span>{comodoDoHistorico.nome}
+                  </p>
+                )}
+              </div>
+              <button onClick={fecharHistorico} className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div>
+              <h4 className="text-label-sm text-on-surface-variant font-bold uppercase mb-2">Histórico de Execução</h4>
+              {carregandoHistorico ? (
+                <div className="flex justify-center py-6"><span className="material-symbols-outlined animate-spin text-page-folhas text-2xl">refresh</span></div>
+              ) : !execucoesHistorico || execucoesHistorico.length === 0 ? (
+                <p className="text-sm text-on-surface-variant text-center py-4">Essa tarefa ainda não foi concluída por ninguém.</p>
+              ) : (
+                <div className="space-y-2">
+                  {execucoesHistorico.map(e => (
+                    <div key={e.id} className="flex items-center justify-between gap-2 p-3 bg-surface-container-low rounded-lg">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="material-symbols-outlined text-page-folhas text-lg flex-shrink-0">check_circle</span>
+                        <span className="text-sm font-medium text-on-surface truncate">{e.executorNome}</span>
+                      </div>
+                      <span className="text-xs text-on-surface-variant flex-shrink-0">{formatarDataCompleta(e.data)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
