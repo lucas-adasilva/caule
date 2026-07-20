@@ -302,71 +302,6 @@ export function TarefasPage() {
       <main className="px-margin-page mt-stack-md">
         <div className="mb-stack-lg"><h2 className="font-headline-lg-mobile text-headline-lg-mobile text-page-folhas">Folhas</h2><p className="text-text-muted font-body-md">Minhas tarefas da semana</p></div>
 
-        {/* Busca de tarefas + historico de execucao - so pra moradores/admin */}
-        {podeVerHistorico && (
-          <div className="mb-stack-lg">
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
-              <input
-                type="text"
-                value={buscaTarefa}
-                onChange={e => { setBuscaTarefa(e.target.value); if (e.target.value.trim()) setMenuTarefasOpen(false); }}
-                placeholder="Buscar tarefa cadastrada..."
-                className="w-full bg-surface-card border border-outline-variant text-on-surface rounded-xl py-3 pl-11 pr-11 text-sm focus:ring-2 focus:ring-page-folhas/30 focus:border-page-folhas transition-all outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => { setMenuTarefasOpen(o => !o); setBuscaTarefa(''); }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-on-surface-variant hover:text-page-folhas transition-colors"
-                title="Ver todas as tarefas"
-              >
-                <span className="material-symbols-outlined text-lg">{menuTarefasOpen ? 'expand_less' : 'menu'}</span>
-              </button>
-            </div>
-
-            {buscaTarefa.trim() && (
-              <div className="mt-2 bg-surface-card border border-outline-variant rounded-xl overflow-hidden max-h-72 overflow-y-auto">
-                {tarefasFiltradas.length === 0 ? (
-                  <p className="p-3 text-sm text-on-surface-variant text-center">Nenhuma tarefa encontrada</p>
-                ) : tarefasFiltradas.map(t => {
-                  const comodo = comodos.find(c => c.id === t.comodoId);
-                  return (
-                    <button key={t.id} onClick={() => abrirHistoricoTarefa(t)} className="w-full flex items-center gap-2 p-3 border-b border-outline-variant/50 last:border-0 hover:bg-surface-container-low transition-colors text-left">
-                      <span className="text-base">{comodo?.icone || '📋'}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-on-surface truncate">{t.titulo}</p>
-                        {comodo && <p className="text-[11px] text-on-surface-variant">{comodo.nome}</p>}
-                      </div>
-                      <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_right</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {menuTarefasOpen && !buscaTarefa.trim() && (
-              <div className="mt-2 bg-surface-card border border-outline-variant rounded-xl overflow-hidden max-h-96 overflow-y-auto">
-                {tarefasPorComodoTodas.length === 0 ? (
-                  <p className="p-3 text-sm text-on-surface-variant text-center">Nenhuma tarefa cadastrada</p>
-                ) : tarefasPorComodoTodas.map(({ comodo, tarefas: tarefasDoComodo }) => (
-                  <div key={comodo.id}>
-                    <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-low sticky top-0">
-                      <span className="text-base">{comodo.icone}</span>
-                      <span className="text-xs font-bold text-on-surface-variant uppercase">{comodo.nome}</span>
-                    </div>
-                    {tarefasDoComodo.map(t => (
-                      <button key={t.id} onClick={() => abrirHistoricoTarefa(t)} className="w-full flex items-center gap-2 p-3 pl-4 border-b border-outline-variant/50 last:border-0 hover:bg-surface-container-low transition-colors text-left">
-                        <p className="flex-1 min-w-0 text-sm font-medium text-on-surface truncate">{t.titulo}</p>
-                        <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_right</span>
-                      </button>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Weekly Filter - dia da semana + dia do mes + qtd de tarefas (modelo visual da pagina Flores, em verde) */}
         {/* py-2 (nao só pb) evita que o pill selecionado (scale-110) seja cortado no topo:
             overflow-x-auto sem overflow-y explicito faz o eixo Y virar "auto" tambem, recortando conteudo. */}
@@ -438,6 +373,72 @@ export function TarefasPage() {
             </div>
           )}
         </div>)}
+
+        {/* Busca de tarefas + historico de execucao - so pra moradores/admin */}
+        {podeVerHistorico && (
+          <div className="mt-8 pt-6 border-t border-outline-variant/50">
+            <h3 className="font-section-heading text-section-heading text-on-surface mb-3">Histórico de Tarefas Concluídas</h3>
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+              <input
+                type="text"
+                value={buscaTarefa}
+                onChange={e => { setBuscaTarefa(e.target.value); if (e.target.value.trim()) setMenuTarefasOpen(false); }}
+                placeholder="Buscar tarefa cadastrada..."
+                className="w-full bg-surface-card border border-outline-variant text-on-surface rounded-xl py-3 pl-11 pr-11 text-sm focus:ring-2 focus:ring-page-folhas/30 focus:border-page-folhas transition-all outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => { setMenuTarefasOpen(o => !o); setBuscaTarefa(''); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-on-surface-variant hover:text-page-folhas transition-colors"
+                title="Ver todas as tarefas"
+              >
+                <span className="material-symbols-outlined text-lg">{menuTarefasOpen ? 'expand_less' : 'menu'}</span>
+              </button>
+            </div>
+
+            {buscaTarefa.trim() && (
+              <div className="mt-2 bg-surface-card border border-outline-variant rounded-xl overflow-hidden max-h-72 overflow-y-auto">
+                {tarefasFiltradas.length === 0 ? (
+                  <p className="p-3 text-sm text-on-surface-variant text-center">Nenhuma tarefa encontrada</p>
+                ) : tarefasFiltradas.map(t => {
+                  const comodo = comodos.find(c => c.id === t.comodoId);
+                  return (
+                    <button key={t.id} onClick={() => abrirHistoricoTarefa(t)} className="w-full flex items-center gap-2 p-3 border-b border-outline-variant/50 last:border-0 hover:bg-surface-container-low transition-colors text-left">
+                      <span className="text-base">{comodo?.icone || '📋'}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-on-surface truncate">{t.titulo}</p>
+                        {comodo && <p className="text-[11px] text-on-surface-variant">{comodo.nome}</p>}
+                      </div>
+                      <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_right</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {menuTarefasOpen && !buscaTarefa.trim() && (
+              <div className="mt-2 bg-surface-card border border-outline-variant rounded-xl overflow-hidden max-h-96 overflow-y-auto">
+                {tarefasPorComodoTodas.length === 0 ? (
+                  <p className="p-3 text-sm text-on-surface-variant text-center">Nenhuma tarefa cadastrada</p>
+                ) : tarefasPorComodoTodas.map(({ comodo, tarefas: tarefasDoComodo }) => (
+                  <div key={comodo.id}>
+                    <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-low sticky top-0">
+                      <span className="text-base">{comodo.icone}</span>
+                      <span className="text-xs font-bold text-on-surface-variant uppercase">{comodo.nome}</span>
+                    </div>
+                    {tarefasDoComodo.map(t => (
+                      <button key={t.id} onClick={() => abrirHistoricoTarefa(t)} className="w-full flex items-center gap-2 p-3 pl-4 border-b border-outline-variant/50 last:border-0 hover:bg-surface-container-low transition-colors text-left">
+                        <p className="flex-1 min-w-0 text-sm font-medium text-on-surface truncate">{t.titulo}</p>
+                        <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_right</span>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* Modal editar data */}
