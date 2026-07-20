@@ -30,7 +30,7 @@ export function PerfilPage() {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
-  const { forceCheck, checking: checkingVersion, currentVersion, hasUpdate, versionInfo } = useVersionCheck();
+  const { forceCheck, checking: checkingVersion, currentVersion, hasUpdate, versionInfo, downloadUpdate } = useVersionCheck();
   const isNative = Capacitor.isNativePlatform();
 
   const [form, setForm] = useState({
@@ -381,9 +381,18 @@ export function PerfilPage() {
               <span className="text-caption text-on-surface-variant">{currentVersion}</span>
             </div>
             {hasUpdate && versionInfo && (
-              <div className="p-2 bg-primary-container/20 border border-primary/30 rounded-lg text-sm text-primary">
-                <span className="material-symbols-outlined text-sm align-middle">new_releases</span>{' '}
-                Nova versão {versionInfo.latestVersion} disponível!
+              <div className="p-3 bg-primary-container/20 border border-primary/30 rounded-lg space-y-2">
+                <p className="text-sm text-primary">
+                  <span className="material-symbols-outlined text-sm align-middle">new_releases</span>{' '}
+                  Nova versão {versionInfo.latestVersion} disponível!
+                </p>
+                <button
+                  onClick={downloadUpdate}
+                  className="w-full bg-primary text-on-primary font-bold py-2.5 rounded-lg hover:brightness-110 transition-all flex items-center justify-center gap-2 text-sm"
+                >
+                  <span className="material-symbols-outlined text-lg">download</span>
+                  Baixar Versão Mais Recente
+                </button>
               </div>
             )}
             <button
