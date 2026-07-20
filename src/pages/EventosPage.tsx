@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { TopAppBar } from '@/components/TopAppBar';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -228,6 +228,25 @@ export function EventosPage() {
     }
   }
 
+  // Admin ou criador do evento pode remover uma confirmação - inclusive de usuários que
+  // já foram excluídos do app e ficariam presos na lista pra sempre como "Alguém".
+  async function removerConfirmado(ev: Evento, dataOcorrencia: string, uid: string) {
+    if (!confirm('Remover esta confirmação?')) return;
+    const respostasAntigas = ev.respostas;
+    setEventos(prev => prev.map(e => {
+      if (e.id !== ev.id) return e;
+      const ocorrencia = { ...(e.respostas[dataOcorrencia] || {}) };
+      delete ocorrencia[uid];
+      return { ...e, respostas: { ...e.respostas, [dataOcorrencia]: ocorrencia } };
+    }));
+    try {
+      await updateDoc(doc(db, 'eventos', ev.id), { [`respostas.${dataOcorrencia}.${uid}`]: deleteField() });
+    } catch (e) {
+      console.error('[Eventos] Erro ao remover confirmação:', e);
+      setEventos(prev => prev.map(ev2 => ev2.id === ev.id ? { ...ev2, respostas: respostasAntigas } : ev2));
+    }
+  }
+
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body-md selection:bg-tertiary/30 pb-32">
       <TopAppBar
@@ -336,28 +355,31 @@ export function EventosPage() {
                   </div>
                   {evento.descricao && <p className="text-sm text-on-surface-variant mb-3">{evento.descricao}</p>}
                   {!ehPrivado && (
-                    <div className="flex items-end justify-between gap-2">
-                      <div className="flex flex-wrap gap-2">
-                        {confirmados.length === 0 && <span className="text-xs text-text-muted self-center">Ninguém confirmou ainda</span>}
-                        {confirmados.slice(0, 5).map((uid) => {
+                    <div className="space-y-2">
+                      <div className="flex flex-col gap-1.5">
+                        {confirmados.length === 0 ? (
+                          <span className="text-xs text-text-muted">Ninguém confirmou ainda</span>
+                        ) : confirmados.map((uid) => {
                           const m = moradorDe(uid);
                           return (
-                            <div key={uid} className="flex flex-col items-center gap-0.5 w-9">
-                              <UserAvatar photoURL={m.photoURL} name={m.name} size={32} showPresence={false} />
-                              <span className="text-[9px] text-on-surface-variant leading-none truncate w-full text-center">{m.name.split(' ')[0]}</span>
+                            <div key={uid} className="flex items-center gap-2">
+                              <UserAvatar photoURL={m.photoURL} name={m.name} size={28} showPresence={false} />
+                              <span className="text-xs text-on-surface-variant truncate flex-1">{m.name}</span>
+                              {podeEditarEste && (
+                                <button
+                                  onClick={() => removerConfirmado(evento, dataOcorrenciaStr, uid)}
+                                  className="p-1 text-on-surface-variant hover:text-error rounded-full transition-colors flex-shrink-0"
+                                  title="Remover confirmação"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">close</span>
+                                </button>
+                              )}
                             </div>
                           );
                         })}
-                        {confirmados.length > 5 && (
-                          <div className="flex flex-col items-center gap-0.5 w-9">
-                            <div className="w-8 h-8 rounded-full border-2 border-surface-card bg-surface-container flex items-center justify-center text-[10px] font-bold">
-                              +{confirmados.length - 5}
-                            </div>
-                          </div>
-                        )}
                       </div>
                       {podeParticipar && (
-                        <div className="flex gap-1.5 flex-shrink-0">
+                        <div className="flex gap-1.5">
                           <button
                             onClick={() => responder(evento, dataOcorrenciaStr, 'confirmado')}
                             className={`px-3 py-1.5 rounded-lg font-label-sm text-xs active:scale-95 transition-all ${
