@@ -28,6 +28,9 @@ export interface Evento {
   // RSVP por ocorrência - chave YYYY-MM-DD (a ocorrência específica, não a série toda).
   // Assim, num evento recorrente, confirmar uma semana não confirma automaticamente as próximas.
   respostas: Record<string, Record<string, 'confirmado' | 'recusado'>>;
+  // Datas (YYYY-MM-DD) excluídas manualmente de uma recorrência - "excluir apenas esta data"
+  // remove só aquela ocorrência, mantendo o resto da série e o histórico intactos.
+  ocorrenciasExcluidas?: string[];
   createdAt?: any;
   updatedAt?: any;
 }
@@ -61,7 +64,16 @@ export function diaSemanaDe(d: Date): number {
   return (d.getDay() + 6) % 7;
 }
 
-type EventoOcorrencia = Pick<Evento, 'recorrencia' | 'data' | 'diasSemana' | 'diasMes'>;
+type EventoOcorrencia = Pick<Evento, 'recorrencia' | 'data' | 'diasSemana' | 'diasMes' | 'createdAt' | 'ocorrenciasExcluidas'>;
+
+// Data (sem hora) em que o evento foi criado - recorrencia so vale dali pra frente, nunca
+// retroativamente. createdAt pode vir como Timestamp do Firestore (.toDate()) ou ja como Date/string.
+function dataCriacaoSemHora(evento: EventoOcorrencia): Date | null {
+  if (!evento.createdAt) return null;
+  const bruta = typeof evento.createdAt?.toDate === 'function' ? evento.createdAt.toDate() : new Date(evento.createdAt);
+  if (isNaN(bruta.getTime())) return null;
+  return new Date(bruta.getFullYear(), bruta.getMonth(), bruta.getDate());
+}
 
 /** Verifica se o evento tem uma ocorrência exatamente no dia informado. */
 export function eventoOcorreEm(evento: EventoOcorrencia, dia: Date): boolean {
@@ -69,6 +81,9 @@ export function eventoOcorreEm(evento: EventoOcorrencia, dia: Date): boolean {
     if (!evento.data) return false;
     return mesmoDia(parseDataLocal(evento.data), dia);
   }
+  if ((evento.ocorrenciasExcluidas || []).includes(formatarDataLocal(dia))) return false;
+  const criacao = dataCriacaoSemHora(evento);
+  if (criacao && new Date(dia.getFullYear(), dia.getMonth(), dia.getDate()) < criacao) return false;
   if (evento.recorrencia === 'semanal') {
     return (evento.diasSemana || []).includes(String(diaSemanaDe(dia)));
   }

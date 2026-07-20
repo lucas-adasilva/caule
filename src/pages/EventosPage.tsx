@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, deleteField } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, deleteField, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { TopAppBar } from '@/components/TopAppBar';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -81,6 +81,7 @@ export function EventosPage() {
   const [diaFocadoMes, setDiaFocadoMes] = useState<Date | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [excluindoOcorrencia, setExcluindoOcorrencia] = useState<{ evento: Evento; dataOcorrencia: string } | null>(null);
   const [form, setForm] = useState<FormEvento>(FORM_VAZIO);
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
@@ -229,8 +230,33 @@ export function EventosPage() {
     setSalvando(false);
   }
 
-  async function excluirEvento(ev: Evento) {
-    if (!confirm(`Excluir o evento "${ev.titulo}"?`)) return;
+  // Evento unico nao tem ambiguidade - exclui direto. Recorrente abre o modal perguntando se e
+  // so aquela data ou a serie inteira.
+  function excluirEvento(ev: Evento, dataOcorrencia: string) {
+    if (ev.recorrencia === 'nenhuma') {
+      if (!confirm(`Excluir o evento "${ev.titulo}"?`)) return;
+      excluirSerieCompleta(ev);
+      return;
+    }
+    setExcluindoOcorrencia({ evento: ev, dataOcorrencia });
+  }
+
+  async function excluirApenasEstaData() {
+    if (!excluindoOcorrencia) return;
+    const { evento, dataOcorrencia } = excluindoOcorrencia;
+    setExcluindoOcorrencia(null);
+    try {
+      await updateDoc(doc(db, 'eventos', evento.id), { ocorrenciasExcluidas: arrayUnion(dataOcorrencia) });
+      setEventos(prev => prev.map(e => e.id === evento.id
+        ? { ...e, ocorrenciasExcluidas: [...(e.ocorrenciasExcluidas || []), dataOcorrencia] }
+        : e));
+    } catch (e: any) {
+      alert('Erro ao excluir esta data: ' + e.message);
+    }
+  }
+
+  async function excluirSerieCompleta(ev: Evento) {
+    setExcluindoOcorrencia(null);
     try {
       await deleteDoc(doc(db, 'eventos', ev.id));
       setEventos(prev => prev.filter(e => e.id !== ev.id));
@@ -462,7 +488,7 @@ export function EventosPage() {
                           <button onClick={() => abrirEditar(evento)} className="p-1 text-on-surface-variant hover:text-page-flores rounded-full transition-colors">
                             <span className="material-symbols-outlined text-[18px]">edit</span>
                           </button>
-                          <button onClick={() => excluirEvento(evento)} className="p-1 text-on-surface-variant hover:text-error rounded-full transition-colors">
+                          <button onClick={() => excluirEvento(evento, dataOcorrenciaStr)} className="p-1 text-on-surface-variant hover:text-error rounded-full transition-colors">
                             <span className="material-symbols-outlined text-[18px]">delete</span>
                           </button>
                         </>
@@ -703,6 +729,30 @@ export function EventosPage() {
                 {salvando ? 'Salvando...' : editandoId ? 'Atualizar' : 'Criar'}
               </button>
               <button onClick={fecharModal} className="px-4 py-2 bg-surface-container text-on-surface rounded-lg text-sm border border-outline-variant">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: excluir so esta data ou a recorrencia inteira */}
+      {excluindoOcorrencia && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setExcluindoOcorrencia(null)}>
+          <div className="bg-surface rounded-2xl p-5 w-full max-w-sm shadow-2xl border border-outline-variant space-y-3" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-on-surface text-lg">Excluir evento recorrente</h3>
+            <p className="text-sm text-on-surface-variant">
+              "{excluindoOcorrencia.evento.titulo}" se repete. Você quer excluir só a ocorrência de{' '}
+              {excluindoOcorrencia.dataOcorrencia.split('-').reverse().join('/')}, ou a recorrência inteira?
+            </p>
+            <div className="flex flex-col gap-2 pt-1">
+              <button onClick={excluirApenasEstaData} className="w-full bg-surface-container text-on-surface border border-outline-variant font-bold py-2.5 rounded-xl text-sm hover:bg-surface-container-high transition-all">
+                Excluir apenas esta data
+              </button>
+              <button onClick={() => excluirSerieCompleta(excluindoOcorrencia.evento)} className="w-full bg-error/10 text-error border border-error/30 font-bold py-2.5 rounded-xl text-sm hover:bg-error/20 transition-all">
+                Excluir a recorrência inteira
+              </button>
+              <button onClick={() => setExcluindoOcorrencia(null)} className="w-full py-2 text-on-surface-variant text-sm hover:text-on-surface transition-colors">
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

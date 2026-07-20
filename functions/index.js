@@ -92,6 +92,14 @@ function eventoOcorreNoDia(evento, ano, mes, dia) {
     const [a, m, d] = evento.data.split('-').map(Number);
     return a === ano && m === mes && d === dia;
   }
+  const dataStr = `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+  if ((evento.ocorrenciasExcluidas || []).includes(dataStr)) return false;
+  // Recorrencia so vale a partir da data de criacao do evento, nunca retroativamente
+  if (evento.createdAt && typeof evento.createdAt.toDate === 'function') {
+    const criacao = evento.createdAt.toDate();
+    const criacaoUTC = Date.UTC(criacao.getUTCFullYear(), criacao.getUTCMonth(), criacao.getUTCDate());
+    if (Date.UTC(ano, mes - 1, dia) < criacaoUTC) return false;
+  }
   if (evento.recorrencia === 'semanal') {
     const idx = diaSemanaDe(ano, mes, dia);
     return (evento.diasSemana || []).includes(String(idx));
