@@ -587,6 +587,8 @@ export function ConfiguracoesPage() {
   async function handleSalvarMoradorCompleto() {
     if (!editandoMoradorId) return;
     try {
+      const moradorAnterior = moradores.find(m => m.uid === editandoMoradorId);
+
       // Remove campos vazios para nao sobrescrever com string vazia
       const dadosParaSalvar: Record<string, any> = { updatedAt: serverTimestamp() };
       Object.entries(formMoradorCompleto).forEach(([key, value]) => {
@@ -594,47 +596,59 @@ export function ConfiguracoesPage() {
           dadosParaSalvar[key] = value;
         }
       });
-      // Se for hospede, sincroniza isPresent (hoje) e verifica mudanca de presenca NA SEMANA ATUAL
-      const role = dadosParaSalvar.role || formMoradorCompleto.role || 'hospede';
-      let sobrepoeAntes = false;
-      let sobrepoeDepois = false;
-      let isCadastro = false;
-      let novaEstadiaInicio = '';
-      let novaEstadiaFim = '';
-      if (role === 'hospede') {
+
+      const roleAnterior = moradorAnterior?.role || 'hospede';
+      const roleNova = dadosParaSalvar.role || formMoradorCompleto.role || roleAnterior;
+      const mudouFuncao = roleAnterior !== roleNova;
+      const isCadastro = !moradorAnterior?.estadiaInicio || !moradorAnterior?.estadiaFim;
+
+      let novaEstadiaInicio = moradorAnterior?.estadiaInicio || '';
+      let novaEstadiaFim = moradorAnterior?.estadiaFim || '';
+
+      // Se a nova funcao e hospede, sincroniza isPresent (hoje) a partir da estadia
+      if (roleNova === 'hospede') {
         novaEstadiaInicio = dadosParaSalvar.estadiaInicio || formMoradorCompleto.estadiaInicio || '';
         novaEstadiaFim = dadosParaSalvar.estadiaFim || formMoradorCompleto.estadiaFim || '';
         const hoje = new Date().toISOString().split('T')[0];
         dadosParaSalvar.isPresent = !!(novaEstadiaInicio && novaEstadiaFim && novaEstadiaInicio <= hoje && novaEstadiaFim > hoje);
-        const moradorAnterior = moradores.find(m => m.uid === editandoMoradorId);
-        const prevInicio = moradorAnterior?.estadiaInicio || '';
-        const prevFim = moradorAnterior?.estadiaFim || '';
-        isCadastro = !prevInicio || !prevFim;
-        sobrepoeAntes = sobrepoeSemanaAtual(prevInicio, prevFim);
-        sobrepoeDepois = sobrepoeSemanaAtual(novaEstadiaInicio, novaEstadiaFim);
       }
+
+      // "Conta pra semana atual" antes e depois do save - mesma regra de buscarMoradoresPresentes()
+      // (hospede: estadia ativa; morador/admin: isPresent). Cobre tanto mudanca de datas de
+      // estadia quanto mudanca de funcao (ex: hospede promovido a morador).
+      const contaSemana = (role: string, isPresent: boolean | undefined, estadiaInicio: string, estadiaFim: string) =>
+        role === 'hospede' ? sobrepoeSemanaAtual(estadiaInicio, estadiaFim) : isPresent !== false;
+
+      const contavaAntes = contaSemana(roleAnterior, moradorAnterior?.isPresent, moradorAnterior?.estadiaInicio || '', moradorAnterior?.estadiaFim || '');
+      const isPresentDepois = roleNova === 'hospede' ? dadosParaSalvar.isPresent : moradorAnterior?.isPresent;
+      const contaDepois = contaSemana(roleNova, isPresentDepois, novaEstadiaInicio, novaEstadiaFim);
+
       await updateDoc(doc(db, 'users', editandoMoradorId), dadosParaSalvar);
       setEditandoMoradorId(null);
       setFormMoradorCompleto({});
       setSucesso('Morador atualizado!');
       carregarMoradores();
-      // Se a presenca do hospede NA SEMANA ATUAL mudou, dispara redistribuição
-      if (role === 'hospede' && casaSelecionada?.id && sobrepoeAntes !== sobrepoeDepois) {
+
+      // Se a presenca NA SEMANA ATUAL mudou (por troca de funcao ou de datas de estadia), redistribui
+      if (casaSelecionada?.id && contavaAntes !== contaDepois) {
         const semanaAtual = getSemanaDaData(new Date());
         try {
-          if (sobrepoeDepois) {
-            const titulo = isCadastro ? 'Tarefas Redistribuídas - Cadastro de Hospedagem' : 'Tarefas Redistribuídas - Alteração de Hospedagem';
+          if (contaDepois) {
+            const titulo = mudouFuncao
+              ? 'Tarefas Redistribuídas - Alteração de Função'
+              : (isCadastro ? 'Tarefas Redistribuídas - Cadastro de Hospedagem' : 'Tarefas Redistribuídas - Alteração de Hospedagem');
             const resultado = await redistribuirPorEntrada(
               editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'estadia_iniciada',
               novaEstadiaInicio, novaEstadiaFim, titulo
             );
-            setSucesso(`Hóspede presente! ${resultado.redistribuidas} tarefas redistribuídas${resultado.adiantadas > 0 ? `, ${resultado.adiantadas} adiantadas` : ''}.`);
+            setSucesso(`Morador presente! ${resultado.redistribuidas} tarefas redistribuídas${resultado.adiantadas > 0 ? `, ${resultado.adiantadas} adiantadas` : ''}.`);
           } else {
-            const resultado = await redistribuirPorSaida(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'estadia_terminada', 'Tarefas Redistribuídas - Alteração de Hospedagem');
-            setSucesso(`Hóspede ausente. ${resultado.redistribuidas} tarefas redistribuídas, ${resultado.realocadas} realocadas.`);
+            const titulo = mudouFuncao ? 'Tarefas Redistribuídas - Alteração de Função' : 'Tarefas Redistribuídas - Alteração de Hospedagem';
+            const resultado = await redistribuirPorSaida(editandoMoradorId, casaSelecionada.id, semanaAtual.weekId, 'estadia_terminada', titulo);
+            setSucesso(`Morador ausente. ${resultado.redistribuidas} tarefas redistribuídas, ${resultado.realocadas} realocadas.`);
           }
         } catch (err: any) {
-          console.error('Erro ao redistribuir por mudança de estadia:', err);
+          console.error('Erro ao redistribuir por mudança de função/estadia:', err);
         }
       }
     } catch (e: any) { setErro('Erro ao salvar: ' + e.message); }
