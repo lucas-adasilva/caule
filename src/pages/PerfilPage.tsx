@@ -11,6 +11,7 @@ import { Capacitor } from '@capacitor/core';
 import { redistribuirPorSaida, redistribuirPorEntrada } from '@/utils/distribuicao';
 import { getSemanaDaData, getIntervaloSemana, sobrepoeSemanaAtual } from '@/utils/semana';
 import { existeViagemSobrepondoPeriodo } from '@/utils/viagens';
+import { formatPhoneCompleto, formatCpf, formatPixKey, formatDateBr } from '@/utils/formatters';
 
 interface Viagem {
   id: string;
@@ -313,18 +314,18 @@ export function PerfilPage() {
             <div className="space-y-3">
               <div><label className="text-label-sm text-on-surface-variant block mb-1">Nome de Exibição (Apelido)</label><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
               <div><label className="text-label-sm text-on-surface-variant block mb-1">Nome Completo</label><input value={form.fullName} onChange={e => setForm({ ...form, fullName: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
-              <div><label className="text-label-sm text-on-surface-variant block mb-1">Telefone</label><input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
+              <div><label className="text-label-sm text-on-surface-variant block mb-1">Telefone</label><input value={formatPhoneCompleto(form.phone)} onChange={e => setForm({ ...form, phone: e.target.value.replace(/\D/g, '') })} placeholder="+55 (11) 9 9999-9999" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
               <div><label className="text-label-sm text-on-surface-variant block mb-1">Data de Nascimento</label><input type="date" value={form.birthDate} onChange={e => setForm({ ...form, birthDate: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
-              <div><label className="text-label-sm text-on-surface-variant block mb-1">CPF</label><input value={form.cpf} onChange={e => setForm({ ...form, cpf: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
-              <div><label className="text-label-sm text-on-surface-variant block mb-1">Chave Pix</label><input value={form.pixKey} onChange={e => setForm({ ...form, pixKey: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
+              <div><label className="text-label-sm text-on-surface-variant block mb-1">CPF</label><input value={formatCpf(form.cpf)} onChange={e => setForm({ ...form, cpf: e.target.value.replace(/\D/g, '') })} placeholder="000.000.000-00" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
+              <div><label className="text-label-sm text-on-surface-variant block mb-1">Chave Pix</label><input value={form.pixKey} onChange={e => setForm({ ...form, pixKey: e.target.value })} placeholder="CPF, e-mail, celular ou chave aleatória" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" /></div>
             </div>
           ) : (
             <div className="space-y-2 text-sm">
               <div className="flex justify-between py-1 border-b border-outline-variant/30"><span className="text-on-surface-variant">Nome completo</span><span className="text-on-surface">{user?.fullName || '-'}</span></div>
-              <div className="flex justify-between py-1 border-b border-outline-variant/30"><span className="text-on-surface-variant">Telefone</span><span className="text-on-surface">{user?.phone || '-'}</span></div>
-              <div className="flex justify-between py-1 border-b border-outline-variant/30"><span className="text-on-surface-variant">Nascimento</span><span className="text-on-surface">{user?.birthDate || '-'}</span></div>
-              <div className="flex justify-between py-1 border-b border-outline-variant/30"><span className="text-on-surface-variant">CPF</span><span className="text-on-surface">{user?.cpf || '-'}</span></div>
-              <div className="flex justify-between py-1"><span className="text-on-surface-variant">Chave Pix</span><span className="text-on-surface">{user?.pixKey || '-'}</span></div>
+              <div className="flex justify-between py-1 border-b border-outline-variant/30"><span className="text-on-surface-variant">Telefone</span><span className="text-on-surface">{user?.phone ? formatPhoneCompleto(user.phone) : '-'}</span></div>
+              <div className="flex justify-between py-1 border-b border-outline-variant/30"><span className="text-on-surface-variant">Nascimento</span><span className="text-on-surface">{user?.birthDate ? formatDateBr(user.birthDate) : '-'}</span></div>
+              <div className="flex justify-between py-1 border-b border-outline-variant/30"><span className="text-on-surface-variant">CPF</span><span className="text-on-surface">{user?.cpf ? formatCpf(user.cpf) : '-'}</span></div>
+              <div className="flex justify-between py-1"><span className="text-on-surface-variant">Chave Pix</span><span className="text-on-surface">{user?.pixKey ? formatPixKey(user.pixKey) : '-'}</span></div>
             </div>
           )}
         </div>

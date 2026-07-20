@@ -35,6 +35,15 @@ export function formatPhoneCompleto(phone: string): string {
   return `+${cleaned}`;
 }
 
+/** Formata data no formato YYYY-MM-DD (input type=date) para DD/MM/AAAA - split de string evita
+ *  o bug classico de `new Date('YYYY-MM-DD')` interpretar como UTC e voltar um dia em fusos negativos. */
+export function formatDateBr(dataIso?: string): string {
+  if (!dataIso) return '';
+  const [ano, mes, dia] = dataIso.split('-');
+  if (!ano || !mes || !dia) return dataIso;
+  return `${dia}/${mes}/${ano}`;
+}
+
 export function formatCpf(cpf: string): string {
   const cleaned = cpf.replace(/\D/g, '');
   if (cleaned.length > 11) return cleaned.slice(0, 11);
@@ -120,6 +129,19 @@ export function isValidCpf(cpf: string): boolean {
   if (check2 !== parseInt(cleaned[10])) return false;
 
   return true;
+}
+
+/** Detecta o tipo da chave Pix (CPF, celular, email ou aleatoria) e formata pra exibicao.
+ *  CPF e celular sem DDI tem os dois 11 digitos - usa o digito verificador do CPF pra desempatar. */
+export function formatPixKey(key: string): string {
+  const trimmed = key.trim();
+  if (!trimmed) return '';
+  if (trimmed.includes('@')) return trimmed; // email
+  const cleaned = trimmed.replace(/\D/g, '');
+  if (cleaned.length === 11 && isValidCpf(cleaned)) return formatCpf(cleaned);
+  if (cleaned.length === 10 || cleaned.length === 11) return formatPhone(cleaned);
+  if (cleaned.length === 12 || cleaned.length === 13) return formatPhoneCompleto(cleaned);
+  return trimmed; // chave aleatoria - mantem como esta
 }
 
 // ===== SANITIZAÇÃO =====
