@@ -1,6 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { TopAppBar } from '@/components/TopAppBar';
 import { useApp } from '@/App';
+import { useAuthStore } from '@/stores/authStore';
+import { proximaSemana, semanaAnterior } from '@/utils/distribuicao';
+
+interface Atribuicao {
+  id: string;
+  diaSemana: number;
+  status: 'pendente' | 'concluída' | 'concluida';
+}
+interface Distribuicao {
+  id: string;
+  weekId: string;
+  casaId: string;
+  atribuicoes: Atribuicao[];
+}
 
 interface Conquista {
   id: string;
@@ -36,9 +52,114 @@ const atividades: Atividade[] = [
   { id: '3', usuario: 'Mariana', acao: 'regou as', target: 'Plantas da Sala', tempo: 'Ontem', pontos: 10, cor: 'highlight-orange', icone: 'energy_savings_leaf' },
 ];
 
+const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+function getSemanaAtualWeekId(): string {
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const primeiraSegunda = new Date(ano, 0, 1);
+  const diasDesdeInicio = Math.floor((hoje.getTime() - primeiraSegunda.getTime()) / (24 * 60 * 60 * 1000));
+  const semana = Math.ceil((diasDesdeInicio + primeiraSegunda.getDay()) / 7);
+  return `${ano}-W${String(semana).padStart(2, '0')}`;
+}
+
+// Segunda-feira real (ISO, ancorada em 4 de janeiro) de uma semana - usada so pra atribuir cada
+// semana a um mes/ano (pelo dia em que ela comeca), igual ao mesmo calculo ja usado em
+// moradorViajandoNaSemana/intervaloDaSemana em outras partes do app.
+function segundaDaSemana(weekId: string): Date {
+  const match = weekId.match(/(\d+)-W(\d+)/);
+  if (!match) return new Date(NaN);
+  const ano = parseInt(match[1], 10);
+  const semana = parseInt(match[2], 10);
+  const jan4 = new Date(ano, 0, 4);
+  const primeiraSegunda = new Date(jan4.getTime() - ((jan4.getDay() + 6) % 7) * 24 * 60 * 60 * 1000);
+  return new Date(primeiraSegunda.getTime() + (semana - 1) * 7 * 24 * 60 * 60 * 1000);
+}
+
+function formatarDataCurta(d: Date): string {
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function calcularPercentual(atribuicoes: Atribuicao[]): { pct: number; concluidas: number; total: number } {
+  const total = atribuicoes.length;
+  const concluidas = atribuicoes.filter(a => a.status === 'concluida' || a.status === 'concluída').length;
+  return { pct: total > 0 ? Math.round((concluidas / total) * 100) : 0, concluidas, total };
+}
+
+function BarraPercentual({ label, sub, pct, destaque }: { label: string; sub?: string; pct: number; destaque?: boolean }) {
+  return (
+    <div className={`flex items-center gap-3 ${destaque ? 'p-3 bg-page-frutos/10 rounded-xl' : ''}`}>
+      <div className="w-16 flex-shrink-0">
+        <p className={`text-xs font-bold ${destaque ? 'text-page-frutos' : 'text-on-surface'}`}>{label}</p>
+        {sub && <p className="text-[10px] text-on-surface-variant">{sub}</p>}
+      </div>
+      <div className="flex-1 h-2.5 bg-surface-container-highest rounded-full overflow-hidden">
+        <div className="h-full bg-page-frutos rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+      </div>
+      <span className={`w-10 text-right text-xs font-bold flex-shrink-0 ${destaque ? 'text-page-frutos' : 'text-on-surface-variant'}`}>{pct}%</span>
+    </div>
+  );
+}
+
 export function ConquistasPage() {
   const { openMenu, openNotifications } = useApp();
-  const [harmonia] = useState(84);
+  const { user } = useAuthStore();
+  const [distribuicoes, setDistribuicoes] = useState<Distribuicao[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [visao, setVisao] = useState<'semana' | 'mes' | 'ano'>('semana');
+  const [weekIdSelecionado, setWeekIdSelecionado] = useState(getSemanaAtualWeekId());
+  const hoje = new Date();
+  const [anoSelecionado, setAnoSelecionado] = useState(hoje.getFullYear());
+  const [mesSelecionado, setMesSelecionado] = useState(hoje.getMonth());
+
+  useEffect(() => {
+    async function carregar() {
+      if (!user?.houseId) { setLoading(false); return; }
+      try {
+        const q = query(collection(db, 'distribuicoes'), where('casaId', '==', user.houseId));
+        const snap = await getDocs(q);
+        const lista: Distribuicao[] = [];
+        snap.forEach(d => lista.push({ id: d.id, ...d.data() } as Distribuicao));
+        setDistribuicoes(lista);
+      } catch (e) { console.error('[Conquistas] Erro ao carregar distribuições:', e); }
+      setLoading(false);
+    }
+    carregar();
+  }, [user?.houseId]);
+
+  function mesAnteriorNav() {
+    setMesSelecionado(prev => {
+      if (prev === 0) { setAnoSelecionado(a => a - 1); return 11; }
+      return prev - 1;
+    });
+  }
+  function mesSeguinteNav() {
+    setMesSelecionado(prev => {
+      if (prev === 11) { setAnoSelecionado(a => a + 1); return 0; }
+      return prev + 1;
+    });
+  }
+
+  // ===== SEMANA =====
+  const distSemana = distribuicoes.find(d => d.weekId === weekIdSelecionado);
+  const segundaSemana = segundaDaSemana(weekIdSelecionado);
+  const diasDaSemana = Array.from({ length: 7 }, (_, i) => { const d = new Date(segundaSemana); d.setDate(d.getDate() + i); return d; });
+  const percentualPorDia = DIAS_SEMANA.map((_, idx) => calcularPercentual((distSemana?.atribuicoes || []).filter(a => a.diaSemana === idx)));
+  const totalSemana = calcularPercentual(distSemana?.atribuicoes || []);
+
+  // ===== MES =====
+  const semanasDoMes = distribuicoes
+    .filter(d => { const seg = segundaDaSemana(d.weekId); return seg.getFullYear() === anoSelecionado && seg.getMonth() === mesSelecionado; })
+    .sort((a, b) => segundaDaSemana(a.weekId).getTime() - segundaDaSemana(b.weekId).getTime());
+  const totalMes = calcularPercentual(semanasDoMes.flatMap(d => d.atribuicoes));
+
+  // ===== ANO =====
+  const distribuicoesPorMes: Distribuicao[][] = Array.from({ length: 12 }, (_, mes) =>
+    distribuicoes.filter(d => { const seg = segundaDaSemana(d.weekId); return seg.getFullYear() === anoSelecionado && seg.getMonth() === mes; })
+  );
+  const percentualPorMes = distribuicoesPorMes.map(lista => calcularPercentual(lista.flatMap(d => d.atribuicoes)));
+  const totalAno = calcularPercentual(distribuicoesPorMes.flat().flatMap(d => d.atribuicoes));
 
   const corClasses = {
     'highlight-orange': 'border-l-page-frutos text-page-frutos bg-page-frutos/20',
@@ -61,22 +182,94 @@ export function ConquistasPage() {
           <p className="font-body-md text-text-muted">Conquistas da Casa</p>
         </section>
 
-        {/* Harmony Progress Bar */}
-        <section className="mb-stack-lg p-6 bg-surface-container rounded-xl">
-          <div className="flex justify-between items-center mb-4">
+        {/* Percentual de Tarefas Concluídas */}
+        <section className="mb-stack-lg p-4 bg-surface-container rounded-xl space-y-4">
+          <div className="flex items-center justify-between">
             <h3 className="font-section-heading text-section-heading flex items-center gap-2">
-              <span className="material-symbols-outlined text-page-frutos">eco</span>
-              Harmonia da Casa
+              <span className="material-symbols-outlined text-page-frutos">task_alt</span>
+              Tarefas Concluídas
             </h3>
-            <span className="text-page-frutos font-bold">{harmonia}%</span>
           </div>
-          <div className="w-full h-4 bg-surface-container-highest rounded-full overflow-hidden">
-            <div
-              className="h-full bg-page-frutos progress-glow rounded-full transition-all duration-1000 ease-out"
-              style={{ width: `${harmonia}%` }}
-            />
+
+          {/* Toggle Semana / Mês / Ano */}
+          <div className="flex gap-1.5 bg-surface-container-high rounded-lg p-1">
+            {(['semana', 'mes', 'ano'] as const).map(v => (
+              <button
+                key={v}
+                onClick={() => setVisao(v)}
+                className={`flex-1 py-1.5 rounded-md text-xs font-bold capitalize transition-all ${
+                  visao === v ? 'bg-page-frutos text-white' : 'text-on-surface-variant'
+                }`}
+              >
+                {v === 'mes' ? 'Mês' : v}
+              </button>
+            ))}
           </div>
-          <p className="mt-3 font-caption text-caption text-text-muted italic">A colheita esta proxima! Continuem cuidando das raizes.</p>
+
+          {loading ? (
+            <div className="flex justify-center py-6"><span className="material-symbols-outlined animate-spin text-page-frutos text-2xl">refresh</span></div>
+          ) : visao === 'semana' ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <button onClick={() => setWeekIdSelecionado(semanaAnterior(weekIdSelecionado))} className="p-1 text-on-surface-variant hover:text-page-frutos rounded-full transition-colors">
+                  <span className="material-symbols-outlined">chevron_left</span>
+                </button>
+                <span className="text-xs font-bold text-on-surface">
+                  {formatarDataCurta(diasDaSemana[0])} - {formatarDataCurta(diasDaSemana[6])}
+                </span>
+                <button onClick={() => setWeekIdSelecionado(proximaSemana(weekIdSelecionado))} className="p-1 text-on-surface-variant hover:text-page-frutos rounded-full transition-colors">
+                  <span className="material-symbols-outlined">chevron_right</span>
+                </button>
+              </div>
+              <div className="space-y-2">
+                {DIAS_SEMANA.map((dia, idx) => (
+                  <BarraPercentual key={idx} label={dia} sub={formatarDataCurta(diasDaSemana[idx])} pct={percentualPorDia[idx].pct} />
+                ))}
+              </div>
+              <BarraPercentual label="Semana" sub={`${totalSemana.concluidas}/${totalSemana.total} tarefas`} pct={totalSemana.pct} destaque />
+            </div>
+          ) : visao === 'mes' ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <button onClick={mesAnteriorNav} className="p-1 text-on-surface-variant hover:text-page-frutos rounded-full transition-colors">
+                  <span className="material-symbols-outlined">chevron_left</span>
+                </button>
+                <span className="text-xs font-bold text-on-surface capitalize">{MESES[mesSelecionado]} de {anoSelecionado}</span>
+                <button onClick={mesSeguinteNav} className="p-1 text-on-surface-variant hover:text-page-frutos rounded-full transition-colors">
+                  <span className="material-symbols-outlined">chevron_right</span>
+                </button>
+              </div>
+              {semanasDoMes.length === 0 ? (
+                <p className="text-xs text-text-muted text-center py-4">Nenhuma distribuição de tarefas neste mês</p>
+              ) : (
+                <div className="space-y-2">
+                  {semanasDoMes.map((d, idx) => {
+                    const { pct } = calcularPercentual(d.atribuicoes);
+                    return <BarraPercentual key={d.id} label={`Sem. ${idx + 1}`} sub={formatarDataCurta(segundaDaSemana(d.weekId))} pct={pct} />;
+                  })}
+                </div>
+              )}
+              <BarraPercentual label="Mês" sub={`${totalMes.concluidas}/${totalMes.total} tarefas`} pct={totalMes.pct} destaque />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <button onClick={() => setAnoSelecionado(a => a - 1)} className="p-1 text-on-surface-variant hover:text-page-frutos rounded-full transition-colors">
+                  <span className="material-symbols-outlined">chevron_left</span>
+                </button>
+                <span className="text-sm font-bold text-on-surface">{anoSelecionado}</span>
+                <button onClick={() => setAnoSelecionado(a => a + 1)} className="p-1 text-on-surface-variant hover:text-page-frutos rounded-full transition-colors">
+                  <span className="material-symbols-outlined">chevron_right</span>
+                </button>
+              </div>
+              <div className="space-y-2">
+                {MESES.map((mes, idx) => (
+                  <BarraPercentual key={idx} label={mes} pct={percentualPorMes[idx].pct} />
+                ))}
+              </div>
+              <BarraPercentual label="Ano" sub={`${totalAno.concluidas}/${totalAno.total} tarefas`} pct={totalAno.pct} destaque />
+            </div>
+          )}
         </section>
 
         {/* Achievements Bento Grid */}
