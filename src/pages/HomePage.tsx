@@ -337,6 +337,27 @@ export function HomePage() {
               </h3>
               <span className="text-primary text-label-sm">{weekDays[selectedDay]?.label}</span>
             </div>
+
+            {/* Seletor de dia da semana - default no dia de hoje */}
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {weekDays.map((day, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedDay(idx)}
+                  className={`flex-shrink-0 flex flex-col items-center justify-center w-11 h-14 rounded-xl transition-all ${
+                    selectedDay === idx
+                      ? 'bg-page-copa text-on-primary font-bold shadow-[0_0_15px_rgba(46,204,113,0.3)]'
+                      : day.isToday
+                      ? 'bg-page-copa/10 text-page-copa font-bold'
+                      : 'bg-surface-card border border-outline-variant/30 text-on-surface-variant'
+                  }`}
+                >
+                  <span className="text-[10px] uppercase opacity-80">{day.label}</span>
+                  <span className="text-sm font-bold">{day.day}</span>
+                </button>
+              ))}
+            </div>
+
             {Object.keys(tarefasPorComodo).length === 0 ? (
               <div className="bg-surface-card p-6 rounded-xl border border-white/5 text-center">
                 <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-2">check_circle</span>
