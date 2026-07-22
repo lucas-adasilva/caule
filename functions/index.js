@@ -331,26 +331,30 @@ function gerarAtribuicoesSemana({ weekId, tarefasBase, execucoes, moradoresPrese
 
   const cargaPorDia = {};
   moradoresPresentes.forEach((m) => { cargaPorDia[m.uid] = new Array(DIAS_UTEIS).fill(0); });
-  const tarefasAlocadasPorMorador = {};
-  moradoresPresentes.forEach((m) => { tarefasAlocadasPorMorador[m.uid] = {}; });
+  // Rastreia GLOBALMENTE (nao por morador) em quais dias cada tarefa ja foi alocada nesta semana.
+  // Precisa ser global: uma tarefa "semanal, N vezes, sem dia fixo" vira N entradas independentes
+  // em tarefasExpandidas, cada uma processada numa chamada separada de distribuirTarefa - sem esse
+  // rastreio global, duas chamadas podiam escolher pessoas diferentes que, cada uma por conta
+  // propria, calculavam o mesmo dia como "menos carregado", duplicando a mesma tarefa no mesmo dia
+  // pra gente diferente (ex: "Louças" caindo 3x na quinta, uma por pessoa).
+  const diasOcupadosPorTarefa = {};
   let roundRobinIdx = 0;
 
   function distribuirTarefa(tarefa, diaFixo) {
     if (!considerarDomingo && diaFixo === 6) return null;
+    const diasGlobaisUsados = diasOcupadosPorTarefa[tarefa.id] || new Set();
     const moradoresDisponiveis = moradoresPresentes.filter((m) => {
       const { viajando, diasFora } = moradorViajandoNaSemana(m.uid, weekId, viagens, considerarDomingo);
       if (diaFixo !== null) {
         if (viajando && diasFora.includes(diaFixo)) return false;
         if (cargaPorDia[m.uid][diaFixo] >= LIMITE_TAREFAS_DIA) return false;
-        const diasJaUsados = tarefasAlocadasPorMorador[m.uid][tarefa.id] || [];
-        if (diasJaUsados.includes(diaFixo)) return false;
+        if (diasGlobaisUsados.has(diaFixo)) return false;
         return true;
       }
       for (let d = 0; d < DIAS_UTEIS; d++) {
         if (viajando && diasFora.includes(d)) continue;
         if (cargaPorDia[m.uid][d] >= LIMITE_TAREFAS_DIA) continue;
-        const diasJaUsados = tarefasAlocadasPorMorador[m.uid][tarefa.id] || [];
-        if (diasJaUsados.includes(d)) continue;
+        if (diasGlobaisUsados.has(d)) continue;
         return true;
       }
       return false;
@@ -375,12 +379,11 @@ function gerarAtribuicoesSemana({ weekId, tarefasBase, execucoes, moradoresPrese
     let dia = diaFixo;
     if (dia === null) {
       const { diasFora } = moradorViajandoNaSemana(responsavel.uid, weekId, viagens, considerarDomingo);
-      const diasJaUsados = tarefasAlocadasPorMorador[responsavel.uid][tarefa.id] || [];
       let melhorDia = -1;
       let menorCarga = Infinity;
       for (let d = 0; d < DIAS_UTEIS; d++) {
         if (diasFora.includes(d)) continue;
-        if (diasJaUsados.includes(d)) continue;
+        if (diasGlobaisUsados.has(d)) continue;
         const c = cargaPorDia[responsavel.uid][d];
         if (c >= LIMITE_TAREFAS_DIA) continue;
         if (c < menorCarga) { menorCarga = c; melhorDia = d; }
@@ -388,8 +391,8 @@ function gerarAtribuicoesSemana({ weekId, tarefasBase, execucoes, moradoresPrese
       if (melhorDia === -1) return null;
       dia = melhorDia;
     }
-    if (!tarefasAlocadasPorMorador[responsavel.uid][tarefa.id]) tarefasAlocadasPorMorador[responsavel.uid][tarefa.id] = [];
-    tarefasAlocadasPorMorador[responsavel.uid][tarefa.id].push(dia);
+    if (!diasOcupadosPorTarefa[tarefa.id]) diasOcupadosPorTarefa[tarefa.id] = new Set();
+    diasOcupadosPorTarefa[tarefa.id].add(dia);
     cargaPorDia[responsavel.uid][dia] = (cargaPorDia[responsavel.uid][dia] || 0) + 1;
     return { tarefa, dia, responsavel };
   }

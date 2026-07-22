@@ -900,31 +900,35 @@ export function ConfiguracoesPage() {
       }
       const cargaPorDia: Record<string, number[]> = {};
       moradoresPresentes.forEach(m => { cargaPorDia[m.uid] = new Array(DIAS_UTEIS).fill(0); });
-      // Rastreia quais tarefas ja foram alocadas para cada morador em cada dia
-      const tarefasAlocadasPorMorador: Record<string, Record<string, number[]>> = {};
-      moradoresPresentes.forEach(m => { tarefasAlocadasPorMorador[m.uid] = {}; });
+      // Rastreia GLOBALMENTE (nao por morador) em quais dias cada tarefa ja foi alocada nesta
+      // semana. Precisa ser global: uma tarefa "semanal, N vezes, sem dia fixo" vira N entradas
+      // independentes em tarefasExpandidas, cada uma processada numa chamada separada de
+      // distribuirTarefa - sem esse rastreio global, duas chamadas podiam escolher pessoas
+      // diferentes que, cada uma por conta propria, calculavam o mesmo dia como "menos
+      // carregado", duplicando a mesma tarefa no mesmo dia pra gente diferente (ex: "Louças"
+      // caindo 3x na quinta, uma por pessoa).
+      const diasOcupadosPorTarefa: Record<string, Set<number>> = {};
       let roundRobinIdx = 0;
       const debugLogs: string[] = [];
       function distribuirTarefa(tarefa: TarefaBase, diaFixo: number | null) {
         // Rejeita tarefas no domingo (dia 6 = domingo) apenas se nao considerar domingo
         if (!considerarDomingo && diaFixo === 6) return null;
+        const diasGlobaisUsados = diasOcupadosPorTarefa[tarefa.id] || new Set<number>();
         // Verifica quais moradores podem receber esta tarefa no dia especificado
         const moradoresDisponiveis = moradoresPresentes.filter(m => {
           const { viajando, diasFora } = moradorViajandoNaSemana(m.uid, semanaSelecionada);
           if (diaFixo !== null) {
-            // Tarefa com dia fixo: morador nao pode estar viajando, nao pode atingir limite, e nao pode ter mesma tarefa no mesmo dia
+            // Tarefa com dia fixo: morador nao pode estar viajando, nao pode atingir limite, e ninguem pode ja ter essa tarefa nesse dia
             if (viajando && diasFora.includes(diaFixo)) return false;
             if (cargaPorDia[m.uid][diaFixo] >= LIMITE_TAREFAS_DIA) return false;
-            const diasJaUsados = tarefasAlocadasPorMorador[m.uid][tarefa.id] || [];
-            if (diasJaUsados.includes(diaFixo)) return false;
+            if (diasGlobaisUsados.has(diaFixo)) return false;
             return true;
           }
-          // Tarefa sem dia fixo: morador precisa ter pelo menos 1 dia livre (nao viajando e abaixo do limite)
+          // Tarefa sem dia fixo: morador precisa ter pelo menos 1 dia livre (nao viajando, abaixo do limite, e sem ninguem ja alocado nessa tarefa)
           for (let d = 0; d < DIAS_UTEIS; d++) {
             if (viajando && diasFora.includes(d)) continue;
             if (cargaPorDia[m.uid][d] >= LIMITE_TAREFAS_DIA) continue;
-            const diasJaUsados = tarefasAlocadasPorMorador[m.uid][tarefa.id] || [];
-            if (diasJaUsados.includes(d)) continue;
+            if (diasGlobaisUsados.has(d)) continue;
             return true; // encontrou pelo menos 1 dia disponivel
           }
           return false;
@@ -950,13 +954,12 @@ export function ConfiguracoesPage() {
         let dia = diaFixo;
         if (dia === null) {
           const { diasFora } = moradorViajandoNaSemana(responsavel.uid, semanaSelecionada);
-          const diasJaUsados = tarefasAlocadasPorMorador[responsavel.uid][tarefa.id] || [];
           // Encontra o dia com menor carga, respeitando viagem, limite e duplicacao
           let melhorDia = -1;
           let menorCarga = Infinity;
           for (let d = 0; d < DIAS_UTEIS; d++) {
             if (diasFora.includes(d)) continue;
-            if (diasJaUsados.includes(d)) continue;
+            if (diasGlobaisUsados.has(d)) continue;
             const c = cargaPorDia[responsavel.uid][d];
             if (c >= LIMITE_TAREFAS_DIA) continue;
             if (c < menorCarga) {
@@ -966,18 +969,12 @@ export function ConfiguracoesPage() {
           }
           if (melhorDia === -1) return null;
           dia = melhorDia;
-          // Registra que esta tarefa foi alocada neste dia
-          if (!tarefasAlocadasPorMorador[responsavel.uid][tarefa.id]) tarefasAlocadasPorMorador[responsavel.uid][tarefa.id] = [];
-          tarefasAlocadasPorMorador[responsavel.uid][tarefa.id].push(dia);
-          debugLogs.push(`[DEBUG] Registrada tarefa ${tarefa.id} para ${responsavel.name} no dia ${dia}. Usados agora: [${tarefasAlocadasPorMorador[responsavel.uid][tarefa.id].join(',')}]`);
-        } else {
-          // Também registra para tarefas com dia fixo, para evitar duplicacao
-          if (!tarefasAlocadasPorMorador[responsavel.uid][tarefa.id]) tarefasAlocadasPorMorador[responsavel.uid][tarefa.id] = [];
-          tarefasAlocadasPorMorador[responsavel.uid][tarefa.id].push(dia);
-          debugLogs.push(`[DEBUG] Registrada tarefa ${tarefa.id} (dia fixo ${dia}) para ${responsavel.name}. Usados agora: [${tarefasAlocadasPorMorador[responsavel.uid][tarefa.id].join(',')}]`);
         }
+        if (!diasOcupadosPorTarefa[tarefa.id]) diasOcupadosPorTarefa[tarefa.id] = new Set<number>();
+        diasOcupadosPorTarefa[tarefa.id].add(dia);
+        debugLogs.push(`[DEBUG] Registrada tarefa ${tarefa.id} para ${responsavel.name} no dia ${dia}. Dias globais usados: [${[...diasOcupadosPorTarefa[tarefa.id]].join(',')}]`);
         cargaPorDia[responsavel.uid][dia] = (cargaPorDia[responsavel.uid][dia] || 0) + 1;
-        const logMsg = `[DIST] ${tarefa.titulo} (id=${tarefa.id}) -> ${responsavel.name} no dia ${dia}. Carga: [${cargaPorDia[responsavel.uid].join(',')}]. Usados: [${(tarefasAlocadasPorMorador[responsavel.uid][tarefa.id] || []).join(',')}]`;
+        const logMsg = `[DIST] ${tarefa.titulo} (id=${tarefa.id}) -> ${responsavel.name} no dia ${dia}. Carga: [${cargaPorDia[responsavel.uid].join(',')}]`;
         debugLogs.push(logMsg);
         return { tarefa, dia, responsavel };
       }
