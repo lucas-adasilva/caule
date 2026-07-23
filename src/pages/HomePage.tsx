@@ -380,8 +380,10 @@ export function HomePage() {
                             atribuicao.prioridade === 'media' ? 'bg-tertiary' : 'bg-secondary'
                           }`} />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-on-surface truncate">{atribuicao.titulo}</p>
-                            {tarefa && <p className="text-[10px] text-on-surface-variant">{tarefa.titulo}</p>}
+                            {/* Prefere o nome atual da tarefa (tarefa.titulo) - atribuicao.titulo e so
+                                uma copia de quando a semana foi distribuida, e fica desatualizada se a
+                                tarefa for renomeada depois. Só cai pro nome antigo se a tarefa foi excluída. */}
+                            <p className="text-sm font-medium text-on-surface truncate">{tarefa?.titulo || atribuicao.titulo}</p>
                           </div>
                           <span className={`text-[10px] px-2 py-0.5 rounded-full ${
                             atribuicao.prioridade === 'alta' ? 'bg-error/10 text-error' :
