@@ -41,6 +41,7 @@ interface Atribuicao {
   titulo: string;
   prioridade: 'alta' | 'media' | 'baixa';
   responsavelId: string;
+  responsavelNome: string;
   diaSemana: number;
   status: 'pendente' | 'concluída';
 }
@@ -86,6 +87,7 @@ export function HomePage() {
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState(diaSemanaHoje());
   const [moradoresEmViagem, setMoradoresEmViagem] = useState<Set<string>>(new Set());
+  const [tarefaSelecionada, setTarefaSelecionada] = useState<{ atribuicao: Atribuicao; tarefa: TarefaBase | undefined; comodo: Comodo } | null>(null);
 
   const weekDays = getWeekDays();
 
@@ -374,7 +376,11 @@ export function HomePage() {
                     </div>
                     <div className="space-y-2">
                       {tarefas.map(({ atribuicao, tarefa }) => (
-                        <div key={atribuicao.id} className="flex items-center gap-3 p-2 bg-surface-container-low rounded-lg">
+                        <button
+                          key={atribuicao.id}
+                          onClick={() => setTarefaSelecionada({ atribuicao, tarefa, comodo })}
+                          className="w-full flex items-center gap-3 p-2 bg-surface-container-low rounded-lg text-left hover:bg-surface-container transition-colors"
+                        >
                           <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                             atribuicao.prioridade === 'alta' ? 'bg-error' :
                             atribuicao.prioridade === 'media' ? 'bg-yellow-500' : 'bg-secondary'
@@ -385,13 +391,14 @@ export function HomePage() {
                                 tarefa for renomeada depois. Só cai pro nome antigo se a tarefa foi excluída. */}
                             <p className="text-sm font-medium text-on-surface truncate">{tarefa?.titulo || atribuicao.titulo}</p>
                           </div>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 ${
                             atribuicao.prioridade === 'alta' ? 'bg-error/10 text-error' :
                             atribuicao.prioridade === 'media' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-secondary/10 text-secondary'
                           }`}>
                             {atribuicao.prioridade}
                           </span>
-                        </div>
+                          <span className="material-symbols-outlined text-on-surface-variant text-lg flex-shrink-0">chevron_right</span>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -401,6 +408,45 @@ export function HomePage() {
           </div>
         </section>
       </main>
+
+      {/* Modal: detalhes da tarefa - responsavel por ela */}
+      {tarefaSelecionada && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setTarefaSelecionada(null)}>
+          <div className="bg-surface rounded-2xl p-5 w-full max-w-sm shadow-2xl border border-outline-variant space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-on-surface text-lg">{tarefaSelecionada.tarefa?.titulo || tarefaSelecionada.atribuicao.titulo}</h3>
+                <p className="text-xs text-on-surface-variant flex items-center gap-1 mt-0.5">
+                  <span>{tarefaSelecionada.comodo.icone}</span>{tarefaSelecionada.comodo.nome}
+                </p>
+              </div>
+              <button onClick={() => setTarefaSelecionada(null)} className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl">
+              <UserAvatar
+                photoURL={residents.find(r => r.uid === tarefaSelecionada.atribuicao.responsavelId)?.photoURL}
+                name={tarefaSelecionada.atribuicao.responsavelNome}
+                size={40}
+                showPresence={false}
+              />
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase text-on-surface-variant">Responsável</p>
+                <p className="text-sm font-medium text-on-surface truncate">{tarefaSelecionada.atribuicao.responsavelNome || 'Sem responsável'}</p>
+              </div>
+            </div>
+
+            <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full ${
+              tarefaSelecionada.atribuicao.prioridade === 'alta' ? 'bg-error/10 text-error' :
+              tarefaSelecionada.atribuicao.prioridade === 'media' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-secondary/10 text-secondary'
+            }`}>
+              Prioridade {tarefaSelecionada.atribuicao.prioridade}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
