@@ -63,7 +63,7 @@ function TaskRow({ atribuicao, onToggle, onEditDate, comodo }: { atribuicao: Atr
   const onTouchMove = (e: React.TouchEvent) => { const t = e.touches[0]; const dx = t.clientX - startX; const dy = t.clientY - startY; if (!isHoriz && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) setIsHoriz(true); if (isHoriz) { e.preventDefault(); if (!isConcluida && dx > 0) setTx(Math.min(dx, 100)); else if (isConcluida && dx < 0) setTx(Math.max(dx, -100)); else setTx(0); } };
   const onTouchEnd = () => { if (isHoriz) { if (!isConcluida && tx > 50) onToggle(atribuicao); else if (isConcluida && tx < -50) onToggle(atribuicao); } setTx(0); setIsHoriz(false); };
 
-  const pClasses = { alta: 'bg-error/10 text-error border-error/20', media: 'bg-tertiary-container/20 text-tertiary border-tertiary/20', baixa: 'bg-secondary/10 text-secondary border-secondary/20' };
+  const pClasses = { alta: 'bg-error/10 text-error border-error/20', media: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20', baixa: 'bg-secondary/10 text-secondary border-secondary/20' };
 
   // Log para debug
   console.log(`[TaskRow] ${atribuicao.titulo} - status: ${atribuicao.status}, isConcluida: ${isConcluida}`);

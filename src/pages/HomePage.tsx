@@ -377,7 +377,7 @@ export function HomePage() {
                         <div key={atribuicao.id} className="flex items-center gap-3 p-2 bg-surface-container-low rounded-lg">
                           <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                             atribuicao.prioridade === 'alta' ? 'bg-error' :
-                            atribuicao.prioridade === 'media' ? 'bg-tertiary' : 'bg-secondary'
+                            atribuicao.prioridade === 'media' ? 'bg-yellow-500' : 'bg-secondary'
                           }`} />
                           <div className="flex-1 min-w-0">
                             {/* Prefere o nome atual da tarefa (tarefa.titulo) - atribuicao.titulo e so
@@ -387,7 +387,7 @@ export function HomePage() {
                           </div>
                           <span className={`text-[10px] px-2 py-0.5 rounded-full ${
                             atribuicao.prioridade === 'alta' ? 'bg-error/10 text-error' :
-                            atribuicao.prioridade === 'media' ? 'bg-tertiary/10 text-tertiary' : 'bg-secondary/10 text-secondary'
+                            atribuicao.prioridade === 'media' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-secondary/10 text-secondary'
                           }`}>
                             {atribuicao.prioridade}
                           </span>

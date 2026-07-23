@@ -298,7 +298,7 @@ export function CalendarioPage() {
   const top10PorPrioridade = calcularTop10PorPrioridade(distribuicoes, tarefasBase, comodos);
   const PRIORIDADES: { key: 'alta' | 'media' | 'baixa'; label: string; corTexto: string; corBg: string; corBorda: string }[] = [
     { key: 'alta', label: 'Alta Prioridade', corTexto: 'text-error', corBg: 'bg-error/10', corBorda: 'border-error/30' },
-    { key: 'media', label: 'Média Prioridade', corTexto: 'text-tertiary', corBg: 'bg-tertiary/10', corBorda: 'border-tertiary/30' },
+    { key: 'media', label: 'Média Prioridade', corTexto: 'text-yellow-600', corBg: 'bg-yellow-500/10', corBorda: 'border-yellow-500/30' },
     { key: 'baixa', label: 'Baixa Prioridade', corTexto: 'text-secondary', corBg: 'bg-secondary/10', corBorda: 'border-secondary/30' },
   ];
 
