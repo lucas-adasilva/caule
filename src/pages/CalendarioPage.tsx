@@ -1,11 +1,21 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '@/lib/firebase';
 import { TopAppBar } from '@/components/TopAppBar';
 import { useApp } from '@/App';
 import { useAuthStore } from '@/stores/authStore';
 import type { Evento } from '@/utils/eventos';
 import { eventoOcorreEm } from '@/utils/eventos';
+
+interface ItemPendente {
+  id: string;
+  titulo: string;
+  fotoURL?: string;
+  status: 'aberto' | 'resolvido';
+  criadoPor: string;
+  criadoPorNome: string;
+}
 
 interface TarefaBase {
   id: string;
@@ -99,13 +109,17 @@ function calcularPrazo(prioridade: string, segunda: Date, dueDate: Date): Date {
   return fimDoDia(d15);
 }
 
-function calcularTop10(
+interface TarefaNaoConcluidaComPrioridade extends TarefaNaoConcluida {
+  prioridade: 'alta' | 'media' | 'baixa';
+}
+
+function calcularTop10PorPrioridade(
   distribuicoes: DistribuicaoHist[],
   tarefasBase: TarefaBase[],
   comodos: ComodoInfo[]
-): TarefaNaoConcluida[] {
+): Record<'alta' | 'media' | 'baixa', TarefaNaoConcluida[]> {
   const agora = new Date();
-  const grupos: Record<string, TarefaNaoConcluida> = {};
+  const grupos: Record<string, TarefaNaoConcluidaComPrioridade> = {};
 
   distribuicoes.forEach(dist => {
     const segunda = segundaDaSemana(dist.weekId);
@@ -125,12 +139,14 @@ function calcularTop10(
 
       const tarefaAtual = tarefasBase.find(t => t.id === atrib.tarefaId);
       const comodo = tarefaAtual ? comodos.find(c => c.id === tarefaAtual.comodoId) : undefined;
+      const prioridade = tarefaAtual?.prioridade || atrib.prioridade;
 
       if (!grupos[atrib.tarefaId]) {
         grupos[atrib.tarefaId] = {
           tarefaId: atrib.tarefaId,
           titulo: tarefaAtual?.titulo || atrib.titulo,
           comodo,
+          prioridade,
           count: 0,
           ocorrencias: [],
         };
@@ -140,9 +156,11 @@ function calcularTop10(
     });
   });
 
-  return Object.values(grupos)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
+  const todas = Object.values(grupos);
+  const porPrioridade = (p: 'alta' | 'media' | 'baixa') =>
+    todas.filter(t => t.prioridade === p).sort((a, b) => b.count - a.count).slice(0, 10);
+
+  return { alta: porPrioridade('alta'), media: porPrioridade('media'), baixa: porPrioridade('baixa') };
 }
 
 export function CalendarioPage() {
@@ -157,6 +175,10 @@ export function CalendarioPage() {
   const hoje = new Date();
   const [diaSelecionado, setDiaSelecionado] = useState(hoje);
   const [tarefaDetalhe, setTarefaDetalhe] = useState<TarefaNaoConcluida | null>(null);
+  const [itensPendentes, setItensPendentes] = useState<ItemPendente[]>([]);
+  const [novoItemTexto, setNovoItemTexto] = useState('');
+  const [salvandoItem, setSalvandoItem] = useState(false);
+  const [enviandoFotoId, setEnviandoFotoId] = useState<string | null>(null);
 
   useEffect(() => {
     async function carregar() {
@@ -185,11 +207,80 @@ export function CalendarioPage() {
         const listaDist: DistribuicaoHist[] = [];
         sDist.forEach(d => { const data = d.data(); listaDist.push({ id: d.id, weekId: data.weekId, atribuicoes: data.atribuicoes || [] }); });
         setDistribuicoes(listaDist);
+
+        await carregarItensPendentes();
       } catch (e) { console.error('[Calendario] Erro ao carregar dados:', e); }
       setLoading(false);
     }
     carregar();
   }, [user?.houseId]);
+
+  async function carregarItensPendentes() {
+    if (!user?.houseId) return;
+    try {
+      const q = query(collection(db, 'ciclosPendentes'), where('casaId', '==', user.houseId));
+      const snap = await getDocs(q);
+      const lista: ItemPendente[] = [];
+      snap.forEach(d => {
+        const data = d.data();
+        if (data.status !== 'aberto') return;
+        lista.push({ id: d.id, titulo: data.titulo || '', fotoURL: data.fotoURL || '', status: data.status, criadoPor: data.criadoPor || '', criadoPorNome: data.criadoPorNome || 'Alguém' });
+      });
+      setItensPendentes(lista);
+    } catch (e) { console.error('[Calendario] Erro ao carregar ciclos pendentes:', e); }
+  }
+
+  async function adicionarItemPendente() {
+    const titulo = novoItemTexto.trim();
+    if (!titulo || !user?.houseId || !user?.uid) return;
+    setSalvandoItem(true);
+    try {
+      const ref = await addDoc(collection(db, 'ciclosPendentes'), {
+        casaId: user.houseId,
+        titulo,
+        status: 'aberto',
+        criadoPor: user.uid,
+        criadoPorNome: user.name || 'Alguém',
+        createdAt: serverTimestamp(),
+      });
+      setItensPendentes(prev => [...prev, { id: ref.id, titulo, status: 'aberto', criadoPor: user.uid, criadoPorNome: user.name || 'Alguém' }]);
+      setNovoItemTexto('');
+    } catch (e: any) {
+      alert('Erro ao adicionar: ' + e.message);
+    }
+    setSalvandoItem(false);
+  }
+
+  async function enviarFotoItem(itemId: string, file: File) {
+    if (!file.type.startsWith('image/')) { alert('Selecione uma imagem válida'); return; }
+    if (file.size > 4 * 1024 * 1024) { alert('A imagem deve ter no máximo 4MB'); return; }
+    setEnviandoFotoId(itemId);
+    try {
+      const storageRef = ref(storage, `ciclosPendentes/${itemId}/foto.jpg`);
+      await uploadBytes(storageRef, file);
+      const fotoURL = await getDownloadURL(storageRef);
+      await updateDoc(doc(db, 'ciclosPendentes', itemId), { fotoURL });
+      setItensPendentes(prev => prev.map(it => it.id === itemId ? { ...it, fotoURL } : it));
+    } catch (e: any) {
+      alert('Erro ao enviar foto: ' + e.message);
+    }
+    setEnviandoFotoId(null);
+  }
+
+  async function resolverItem(itemId: string) {
+    // Some da lista de abertos mas mantem o registro no Firestore (status vira 'resolvido')
+    setItensPendentes(prev => prev.filter(it => it.id !== itemId));
+    try {
+      await updateDoc(doc(db, 'ciclosPendentes', itemId), {
+        status: 'resolvido',
+        resolvidoEm: serverTimestamp(),
+        resolvidoPor: user?.uid || '',
+      });
+    } catch (e) {
+      console.error('[Calendario] Erro ao resolver item:', e);
+      carregarItensPendentes();
+    }
+  }
 
   function mesAnterior() { setMesReferencia(prev => { const d = new Date(prev); d.setMonth(d.getMonth() - 1); return d; }); }
   function mesSeguinte() { setMesReferencia(prev => { const d = new Date(prev); d.setMonth(d.getMonth() + 1); return d; }); }
@@ -204,7 +295,12 @@ export function CalendarioPage() {
   const eventosDoDiaSelecionado = eventosNoDia(diaSelecionado);
   const diaSelecionadoLabel = diaSelecionado.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });
 
-  const top10 = calcularTop10(distribuicoes, tarefasBase, comodos);
+  const top10PorPrioridade = calcularTop10PorPrioridade(distribuicoes, tarefasBase, comodos);
+  const PRIORIDADES: { key: 'alta' | 'media' | 'baixa'; label: string; corTexto: string; corBg: string; corBorda: string }[] = [
+    { key: 'alta', label: 'Alta Prioridade', corTexto: 'text-error', corBg: 'bg-error/10', corBorda: 'border-error/30' },
+    { key: 'media', label: 'Média Prioridade', corTexto: 'text-tertiary', corBg: 'bg-tertiary/10', corBorda: 'border-tertiary/30' },
+    { key: 'baixa', label: 'Baixa Prioridade', corTexto: 'text-secondary', corBg: 'bg-secondary/10', corBorda: 'border-secondary/30' },
+  ];
 
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body-md overflow-x-hidden pb-32">
@@ -313,10 +409,10 @@ export function CalendarioPage() {
           )}
         </section>
 
-        {/* Top 10 Tarefas Não Concluídas */}
+        {/* Ciclos de Tarefas Não Concluídas */}
         <section className="space-y-stack-md">
           <div className="flex items-center justify-between">
-            <h3 className="text-section-heading font-section-heading text-on-surface">Top 10 Tarefas Não Concluídas</h3>
+            <h3 className="text-section-heading font-section-heading text-on-surface">Ciclos de Tarefas Não Concluídas</h3>
           </div>
           <p className="text-caption font-caption text-on-surface-variant -mt-2">
             Alta: não feita no mesmo dia · Média: não feita até domingo · Baixa: não feita em 15 dias
@@ -324,28 +420,107 @@ export function CalendarioPage() {
 
           {loading ? (
             <div className="flex justify-center py-8"><span className="material-symbols-outlined animate-spin text-page-ciclos text-3xl">refresh</span></div>
-          ) : top10.length === 0 ? (
+          ) : (
+            <div className="space-y-5">
+              {PRIORIDADES.map(({ key, label, corTexto, corBg, corBorda }) => {
+                const lista = top10PorPrioridade[key];
+                return (
+                  <div key={key} className={`rounded-xl border ${corBorda} ${corBg} p-3 space-y-2`}>
+                    <h4 className={`text-label-sm font-bold uppercase ${corTexto} px-1`}>{label}</h4>
+                    {lista.length === 0 ? (
+                      <p className="text-xs text-on-surface-variant px-1 py-2">Nenhuma tarefa atrasada nessa prioridade - tudo em dia!</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {lista.map((item, idx) => (
+                          <button
+                            key={item.tarefaId}
+                            onClick={() => setTarefaDetalhe(item)}
+                            className="w-full glass-card rounded-xl p-3 flex items-center gap-3 text-left hover:translate-x-1 transition-all"
+                          >
+                            <span className="w-5 text-center text-xs font-bold text-on-surface-variant flex-shrink-0">{idx + 1}</span>
+                            <span className="text-lg flex-shrink-0">{item.comodo?.icone || '📋'}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-on-surface truncate">{item.titulo}</p>
+                              <p className="text-[10px] text-on-surface-variant">{item.comodo?.nome || 'Cômodo removido'}</p>
+                            </div>
+                            <span className={`text-xs font-bold ${corBg} ${corTexto} px-2 py-1 rounded-full flex-shrink-0`}>{item.count}x</span>
+                            <span className="material-symbols-outlined text-on-surface-variant text-lg flex-shrink-0">chevron_right</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Você pode encerrar este ciclo? */}
+        <section className="space-y-stack-md">
+          <h3 className="text-section-heading font-section-heading text-on-surface">Você pode encerrar este ciclo?</h3>
+          <p className="text-caption font-caption text-on-surface-variant -mt-2">
+            Coisas que ficaram pendentes pra casa - fora do sistema de tarefas, tipo "tirar louça suja da mesa".
+          </p>
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={novoItemTexto}
+              onChange={e => setNovoItemTexto(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') adicionarItemPendente(); }}
+              placeholder="O que ficou pendente?"
+              className="flex-1 bg-surface-container-high border border-outline-variant text-on-surface rounded-xl py-2.5 px-4 text-sm"
+            />
+            <button
+              onClick={adicionarItemPendente}
+              disabled={!novoItemTexto.trim() || salvandoItem}
+              className="px-4 bg-page-ciclos text-on-primary font-bold rounded-xl text-sm hover:brightness-110 transition-all disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined">add</span>
+            </button>
+          </div>
+
+          {itensPendentes.length === 0 ? (
             <div className="glass-card rounded-xl p-6 text-center">
-              <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-2">verified</span>
-              <p className="text-text-muted">Nenhuma tarefa atrasada - tudo em dia!</p>
+              <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-2">task_alt</span>
+              <p className="text-text-muted">Nenhum ciclo em aberto no momento</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {top10.map((item, idx) => (
-                <button
-                  key={item.tarefaId}
-                  onClick={() => setTarefaDetalhe(item)}
-                  className="w-full glass-card rounded-xl p-3 flex items-center gap-3 text-left hover:translate-x-1 transition-all"
-                >
-                  <span className="w-5 text-center text-xs font-bold text-on-surface-variant flex-shrink-0">{idx + 1}</span>
-                  <span className="text-lg flex-shrink-0">{item.comodo?.icone || '📋'}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-on-surface truncate">{item.titulo}</p>
-                    <p className="text-[10px] text-on-surface-variant">{item.comodo?.nome || 'Cômodo removido'}</p>
+            <div className="space-y-3">
+              {itensPendentes.map(item => (
+                <div key={item.id} className="glass-card rounded-xl p-4 space-y-3">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-page-ciclos">Ciclo Aberto</span>
+                    <p className="text-sm font-medium text-on-surface mt-0.5">{item.titulo}</p>
+                    <p className="text-[10px] text-on-surface-variant mt-0.5">Por {item.criadoPorNome}</p>
                   </div>
-                  <span className="text-xs font-bold bg-error/10 text-error px-2 py-1 rounded-full flex-shrink-0">{item.count}x</span>
-                  <span className="material-symbols-outlined text-on-surface-variant text-lg flex-shrink-0">chevron_right</span>
-                </button>
+                  {item.fotoURL && (
+                    <img src={item.fotoURL} alt={item.titulo} className="w-20 h-20 object-cover rounded-lg border border-outline-variant" />
+                  )}
+                  <div className="flex gap-2">
+                    <label className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-surface-container-high border border-outline-variant text-on-surface-variant rounded-lg text-xs font-bold cursor-pointer hover:bg-surface-container-highest transition-all">
+                      <span className="material-symbols-outlined text-[16px]">
+                        {enviandoFotoId === item.id ? 'hourglass_empty' : 'photo_camera'}
+                      </span>
+                      {enviandoFotoId === item.id ? 'Enviando...' : item.fotoURL ? 'Trocar Foto' : 'Enviar Foto'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={enviandoFotoId === item.id}
+                        onChange={e => { const file = e.target.files?.[0]; if (file) enviarFotoItem(item.id, file); e.target.value = ''; }}
+                      />
+                    </label>
+                    <button
+                      onClick={() => resolverItem(item.id)}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-primary/10 text-primary border border-primary/30 rounded-lg text-xs font-bold hover:bg-primary/20 transition-all"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                      Resolvido
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           )}
