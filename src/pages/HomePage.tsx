@@ -191,8 +191,10 @@ export function HomePage() {
     frutos: 21,
   };
 
-  // Tarefas pendentes do dia selecionado, agrupadas por comodo
-  const tarefasDoDia = distribuicao?.atribuicoes.filter(a => a.diaSemana === selectedDay && a.status === 'pendente') || [];
+  // Tarefas pendentes do dia selecionado ATRIBUIDAS A MIM, agrupadas por comodo - faltava o
+  // filtro por responsavelId, entao a secao mostrava a tarefa pendente de QUALQUER morador
+  // naquele dia, nao so as do usuario logado.
+  const tarefasDoDia = distribuicao?.atribuicoes.filter(a => a.diaSemana === selectedDay && a.status === 'pendente' && a.responsavelId === user?.uid) || [];
   const tarefasPorComodo: Record<string, { comodo: Comodo; tarefas: { atribuicao: Atribuicao; tarefa: TarefaBase | undefined }[] }> = {};
   tarefasDoDia.forEach(atrib => {
     const tarefa = tarefas.find(t => t.id === atrib.tarefaId);
