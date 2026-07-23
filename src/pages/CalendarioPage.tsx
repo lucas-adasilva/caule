@@ -7,6 +7,47 @@ import { useAuthStore } from '@/stores/authStore';
 import type { Evento } from '@/utils/eventos';
 import { eventoOcorreEm } from '@/utils/eventos';
 
+interface TarefaBase {
+  id: string;
+  titulo: string;
+  comodoId: string;
+  prioridade: 'alta' | 'media' | 'baixa';
+}
+interface ComodoInfo {
+  id: string;
+  nome: string;
+  icone: string;
+}
+interface AtribuicaoHist {
+  id: string;
+  tarefaId: string;
+  titulo: string;
+  prioridade: 'alta' | 'media' | 'baixa';
+  responsavelId: string;
+  responsavelNome: string;
+  diaSemana: number;
+  status: string;
+  dataConclusao?: string;
+}
+interface DistribuicaoHist {
+  id: string;
+  weekId: string;
+  atribuicoes: AtribuicaoHist[];
+}
+
+interface OcorrenciaPerdida {
+  data: Date;
+  responsavelId: string;
+  responsavelNome: string;
+}
+interface TarefaNaoConcluida {
+  tarefaId: string;
+  titulo: string;
+  comodo?: ComodoInfo;
+  count: number;
+  ocorrencias: OcorrenciaPerdida[];
+}
+
 function getDiasDoMes(referencia: Date): { data: Date; noMesAtual: boolean }[] {
   const ano = referencia.getFullYear();
   const mes = referencia.getMonth();
@@ -26,25 +67,125 @@ function getDiasDoMes(referencia: Date): { data: Date; noMesAtual: boolean }[] {
   return dias;
 }
 
+// Segunda-feira real (ISO, ancorada em 4 de janeiro) de uma semana - mesmo calculo usado em
+// ConquistasPage.tsx/moradorViajandoNaSemana pra converter weekId em data de calendario.
+function segundaDaSemana(weekId: string): Date {
+  const match = weekId.match(/(\d+)-W(\d+)/);
+  if (!match) return new Date(NaN);
+  const ano = parseInt(match[1], 10);
+  const semana = parseInt(match[2], 10);
+  const jan4 = new Date(ano, 0, 4);
+  const primeiraSegunda = new Date(jan4.getTime() - ((jan4.getDay() + 6) % 7) * 24 * 60 * 60 * 1000);
+  return new Date(primeiraSegunda.getTime() + (semana - 1) * 7 * 24 * 60 * 60 * 1000);
+}
+
+function fimDoDia(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+// Prazo final pra considerar uma tarefa "nao cumprida", conforme a prioridade:
+// alta = no mesmo dia; media = ate domingo da mesma semana; baixa = ate 15 dias depois.
+function calcularPrazo(prioridade: string, segunda: Date, dueDate: Date): Date {
+  if (prioridade === 'alta') return fimDoDia(dueDate);
+  if (prioridade === 'media') {
+    const domingo = new Date(segunda);
+    domingo.setDate(domingo.getDate() + 6);
+    return fimDoDia(domingo);
+  }
+  const d15 = new Date(dueDate);
+  d15.setDate(d15.getDate() + 15);
+  return fimDoDia(d15);
+}
+
+function calcularTop10(
+  distribuicoes: DistribuicaoHist[],
+  tarefasBase: TarefaBase[],
+  comodos: ComodoInfo[]
+): TarefaNaoConcluida[] {
+  const agora = new Date();
+  const grupos: Record<string, TarefaNaoConcluida> = {};
+
+  distribuicoes.forEach(dist => {
+    const segunda = segundaDaSemana(dist.weekId);
+    if (isNaN(segunda.getTime())) return;
+    dist.atribuicoes.forEach(atrib => {
+      const dueDate = new Date(segunda);
+      dueDate.setDate(dueDate.getDate() + atrib.diaSemana);
+      const prazo = calcularPrazo(atrib.prioridade, segunda, dueDate);
+
+      let perdida = false;
+      if (atrib.status === 'concluida' || atrib.status === 'concluída') {
+        if (atrib.dataConclusao) perdida = new Date(atrib.dataConclusao).getTime() > prazo.getTime();
+      } else {
+        perdida = agora.getTime() > prazo.getTime();
+      }
+      if (!perdida) return;
+
+      const tarefaAtual = tarefasBase.find(t => t.id === atrib.tarefaId);
+      const comodo = tarefaAtual ? comodos.find(c => c.id === tarefaAtual.comodoId) : undefined;
+
+      if (!grupos[atrib.tarefaId]) {
+        grupos[atrib.tarefaId] = {
+          tarefaId: atrib.tarefaId,
+          titulo: tarefaAtual?.titulo || atrib.titulo,
+          comodo,
+          count: 0,
+          ocorrencias: [],
+        };
+      }
+      grupos[atrib.tarefaId].count++;
+      grupos[atrib.tarefaId].ocorrencias.push({ data: dueDate, responsavelId: atrib.responsavelId, responsavelNome: atrib.responsavelNome });
+    });
+  });
+
+  return Object.values(grupos)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+}
+
 export function CalendarioPage() {
   const { openMenu, openNotifications } = useApp();
   const { user } = useAuthStore();
   const [eventos, setEventos] = useState<Evento[]>([]);
+  const [tarefasBase, setTarefasBase] = useState<TarefaBase[]>([]);
+  const [comodos, setComodos] = useState<ComodoInfo[]>([]);
+  const [distribuicoes, setDistribuicoes] = useState<DistribuicaoHist[]>([]);
   const [loading, setLoading] = useState(true);
   const [mesReferencia, setMesReferencia] = useState(() => { const d = new Date(); d.setDate(1); return d; });
   const hoje = new Date();
   const [diaSelecionado, setDiaSelecionado] = useState(hoje);
+  const [tarefaDetalhe, setTarefaDetalhe] = useState<TarefaNaoConcluida | null>(null);
 
   useEffect(() => {
     async function carregar() {
       if (!user?.houseId) { setLoading(false); return; }
       try {
-        const q = query(collection(db, 'eventos'), where('casaId', '==', user.houseId));
-        const snap = await getDocs(q);
-        const lista: Evento[] = [];
-        snap.forEach(d => lista.push({ id: d.id, ...d.data(), respostas: d.data().respostas || {} } as Evento));
-        setEventos(lista);
-      } catch (e) { console.error('[Calendario] Erro ao carregar eventos:', e); }
+        const qEventos = query(collection(db, 'eventos'), where('casaId', '==', user.houseId));
+        const sEventos = await getDocs(qEventos);
+        const listaEventos: Evento[] = [];
+        sEventos.forEach(d => listaEventos.push({ id: d.id, ...d.data(), respostas: d.data().respostas || {} } as Evento));
+        setEventos(listaEventos);
+
+        const qTarefas = query(collection(db, 'tarefas'), where('casaId', '==', user.houseId));
+        const sTarefas = await getDocs(qTarefas);
+        const listaTarefas: TarefaBase[] = [];
+        sTarefas.forEach(d => { const data = d.data(); listaTarefas.push({ id: d.id, titulo: data.titulo || 'Tarefa', comodoId: data.comodoId || '', prioridade: data.prioridade || 'media' }); });
+        setTarefasBase(listaTarefas);
+
+        const qComodos = query(collection(db, 'comodos'), where('casaId', '==', user.houseId));
+        const sComodos = await getDocs(qComodos);
+        const listaComodos: ComodoInfo[] = [];
+        sComodos.forEach(d => { const data = d.data(); listaComodos.push({ id: d.id, nome: data.nome || 'Cômodo', icone: data.icone || '🏠' }); });
+        setComodos(listaComodos);
+
+        const qDist = query(collection(db, 'distribuicoes'), where('casaId', '==', user.houseId));
+        const sDist = await getDocs(qDist);
+        const listaDist: DistribuicaoHist[] = [];
+        sDist.forEach(d => { const data = d.data(); listaDist.push({ id: d.id, weekId: data.weekId, atribuicoes: data.atribuicoes || [] }); });
+        setDistribuicoes(listaDist);
+      } catch (e) { console.error('[Calendario] Erro ao carregar dados:', e); }
       setLoading(false);
     }
     carregar();
@@ -62,6 +203,8 @@ export function CalendarioPage() {
 
   const eventosDoDiaSelecionado = eventosNoDia(diaSelecionado);
   const diaSelecionadoLabel = diaSelecionado.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });
+
+  const top10 = calcularTop10(distribuicoes, tarefasBase, comodos);
 
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body-md overflow-x-hidden pb-32">
@@ -170,23 +313,76 @@ export function CalendarioPage() {
           )}
         </section>
 
-        {/* Insights / Progress Section */}
-        <section className="glass-card overflow-hidden rounded-xl h-40 relative flex items-end p-6">
-          <div className="absolute inset-0 z-0">
-            <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-surface/20" />
+        {/* Top 10 Tarefas Não Concluídas */}
+        <section className="space-y-stack-md">
+          <div className="flex items-center justify-between">
+            <h3 className="text-section-heading font-section-heading text-on-surface">Top 10 Tarefas Não Concluídas</h3>
           </div>
-          <div className="relative z-10 w-full">
-            <p className="text-label-sm font-label-sm text-primary mb-1">Ritmo Mensal</p>
-            <div className="flex items-center justify-between">
-              <h4 className="text-body-md font-section-heading text-on-surface">Crescimento constante</h4>
-              <span className="font-headline-lg-mobile text-headline-lg-mobile text-primary">85%</span>
+          <p className="text-caption font-caption text-on-surface-variant -mt-2">
+            Alta: não feita no mesmo dia · Média: não feita até domingo · Baixa: não feita em 15 dias
+          </p>
+
+          {loading ? (
+            <div className="flex justify-center py-8"><span className="material-symbols-outlined animate-spin text-page-ciclos text-3xl">refresh</span></div>
+          ) : top10.length === 0 ? (
+            <div className="glass-card rounded-xl p-6 text-center">
+              <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-2">verified</span>
+              <p className="text-text-muted">Nenhuma tarefa atrasada - tudo em dia!</p>
             </div>
-            <div className="w-full h-2 bg-surface-container-highest rounded-full mt-2 overflow-hidden">
-              <div className="h-full bg-primary w-[85%] rounded-full shadow-[0_0_10px_rgba(78,222,163,0.5)]" />
+          ) : (
+            <div className="space-y-2">
+              {top10.map((item, idx) => (
+                <button
+                  key={item.tarefaId}
+                  onClick={() => setTarefaDetalhe(item)}
+                  className="w-full glass-card rounded-xl p-3 flex items-center gap-3 text-left hover:translate-x-1 transition-all"
+                >
+                  <span className="w-5 text-center text-xs font-bold text-on-surface-variant flex-shrink-0">{idx + 1}</span>
+                  <span className="text-lg flex-shrink-0">{item.comodo?.icone || '📋'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-on-surface truncate">{item.titulo}</p>
+                    <p className="text-[10px] text-on-surface-variant">{item.comodo?.nome || 'Cômodo removido'}</p>
+                  </div>
+                  <span className="text-xs font-bold bg-error/10 text-error px-2 py-1 rounded-full flex-shrink-0">{item.count}x</span>
+                  <span className="material-symbols-outlined text-on-surface-variant text-lg flex-shrink-0">chevron_right</span>
+                </button>
+              ))}
             </div>
-          </div>
+          )}
         </section>
       </main>
+
+      {/* Modal: detalhes da tarefa nao concluida */}
+      {tarefaDetalhe && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setTarefaDetalhe(null)}>
+          <div className="bg-surface rounded-2xl p-5 w-full max-w-sm shadow-2xl border border-outline-variant space-y-3 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-on-surface text-lg">{tarefaDetalhe.titulo}</h3>
+                {tarefaDetalhe.comodo && (
+                  <p className="text-xs text-on-surface-variant flex items-center gap-1 mt-0.5">
+                    <span>{tarefaDetalhe.comodo.icone}</span>{tarefaDetalhe.comodo.nome}
+                  </p>
+                )}
+              </div>
+              <button onClick={() => setTarefaDetalhe(null)} className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <p className="text-xs font-bold text-on-surface-variant uppercase">
+              {tarefaDetalhe.count} {tarefaDetalhe.count > 1 ? 'vezes não concluída no prazo' : 'vez não concluída no prazo'}
+            </p>
+            <div className="space-y-2">
+              {[...tarefaDetalhe.ocorrencias].sort((a, b) => b.data.getTime() - a.data.getTime()).map((oc, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 bg-surface-container-low rounded-lg text-sm">
+                  <span className="text-on-surface">{oc.data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                  <span className="text-on-surface-variant">{oc.responsavelNome || 'Sem responsável'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
