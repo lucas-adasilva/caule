@@ -2065,94 +2065,136 @@ export function ConfiguracoesPage() {
 /* ===== NOTIFICACOES ===== */
 function NotificacoesTab({ user, token, setToken, perm, setPerm, loading, setLoading, testTitle, setTestTitle, testBody, setTestBody, logs, addLog }: any) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [secaoAtiva, setSecaoAtiva] = useState<'push' | 'banner'>('push');
+  const [fabAberto, setFabAberto] = useState(false);
 
   return (
-    <div className="space-y-6">
-      {/* Usuário */}
-      {user?.email && (
-        <div className="p-3 bg-surface-container-low rounded-lg">
-          <p className="text-caption text-on-surface-variant">Logado como: <span className="text-on-surface">{user.email}</span></p>
+    <div className="space-y-6 pb-20">
+      {secaoAtiva === 'push' && (
+        <div className="space-y-6">
+          {/* Usuário */}
+          {user?.email && (
+            <div className="p-3 bg-surface-container-low rounded-lg">
+              <p className="text-caption text-on-surface-variant">Logado como: <span className="text-on-surface">{user.email}</span></p>
+            </div>
+          )}
+          {/* Status */}
+          <div className="p-4 bg-surface-card rounded-xl border border-outline-variant flex items-center gap-4">
+            <div className="w-10 h-10 bg-primary-container/20 rounded-full flex items-center justify-center">
+              <span className="material-symbols-outlined text-primary text-xl">notifications</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-on-surface">Status</h3>
+              <p className="text-caption text-on-surface-variant">{perm || 'Não solicitado'}</p>
+            </div>
+          </div>
+
+          {/* Acoes */}
+          <div className="p-4 bg-surface-card rounded-xl border border-outline-variant space-y-3">
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-on-surface">Acoes</h3>
+              <button onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs text-primary hover:underline">
+                {showAdvanced ? 'Ocultar avançado' : 'Avançado'}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button disabled={loading} onClick={async () => { setLoading(true); addLog('Solicitando permissão...'); try { const { PushNotifications } = await import('@capacitor/push-notifications'); await PushNotifications.requestPermissions().then(r => setPerm(r.receive || 'denied')); addLog('Permissão: ' + (perm || 'ok')); } catch (e: any) { setPerm('erro: ' + e.message); addLog('Erro: ' + e.message); } setLoading(false); }} className="px-4 py-2 bg-primary-container text-on-primary-container rounded-lg text-sm font-bold disabled:opacity-50 hover:brightness-110 transition-all">
+                {loading ? '...' : 'Solicitar Permissão'}
+              </button>
+              <button onClick={async () => { addLog('Registrando...'); try { const { PushNotifications } = await import('@capacitor/push-notifications'); await PushNotifications.register(); PushNotifications.addListener('registration', (t) => { setToken(t.value); addLog('Token obtido!'); }); PushNotifications.addListener('registrationError', (err) => addLog('Erro: ' + err.error)); } catch (e: any) { addLog('Erro: ' + e.message); } }} className="px-4 py-2 bg-surface-container text-on-surface border border-outline-variant rounded-lg text-sm font-bold hover:bg-surface-container-high transition-all">
+                Registrar
+              </button>
+              {token && <button onClick={() => { navigator.clipboard?.writeText(token); addLog('Token copiado!'); }} className="px-4 py-2 bg-surface-container text-primary border border-outline-variant rounded-lg text-sm font-bold hover:bg-primary/10 transition-all">Copiar Token</button>}
+            </div>
+            {token && <p className="text-caption text-text-muted font-mono break-all">{showAdvanced ? token : token.substring(0, 50) + '...'}</p>}
+          </div>
+
+          {/* Teste */}
+          <div className="p-4 bg-surface-card rounded-xl border border-outline-variant space-y-3">
+            <h3 className="font-bold text-on-surface">Teste Personalizado</h3>
+            <div className="flex gap-2">
+              <input value={testTitle} onChange={e => setTestTitle(e.target.value)} placeholder="Titulo" className="flex-1 bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+              <input value={testBody} onChange={e => setTestBody(e.target.value)} placeholder="Mensagem" className="flex-1 bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+            </div>
+            <button
+              disabled={!testTitle.trim() || !testBody.trim()}
+              onClick={async () => {
+                addLog('Enviando notificação...');
+                try {
+                  const { LocalNotifications } = await import('@capacitor/local-notifications');
+                  await LocalNotifications.schedule({
+                    notifications: [{
+                      id: Date.now(),
+                      title: testTitle,
+                      body: testBody,
+                      schedule: { at: new Date(Date.now() + 1000) },
+                      sound: 'default',
+                    }]
+                  });
+                  addLog('Notificação enviada!');
+                  setTestTitle('');
+                  setTestBody('');
+                } catch (e: any) {
+                  addLog('Erro: ' + e.message);
+                  try {
+                    new Notification(testTitle, { body: testBody });
+                    addLog('Notificação de browser enviada!');
+                  } catch (e2: any) {
+                    addLog('Erro browser: ' + e2.message);
+                  }
+                }
+              }}
+              className="w-full bg-primary text-on-primary font-bold py-2 rounded-lg text-sm disabled:opacity-50 hover:brightness-110 transition-all"
+            >
+              Enviar Notificacao
+            </button>
+          </div>
+
+          {/* Logs */}
+          {logs.length > 0 && (
+            <div className="p-3 bg-surface-container-lowest rounded-lg space-y-1 max-h-40 overflow-y-auto">
+              <p className="text-xs text-text-muted mb-2">Logs:</p>
+              {logs.map((log: string, i: number) => <p key={i} className="text-[10px] font-mono text-on-surface-variant">{log}</p>)}
+            </div>
+          )}
         </div>
       )}
-      {/* Status */}
-      <div className="p-4 bg-surface-card rounded-xl border border-outline-variant flex items-center gap-4">
-        <div className="w-10 h-10 bg-primary-container/20 rounded-full flex items-center justify-center">
-          <span className="material-symbols-outlined text-primary text-xl">notifications</span>
-        </div>
-        <div>
-          <h3 className="font-bold text-on-surface">Status</h3>
-          <p className="text-caption text-on-surface-variant">{perm || 'Não solicitado'}</p>
-        </div>
-      </div>
 
-      {/* Acoes */}
-      <div className="p-4 bg-surface-card rounded-xl border border-outline-variant space-y-3">
-        <div className="flex justify-between items-center">
-          <h3 className="font-bold text-on-surface">Acoes</h3>
-          <button onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs text-primary hover:underline">
-            {showAdvanced ? 'Ocultar avançado' : 'Avançado'}
-          </button>
+      {secaoAtiva === 'banner' && (
+        <div className="p-6 bg-surface-card rounded-xl border border-outline-variant text-center space-y-2">
+          <span className="material-symbols-outlined text-4xl text-on-surface-variant">campaign</span>
+          <h3 className="font-bold text-on-surface">Banner / Mensagem Flutuante</h3>
+          <p className="text-sm text-on-surface-variant">
+            Em construção - as configurações do banner que aparece na tela inicial vão aparecer aqui.
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button disabled={loading} onClick={async () => { setLoading(true); addLog('Solicitando permissão...'); try { const { PushNotifications } = await import('@capacitor/push-notifications'); await PushNotifications.requestPermissions().then(r => setPerm(r.receive || 'denied')); addLog('Permissão: ' + (perm || 'ok')); } catch (e: any) { setPerm('erro: ' + e.message); addLog('Erro: ' + e.message); } setLoading(false); }} className="px-4 py-2 bg-primary-container text-on-primary-container rounded-lg text-sm font-bold disabled:opacity-50 hover:brightness-110 transition-all">
-            {loading ? '...' : 'Solicitar Permissão'}
-          </button>
-          <button onClick={async () => { addLog('Registrando...'); try { const { PushNotifications } = await import('@capacitor/push-notifications'); await PushNotifications.register(); PushNotifications.addListener('registration', (t) => { setToken(t.value); addLog('Token obtido!'); }); PushNotifications.addListener('registrationError', (err) => addLog('Erro: ' + err.error)); } catch (e: any) { addLog('Erro: ' + e.message); } }} className="px-4 py-2 bg-surface-container text-on-surface border border-outline-variant rounded-lg text-sm font-bold hover:bg-surface-container-high transition-all">
-            Registrar
-          </button>
-          {token && <button onClick={() => { navigator.clipboard?.writeText(token); addLog('Token copiado!'); }} className="px-4 py-2 bg-surface-container text-primary border border-outline-variant rounded-lg text-sm font-bold hover:bg-primary/10 transition-all">Copiar Token</button>}
-        </div>
-        {token && <p className="text-caption text-text-muted font-mono break-all">{showAdvanced ? token : token.substring(0, 50) + '...'}</p>}
-      </div>
+      )}
 
-      {/* Teste */}
-      <div className="p-4 bg-surface-card rounded-xl border border-outline-variant space-y-3">
-        <h3 className="font-bold text-on-surface">Teste Personalizado</h3>
-        <div className="flex gap-2">
-          <input value={testTitle} onChange={e => setTestTitle(e.target.value)} placeholder="Titulo" className="flex-1 bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
-          <input value={testBody} onChange={e => setTestBody(e.target.value)} placeholder="Mensagem" className="flex-1 bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
-        </div>
+      {/* FAB com speed-dial Push/Banner */}
+      <div className="fixed bottom-20 right-4 z-40 flex flex-col items-end gap-3">
+        {fabAberto && (
+          <>
+            <button onClick={() => { setSecaoAtiva('banner'); setFabAberto(false); }} className="flex items-center gap-2 active:scale-95 transition-all">
+              <span className="bg-surface-card px-3 py-1.5 rounded-lg text-xs font-bold text-on-surface shadow-md border border-outline-variant">Banner</span>
+              <div className="w-11 h-11 bg-tertiary rounded-full shadow-lg flex items-center justify-center text-on-tertiary flex-shrink-0">
+                <span className="material-symbols-outlined text-lg">campaign</span>
+              </div>
+            </button>
+            <button onClick={() => { setSecaoAtiva('push'); setFabAberto(false); }} className="flex items-center gap-2 active:scale-95 transition-all">
+              <span className="bg-surface-card px-3 py-1.5 rounded-lg text-xs font-bold text-on-surface shadow-md border border-outline-variant">Push</span>
+              <div className="w-11 h-11 bg-primary rounded-full shadow-lg flex items-center justify-center text-on-primary flex-shrink-0">
+                <span className="material-symbols-outlined text-lg">notifications</span>
+              </div>
+            </button>
+          </>
+        )}
         <button
-          disabled={!testTitle.trim() || !testBody.trim()}
-          onClick={async () => {
-            addLog('Enviando notificação...');
-            try {
-              const { LocalNotifications } = await import('@capacitor/local-notifications');
-              await LocalNotifications.schedule({
-                notifications: [{
-                  id: Date.now(),
-                  title: testTitle,
-                  body: testBody,
-                  schedule: { at: new Date(Date.now() + 1000) },
-                  sound: 'default',
-                }]
-              });
-              addLog('Notificação enviada!');
-              setTestTitle('');
-              setTestBody('');
-            } catch (e: any) {
-              addLog('Erro: ' + e.message);
-              try {
-                new Notification(testTitle, { body: testBody });
-                addLog('Notificação de browser enviada!');
-              } catch (e2: any) {
-                addLog('Erro browser: ' + e2.message);
-              }
-            }
-          }}
-          className="w-full bg-primary text-on-primary font-bold py-2 rounded-lg text-sm disabled:opacity-50 hover:brightness-110 transition-all"
+          onClick={() => setFabAberto(!fabAberto)}
+          className="w-14 h-14 bg-primary rounded-full shadow-lg flex items-center justify-center text-on-primary z-40 hover:brightness-110 active:scale-90 transition-all"
         >
-          Enviar Notificacao
+          <span className={`material-symbols-outlined text-2xl transition-transform duration-200 ${fabAberto ? 'rotate-45' : ''}`}>add</span>
         </button>
       </div>
-
-      {/* Logs */}
-      {logs.length > 0 && (
-        <div className="p-3 bg-surface-container-lowest rounded-lg space-y-1 max-h-40 overflow-y-auto">
-          <p className="text-xs text-text-muted mb-2">Logs:</p>
-          {logs.map((log: string, i: number) => <p key={i} className="text-[10px] font-mono text-on-surface-variant">{log}</p>)}
-        </div>
-      )}
     </div>
   );
 }
