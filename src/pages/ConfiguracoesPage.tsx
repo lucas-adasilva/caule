@@ -2063,6 +2063,155 @@ export function ConfiguracoesPage() {
 }
 
 /* ===== NOTIFICACOES ===== */
+interface CampanhaNotificacao {
+  id: string;
+  codigo: string;
+  titulo: string;
+  descricao: string;
+  disparo: 'automatico' | 'manual';
+  alcance: 'externo' | 'interno' | 'ambos';
+  categoria: 'push' | 'banner';
+  ativo: boolean;
+}
+
+// Campanhas de push que ja existem de verdade no codigo hoje (redistribuicao de tarefas por
+// viagem/hospedagem, distribuicao semanal automatica, notificacao e lembrete de eventos) -
+// criadas automaticamente no Firestore se ainda nao existirem, pra virar o catalogo editavel.
+const CAMPANHAS_PUSH_PADRAO: Omit<CampanhaNotificacao, 'id'>[] = [
+  {
+    codigo: 'REDIST-VIAGEM',
+    titulo: 'Redistribuição por Viagem',
+    descricao: 'Redistribui as tarefas da semana e avisa os admins quando um morador cadastra, altera ou exclui uma viagem que sobrepõe a semana atual.',
+    disparo: 'automatico',
+    alcance: 'ambos',
+    categoria: 'push',
+    ativo: true,
+  },
+  {
+    codigo: 'REDIST-HOSPEDAGEM',
+    titulo: 'Redistribuição por Hospedagem',
+    descricao: 'Redistribui as tarefas da semana e avisa os admins quando um hóspede cadastra, altera ou encerra uma estadia que sobrepõe a semana atual.',
+    disparo: 'automatico',
+    alcance: 'ambos',
+    categoria: 'push',
+    ativo: true,
+  },
+  {
+    codigo: 'DIST-SEMANAL',
+    titulo: 'Distribuição Semanal Automática',
+    descricao: 'Todo domingo às 16h, gera a distribuição de tarefas da semana seguinte pra cada casa e avisa os admins com o resumo.',
+    disparo: 'automatico',
+    alcance: 'ambos',
+    categoria: 'push',
+    ativo: true,
+  },
+  {
+    codigo: 'EVENTO-NOTIFICACAO',
+    titulo: 'Notificação de Evento',
+    descricao: 'Avisa os moradores (ou só quem tem acesso, conforme o tipo do evento) quando um evento é criado, editado ou cancelado.',
+    disparo: 'automatico',
+    alcance: 'ambos',
+    categoria: 'push',
+    ativo: true,
+  },
+  {
+    codigo: 'EVENTO-LEMBRETE',
+    titulo: 'Lembrete de Evento',
+    descricao: 'Verificação agendada a cada 10 minutos que envia lembretes (1 dia, 1 hora ou 30 minutos antes) só pra quem confirmou presença na ocorrência do evento.',
+    disparo: 'automatico',
+    alcance: 'ambos',
+    categoria: 'push',
+    ativo: true,
+  },
+];
+
+const DISPARO_LABEL: Record<string, string> = { automatico: 'Automático', manual: 'Manual' };
+const ALCANCE_LABEL: Record<string, string> = { externo: 'Externo', interno: 'Interno', ambos: 'Externo + Interno' };
+
+function CampanhasLista({ categoria }: { categoria: 'push' | 'banner' }) {
+  const [campanhas, setCampanhas] = useState<CampanhaNotificacao[]>([]);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    async function carregar() {
+      setCarregando(true);
+      try {
+        const snap = await getDocs(collection(db, 'campanhasNotificacao'));
+        const existentes: CampanhaNotificacao[] = [];
+        snap.forEach(d => { const data = d.data(); existentes.push({ id: d.id, ...data } as CampanhaNotificacao); });
+
+        // Cria automaticamente as campanhas de push padrao que ainda nao existem no Firestore
+        if (categoria === 'push') {
+          const codigosExistentes = new Set(existentes.map(c => c.codigo));
+          for (const padrao of CAMPANHAS_PUSH_PADRAO) {
+            if (codigosExistentes.has(padrao.codigo)) continue;
+            const ref = await addDoc(collection(db, 'campanhasNotificacao'), padrao);
+            existentes.push({ id: ref.id, ...padrao });
+          }
+        }
+
+        setCampanhas(existentes.filter(c => c.categoria === categoria));
+      } catch (e) { console.error('[Campanhas] Erro ao carregar:', e); }
+      setCarregando(false);
+    }
+    carregar();
+  }, [categoria]);
+
+  async function alternarAtivo(campanha: CampanhaNotificacao) {
+    setCampanhas(prev => prev.map(c => c.id === campanha.id ? { ...c, ativo: !c.ativo } : c));
+    try {
+      await updateDoc(doc(db, 'campanhasNotificacao', campanha.id), { ativo: !campanha.ativo });
+    } catch (e) {
+      console.error('[Campanhas] Erro ao alternar:', e);
+      setCampanhas(prev => prev.map(c => c.id === campanha.id ? { ...c, ativo: campanha.ativo } : c));
+    }
+  }
+
+  if (carregando) {
+    return <div className="flex justify-center py-6"><span className="material-symbols-outlined animate-spin text-primary text-2xl">refresh</span></div>;
+  }
+
+  if (campanhas.length === 0) {
+    return <p className="text-sm text-on-surface-variant text-center py-4">Nenhuma campanha de {categoria === 'push' ? 'push' : 'banner'} cadastrada ainda.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {campanhas.map(c => (
+        <div key={c.id} className={`p-4 rounded-xl border space-y-2 ${c.ativo ? 'bg-surface-card border-outline-variant' : 'bg-surface-container-low border-outline-variant/50 opacity-70'}`}>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">{c.codigo}</span>
+              <h4 className="font-bold text-on-surface text-sm mt-1">{c.titulo}</h4>
+            </div>
+            <button
+              onClick={() => alternarAtivo(c)}
+              className={`flex-shrink-0 w-11 h-6 rounded-full flex items-center px-0.5 transition-colors ${c.ativo ? 'bg-primary justify-end' : 'bg-surface-container-highest justify-start'}`}
+              title={c.ativo ? 'Desativar' : 'Ativar'}
+            >
+              <div className="w-5 h-5 rounded-full bg-white" />
+            </button>
+          </div>
+          <p className="text-xs text-on-surface-variant">{c.descricao}</p>
+          <div className="flex flex-wrap gap-2">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant flex items-center gap-1">
+              <span className="material-symbols-outlined text-[12px]">{c.disparo === 'automatico' ? 'bolt' : 'touch_app'}</span>
+              {DISPARO_LABEL[c.disparo]}
+            </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant flex items-center gap-1">
+              <span className="material-symbols-outlined text-[12px]">{c.alcance === 'ambos' ? 'devices' : c.alcance === 'externo' ? 'notifications_active' : 'chat_bubble'}</span>
+              {ALCANCE_LABEL[c.alcance]}
+            </span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.ativo ? 'bg-primary/10 text-primary' : 'bg-on-surface-variant/10 text-on-surface-variant'}`}>
+              {c.ativo ? 'Ativa' : 'Inativa'}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function NotificacoesTab({ user, token, setToken, perm, setPerm, loading, setLoading, testTitle, setTestTitle, testBody, setTestBody, logs, addLog }: any) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [secaoAtiva, setSecaoAtiva] = useState<'push' | 'banner' | null>(null);
@@ -2076,6 +2225,17 @@ function NotificacoesTab({ user, token, setToken, perm, setPerm, loading, setLoa
             <span className="material-symbols-outlined text-primary">notifications</span>
             Push
           </h3>
+
+          {/* Campanhas de push cadastradas no sistema */}
+          <div>
+            <h4 className="text-label-sm text-on-surface-variant font-bold uppercase mb-2">Campanhas</h4>
+            <CampanhasLista categoria="push" />
+          </div>
+
+          <div className="border-t border-outline-variant/50 pt-4">
+            <h4 className="text-label-sm text-on-surface-variant font-bold uppercase mb-3">Ferramentas de Teste</h4>
+          </div>
+
           {/* Usuário */}
           {user?.email && (
             <div className="p-3 bg-surface-container-low rounded-lg">
@@ -2165,12 +2325,22 @@ function NotificacoesTab({ user, token, setToken, perm, setPerm, loading, setLoa
       )}
 
       {secaoAtiva === 'banner' && (
-        <div className="p-6 bg-surface-card rounded-xl border border-outline-variant text-center space-y-2">
-          <span className="material-symbols-outlined text-4xl text-on-surface-variant">campaign</span>
-          <h3 className="font-bold text-on-surface">Banner / Mensagem Flutuante</h3>
-          <p className="text-sm text-on-surface-variant">
-            Em construção - as configurações do banner que aparece na tela inicial vão aparecer aqui.
-          </p>
+        <div className="space-y-6">
+          <h3 className="font-bold text-on-surface text-lg flex items-center gap-2">
+            <span className="material-symbols-outlined text-tertiary">campaign</span>
+            Banner
+          </h3>
+
+          <div>
+            <h4 className="text-label-sm text-on-surface-variant font-bold uppercase mb-2">Campanhas</h4>
+            <CampanhasLista categoria="banner" />
+          </div>
+
+          <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant/50 text-center">
+            <p className="text-xs text-on-surface-variant">
+              Em construção - criar/editar campanhas de banner e a configuração de como ele aparece na tela inicial vão entrar aqui.
+            </p>
+          </div>
         </div>
       )}
 
