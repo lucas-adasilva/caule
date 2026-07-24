@@ -2070,7 +2070,7 @@ interface CampanhaNotificacao {
   descricao: string;
   disparo: 'automatico' | 'manual';
   alcance: 'externo' | 'interno' | 'ambos';
-  publico: 'moradores' | 'hospedes' | 'comunidade';
+  publico: 'admin' | 'moradores' | 'coletivo';
   categoria: 'push' | 'banner';
   ativo: boolean;
 }
@@ -2085,7 +2085,7 @@ const CAMPANHAS_PUSH_PADRAO: Omit<CampanhaNotificacao, 'id'>[] = [
     descricao: 'Redistribui as tarefas da semana e avisa os admins quando um morador cadastra, altera ou exclui uma viagem que sobrepõe a semana atual.',
     disparo: 'automatico',
     alcance: 'ambos',
-    publico: 'moradores',
+    publico: 'admin',
     categoria: 'push',
     ativo: true,
   },
@@ -2095,7 +2095,7 @@ const CAMPANHAS_PUSH_PADRAO: Omit<CampanhaNotificacao, 'id'>[] = [
     descricao: 'Redistribui as tarefas da semana e avisa os admins quando um hóspede cadastra, altera ou encerra uma estadia que sobrepõe a semana atual.',
     disparo: 'automatico',
     alcance: 'ambos',
-    publico: 'moradores',
+    publico: 'admin',
     categoria: 'push',
     ativo: true,
   },
@@ -2105,7 +2105,7 @@ const CAMPANHAS_PUSH_PADRAO: Omit<CampanhaNotificacao, 'id'>[] = [
     descricao: 'Todo domingo às 16h, gera a distribuição de tarefas da semana seguinte pra cada casa e avisa os admins com o resumo.',
     disparo: 'automatico',
     alcance: 'ambos',
-    publico: 'moradores',
+    publico: 'admin',
     categoria: 'push',
     ativo: true,
   },
@@ -2115,7 +2115,7 @@ const CAMPANHAS_PUSH_PADRAO: Omit<CampanhaNotificacao, 'id'>[] = [
     descricao: 'Avisa os moradores (ou só quem tem acesso, conforme o tipo do evento) quando um evento é criado, editado ou cancelado.',
     disparo: 'automatico',
     alcance: 'ambos',
-    publico: 'comunidade',
+    publico: 'coletivo',
     categoria: 'push',
     ativo: true,
   },
@@ -2125,7 +2125,7 @@ const CAMPANHAS_PUSH_PADRAO: Omit<CampanhaNotificacao, 'id'>[] = [
     descricao: 'Verificação agendada a cada 10 minutos que envia lembretes (1 dia, 1 hora ou 30 minutos antes) só pra quem confirmou presença na ocorrência do evento.',
     disparo: 'automatico',
     alcance: 'ambos',
-    publico: 'comunidade',
+    publico: 'coletivo',
     categoria: 'push',
     ativo: true,
   },
@@ -2133,8 +2133,8 @@ const CAMPANHAS_PUSH_PADRAO: Omit<CampanhaNotificacao, 'id'>[] = [
 
 const DISPARO_LABEL: Record<string, string> = { automatico: 'Automático', manual: 'Manual' };
 const ALCANCE_LABEL: Record<string, string> = { externo: 'Externo', interno: 'Interno', ambos: 'Externo + Interno' };
-const PUBLICO_LABEL: Record<string, string> = { moradores: 'Moradores', hospedes: 'Hóspedes', comunidade: 'Comunidade (moradores + hóspedes)' };
-const PUBLICO_ICON: Record<string, string> = { moradores: 'home', hospedes: 'luggage', comunidade: 'groups' };
+const PUBLICO_LABEL: Record<string, string> = { admin: 'Admin', moradores: 'Moradores', coletivo: 'Coletivo' };
+const PUBLICO_ICON: Record<string, string> = { admin: 'shield_person', moradores: 'home', coletivo: 'groups' };
 
 function CampanhasLista({ categoria }: { categoria: 'push' | 'banner' }) {
   const [campanhas, setCampanhas] = useState<CampanhaNotificacao[]>([]);
@@ -2158,11 +2158,11 @@ function CampanhasLista({ categoria }: { categoria: 'push' | 'banner' }) {
           }
         }
 
-        // Preenche o campo "publico" em campanhas ja cadastradas antes dele existir
+        // Mantem o campo "publico" sincronizado com o padrao (preenche se faltar, corrige se a
+        // taxonomia mudou - ex: "comunidade"/"hospedes" antigos viraram "admin"/"moradores"/"coletivo")
         for (const existente of existentes) {
-          if (existente.publico) continue;
           const padrao = CAMPANHAS_PUSH_PADRAO.find(p => p.codigo === existente.codigo);
-          if (!padrao) continue;
+          if (!padrao || existente.publico === padrao.publico) continue;
           existente.publico = padrao.publico;
           await updateDoc(doc(db, 'campanhasNotificacao', existente.id), { publico: padrao.publico });
         }
