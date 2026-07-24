@@ -33,7 +33,7 @@ export const functions = getFunctions(app, "southamerica-east1");
 // Chave publica VAPID (Web Push) - gerar em: Console do Firebase > Configurações do projeto >
 // Cloud Messaging > "Certificados push da Web" > "Gerar par de chaves". Sem essa chave real,
 // getWebMessaging()/getToken() não funciona - fica só faltando colar o valor aqui.
-export const VAPID_KEY = "";
+export const VAPID_KEY = "BN8miP88a97NuSy6kk47zxuwfA9cOMtv29_-tJxwGqojmAxIY4OvIh-3229vzrznxkI6ck5RMqmFHS60RB-cByU";
 
 // Push web só existe em navegador com suporte a Service Worker + Push API (não em todo
 // WebView/iframe) - isSupported() confirma isso antes de tentar inicializar.
