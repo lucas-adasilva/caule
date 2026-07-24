@@ -222,6 +222,7 @@ export async function notificarEvento(
         tipo: 'sistema',
         lida: false,
         createdAt: serverTimestamp(),
+        campanhaCodigo: 'EVENTO-NOTIFICACAO',
       });
     } catch (e) {
       console.error('[Eventos] Erro ao notificar', membro.uid, e);

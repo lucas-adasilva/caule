@@ -17,6 +17,16 @@ exports.enviarPushNotificacao = onDocumentCreated('notificacoes/{notificacaoId}'
   const destinatarioId = notificacao.destinatarioId;
   if (!destinatarioId) return;
 
+  // Campanha desativada no catalogo (Configuracoes > Notificacoes) = nao dispara push real,
+  // mesmo que o registro in-app em `notificacoes` continue sendo criado normalmente.
+  if (notificacao.campanhaCodigo) {
+    const campanhaSnap = await db.collection('campanhasNotificacao')
+      .where('codigo', '==', notificacao.campanhaCodigo)
+      .limit(1)
+      .get();
+    if (!campanhaSnap.empty && campanhaSnap.docs[0].data().ativo === false) return;
+  }
+
   const userSnap = await db.collection('users').doc(destinatarioId).get();
   if (!userSnap.exists) return;
 
@@ -187,6 +197,7 @@ exports.verificarLembretesEventos = onSchedule({ schedule: `every ${JANELA_MIN} 
               tipo: 'sistema',
               lida: false,
               createdAt: FieldValue.serverTimestamp(),
+              campanhaCodigo: 'EVENTO-LEMBRETE',
             });
           }
         } catch (e) {
@@ -445,6 +456,7 @@ async function notificarAdminsDistribuicaoSemanal(casaId, weekId, atribuicoes, t
       tipo: 'sistema',
       lida: false,
       createdAt: FieldValue.serverTimestamp(),
+      campanhaCodigo: 'DIST-SEMANAL',
     });
   }
 }

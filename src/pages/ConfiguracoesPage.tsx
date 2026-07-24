@@ -2070,6 +2070,7 @@ interface CampanhaNotificacao {
   descricao: string;
   disparo: 'automatico' | 'manual';
   alcance: 'externo' | 'interno' | 'ambos';
+  publico: 'moradores' | 'hospedes' | 'comunidade';
   categoria: 'push' | 'banner';
   ativo: boolean;
 }
@@ -2084,6 +2085,7 @@ const CAMPANHAS_PUSH_PADRAO: Omit<CampanhaNotificacao, 'id'>[] = [
     descricao: 'Redistribui as tarefas da semana e avisa os admins quando um morador cadastra, altera ou exclui uma viagem que sobrepõe a semana atual.',
     disparo: 'automatico',
     alcance: 'ambos',
+    publico: 'moradores',
     categoria: 'push',
     ativo: true,
   },
@@ -2093,6 +2095,7 @@ const CAMPANHAS_PUSH_PADRAO: Omit<CampanhaNotificacao, 'id'>[] = [
     descricao: 'Redistribui as tarefas da semana e avisa os admins quando um hóspede cadastra, altera ou encerra uma estadia que sobrepõe a semana atual.',
     disparo: 'automatico',
     alcance: 'ambos',
+    publico: 'moradores',
     categoria: 'push',
     ativo: true,
   },
@@ -2102,6 +2105,7 @@ const CAMPANHAS_PUSH_PADRAO: Omit<CampanhaNotificacao, 'id'>[] = [
     descricao: 'Todo domingo às 16h, gera a distribuição de tarefas da semana seguinte pra cada casa e avisa os admins com o resumo.',
     disparo: 'automatico',
     alcance: 'ambos',
+    publico: 'moradores',
     categoria: 'push',
     ativo: true,
   },
@@ -2111,6 +2115,7 @@ const CAMPANHAS_PUSH_PADRAO: Omit<CampanhaNotificacao, 'id'>[] = [
     descricao: 'Avisa os moradores (ou só quem tem acesso, conforme o tipo do evento) quando um evento é criado, editado ou cancelado.',
     disparo: 'automatico',
     alcance: 'ambos',
+    publico: 'comunidade',
     categoria: 'push',
     ativo: true,
   },
@@ -2120,6 +2125,7 @@ const CAMPANHAS_PUSH_PADRAO: Omit<CampanhaNotificacao, 'id'>[] = [
     descricao: 'Verificação agendada a cada 10 minutos que envia lembretes (1 dia, 1 hora ou 30 minutos antes) só pra quem confirmou presença na ocorrência do evento.',
     disparo: 'automatico',
     alcance: 'ambos',
+    publico: 'comunidade',
     categoria: 'push',
     ativo: true,
   },
@@ -2127,6 +2133,8 @@ const CAMPANHAS_PUSH_PADRAO: Omit<CampanhaNotificacao, 'id'>[] = [
 
 const DISPARO_LABEL: Record<string, string> = { automatico: 'Automático', manual: 'Manual' };
 const ALCANCE_LABEL: Record<string, string> = { externo: 'Externo', interno: 'Interno', ambos: 'Externo + Interno' };
+const PUBLICO_LABEL: Record<string, string> = { moradores: 'Moradores', hospedes: 'Hóspedes', comunidade: 'Comunidade (moradores + hóspedes)' };
+const PUBLICO_ICON: Record<string, string> = { moradores: 'home', hospedes: 'luggage', comunidade: 'groups' };
 
 function CampanhasLista({ categoria }: { categoria: 'push' | 'banner' }) {
   const [campanhas, setCampanhas] = useState<CampanhaNotificacao[]>([]);
@@ -2148,6 +2156,15 @@ function CampanhasLista({ categoria }: { categoria: 'push' | 'banner' }) {
             const ref = await addDoc(collection(db, 'campanhasNotificacao'), padrao);
             existentes.push({ id: ref.id, ...padrao });
           }
+        }
+
+        // Preenche o campo "publico" em campanhas ja cadastradas antes dele existir
+        for (const existente of existentes) {
+          if (existente.publico) continue;
+          const padrao = CAMPANHAS_PUSH_PADRAO.find(p => p.codigo === existente.codigo);
+          if (!padrao) continue;
+          existente.publico = padrao.publico;
+          await updateDoc(doc(db, 'campanhasNotificacao', existente.id), { publico: padrao.publico });
         }
 
         setCampanhas(existentes.filter(c => c.categoria === categoria));
@@ -2202,6 +2219,12 @@ function CampanhasLista({ categoria }: { categoria: 'push' | 'banner' }) {
               <span className="material-symbols-outlined text-[12px]">{c.alcance === 'ambos' ? 'devices' : c.alcance === 'externo' ? 'notifications_active' : 'chat_bubble'}</span>
               {ALCANCE_LABEL[c.alcance]}
             </span>
+            {c.publico && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant flex items-center gap-1">
+                <span className="material-symbols-outlined text-[12px]">{PUBLICO_ICON[c.publico]}</span>
+                {PUBLICO_LABEL[c.publico]}
+              </span>
+            )}
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.ativo ? 'bg-primary/10 text-primary' : 'bg-on-surface-variant/10 text-on-surface-variant'}`}>
               {c.ativo ? 'Ativa' : 'Inativa'}
             </span>

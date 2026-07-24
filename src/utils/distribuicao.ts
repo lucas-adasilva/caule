@@ -343,6 +343,7 @@ async function notificarRedistribuicao(
         tipo: 'sistema',
         lida: false,
         createdAt: serverTimestamp(),
+        campanhaCodigo: subtipo === 'estadia' ? 'REDIST-HOSPEDAGEM' : 'REDIST-VIAGEM',
       });
     } catch (e) {
       console.error('[Notificacao] Erro ao salvar notificacao:', e);
