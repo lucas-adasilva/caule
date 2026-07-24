@@ -2248,14 +2248,24 @@ function NotificacoesTab({ user, token, setToken, perm, setPerm, loading, setLoa
       useAuthStore.getState().setUser({ ...user, pushHabilitado: ativar });
       if (ativar) {
         addLog('Ativando push permanente...');
-        const { PushNotifications } = await import('@capacitor/push-notifications');
-        const permStatus = await PushNotifications.requestPermissions();
-        setPerm(permStatus.receive || 'denied');
-        if (permStatus.receive === 'granted') {
-          await PushNotifications.register();
-          addLog('Push ativado - vai continuar registrado nos próximos acessos, até você desligar.');
+        const { Capacitor } = await import('@capacitor/core');
+        if (Capacitor.isNativePlatform()) {
+          const { PushNotifications } = await import('@capacitor/push-notifications');
+          const permStatus = await PushNotifications.requestPermissions();
+          setPerm(permStatus.receive || 'denied');
+          if (permStatus.receive === 'granted') {
+            await PushNotifications.register();
+            addLog('Push ativado - vai continuar registrado nos próximos acessos, até você desligar.');
+          } else {
+            addLog('Permissão negada pelo sistema - ative nas configurações do aparelho.');
+          }
         } else {
-          addLog('Permissão negada pelo sistema - ative nas configurações do aparelho.');
+          const { registerWebPush } = await import('@/utils/webPush');
+          const result = await registerWebPush(user.uid);
+          setPerm(result.ok ? 'granted' : (Notification?.permission || 'denied'));
+          addLog(result.ok
+            ? 'Push ativado no navegador - vai continuar registrado nos próximos acessos, até você desligar.'
+            : 'Erro: ' + result.error);
         }
       } else {
         addLog('Push desativado.');

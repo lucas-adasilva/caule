@@ -34,23 +34,39 @@ exports.enviarPushNotificacao = onDocumentCreated('notificacoes/{notificacaoId}'
   if (tokens.length === 0) return;
 
   const bodyTexto = String(notificacao.mensagem || '').replace(/<[^>]*>/g, '').slice(0, 200);
+  const titulo = notificacao.titulo || 'Caule';
 
+  // Sem bloco "notification" no nivel raiz nem em "android" - isso forca mensagem "data-only"
+  // pro Android, que faz o FirebaseMessagingService (CauleMessagingService.java) SEMPRE rodar,
+  // mesmo com o app fechado, pra poder montar a notificacao com icone grande colorido (o SDK
+  // padrao do FCM so mostra sozinho um icone pequeno monocromatico, sem essa opcao).
   const response = await getMessaging().sendEachForMulticast({
     tokens,
-    notification: {
-      title: notificacao.titulo || 'Caule',
-      body: bodyTexto,
-    },
     data: {
+      title: titulo,
+      body: bodyTexto,
       type: notificacao.tipo || 'sistema',
       notificacaoId: event.params.notificacaoId,
     },
     android: {
+      priority: 'high',
+    },
+    apns: {
+      payload: {
+        aps: {
+          alert: { title: titulo, body: bodyTexto },
+          sound: 'default',
+        },
+      },
+    },
+    webpush: {
       notification: {
-        channelId: 'caule-default',
-        sound: 'default',
-        icon: 'ic_stat_notification',
-        color: '#4edea3',
+        title: titulo,
+        body: bodyTexto,
+        icon: 'https://caule-c064f.web.app/icons/icon-192x192.png',
+      },
+      fcmOptions: {
+        link: 'https://caule-c064f.web.app/',
       },
     },
   });

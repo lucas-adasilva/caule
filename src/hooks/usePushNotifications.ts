@@ -10,6 +10,7 @@ import { collection, addDoc, serverTimestamp, doc, setDoc, arrayUnion } from 'fi
 import { db } from '../lib/firebase';
 import { useAuthStore } from '../stores/authStore';
 import { syncBadgeCount } from '../utils/badge';
+import { registerWebPush } from '../utils/webPush';
 
 export function usePushNotifications() {
   const { user } = useAuthStore();
@@ -73,7 +74,14 @@ export function usePushNotifications() {
 
   const registerPush = async () => {
     if (!isNative) {
-      console.log('[Push] Not native platform, skipping');
+      if (!user?.uid) return;
+      const result = await registerWebPush(user.uid);
+      if (!result.ok) {
+        console.warn('[Push] Web registration failed:', result.error);
+        setError(result.error || 'Erro ao registrar push web');
+      } else {
+        setError(null);
+      }
       return;
     }
 
@@ -160,9 +168,9 @@ export function usePushNotifications() {
   // sempre ativo" ligado - roda de novo quando o usuario/preferencia carrega do Firestore
   // (que acontece depois do mount, de forma assincrona).
   useEffect(() => {
-    if (!isNative || !user?.pushHabilitado) return;
+    if (!user?.pushHabilitado) return;
     registerPush();
-  }, [isNative, user?.pushHabilitado]);
+  }, [isNative, user?.pushHabilitado, user?.uid]);
 
   const scheduleLocalNotification = async (title: string, body: string, delayMs: number = 1000) => {
     if (!isNative) return;
