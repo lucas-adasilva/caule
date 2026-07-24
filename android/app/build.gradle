@@ -48,6 +48,11 @@ dependencies {
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    // Mesma versao que o plugin @capacitor/push-notifications usa internamente (implementation,
+    // nao exposta como api) - precisa declarar aqui de novo pra CauleMessagingService.java
+    // conseguir enxergar FirebaseMessagingService/RemoteMessage no classpath do app.
+    implementation "com.google.firebase:firebase-messaging:25.0.1"
+    implementation "androidx.core:core:1.13.1"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
