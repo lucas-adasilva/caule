@@ -2360,7 +2360,7 @@ function NotificacoesTab({ user, token, setToken, perm, setPerm, loading, setLoa
                   const { LocalNotifications } = await import('@capacitor/local-notifications');
                   await LocalNotifications.schedule({
                     notifications: [{
-                      id: Date.now(),
+                      id: Math.floor(Math.random() * 2147483647),
                       title: testTitle,
                       body: testBody,
                       schedule: { at: new Date(Date.now() + 1000) },
