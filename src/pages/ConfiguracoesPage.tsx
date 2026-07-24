@@ -2072,6 +2072,10 @@ function NotificacoesTab({ user, token, setToken, perm, setPerm, loading, setLoa
     <div className="space-y-6 pb-20">
       {secaoAtiva === 'push' && (
         <div className="space-y-6">
+          <h3 className="font-bold text-on-surface text-lg flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary">notifications</span>
+            Push
+          </h3>
           {/* Usuário */}
           {user?.email && (
             <div className="p-3 bg-surface-container-low rounded-lg">
