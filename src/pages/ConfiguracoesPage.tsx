@@ -2065,7 +2065,7 @@ export function ConfiguracoesPage() {
 /* ===== NOTIFICACOES ===== */
 function NotificacoesTab({ user, token, setToken, perm, setPerm, loading, setLoading, testTitle, setTestTitle, testBody, setTestBody, logs, addLog }: any) {
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [secaoAtiva, setSecaoAtiva] = useState<'push' | 'banner'>('push');
+  const [secaoAtiva, setSecaoAtiva] = useState<'push' | 'banner' | null>(null);
   const [fabAberto, setFabAberto] = useState(false);
 
   return (
@@ -2116,9 +2116,9 @@ function NotificacoesTab({ user, token, setToken, perm, setPerm, loading, setLoa
           {/* Teste */}
           <div className="p-4 bg-surface-card rounded-xl border border-outline-variant space-y-3">
             <h3 className="font-bold text-on-surface">Teste Personalizado</h3>
-            <div className="flex gap-2">
-              <input value={testTitle} onChange={e => setTestTitle(e.target.value)} placeholder="Titulo" className="flex-1 bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
-              <input value={testBody} onChange={e => setTestBody(e.target.value)} placeholder="Mensagem" className="flex-1 bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+            <div className="space-y-2">
+              <input value={testTitle} onChange={e => setTestTitle(e.target.value)} placeholder="Titulo" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+              <input value={testBody} onChange={e => setTestBody(e.target.value)} placeholder="Mensagem" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
             </div>
             <button
               disabled={!testTitle.trim() || !testBody.trim()}
@@ -2171,6 +2171,13 @@ function NotificacoesTab({ user, token, setToken, perm, setPerm, loading, setLoa
           <p className="text-sm text-on-surface-variant">
             Em construção - as configurações do banner que aparece na tela inicial vão aparecer aqui.
           </p>
+        </div>
+      )}
+
+      {secaoAtiva === null && (
+        <div className="p-6 text-center space-y-2">
+          <span className="material-symbols-outlined text-4xl text-on-surface-variant">add_circle</span>
+          <p className="text-sm text-on-surface-variant">Toque no botão + abaixo pra configurar Push ou Banner.</p>
         </div>
       )}
 
