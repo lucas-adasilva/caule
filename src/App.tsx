@@ -103,6 +103,7 @@ async function buildUserObject(firebaseUser: any) {
     estadiaFim: userData.estadiaFim || '',
     estadiaAtiva: verificarEstadiaAtiva(userData.estadiaInicio, userData.estadiaFim),
     isNewUser: !firestoreFound,
+    pushHabilitado: userData.pushHabilitado === true,
   };
 }
 

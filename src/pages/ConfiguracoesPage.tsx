@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, arrayRemove, orderBy, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
@@ -2240,6 +2240,36 @@ function NotificacoesTab({ user, token, setToken, perm, setPerm, loading, setLoa
   const [secaoAtiva, setSecaoAtiva] = useState<'push' | 'banner' | null>(null);
   const [fabAberto, setFabAberto] = useState(false);
 
+  async function alternarPushSempreAtivo(ativar: boolean) {
+    if (!user?.uid) return;
+    setLoading(true);
+    try {
+      await setDoc(doc(db, 'users', user.uid), { pushHabilitado: ativar }, { merge: true });
+      useAuthStore.getState().setUser({ ...user, pushHabilitado: ativar });
+      if (ativar) {
+        addLog('Ativando push permanente...');
+        const { PushNotifications } = await import('@capacitor/push-notifications');
+        const permStatus = await PushNotifications.requestPermissions();
+        setPerm(permStatus.receive || 'denied');
+        if (permStatus.receive === 'granted') {
+          await PushNotifications.register();
+          addLog('Push ativado - vai continuar registrado nos próximos acessos, até você desligar.');
+        } else {
+          addLog('Permissão negada pelo sistema - ative nas configurações do aparelho.');
+        }
+      } else {
+        addLog('Push desativado.');
+        if (token) {
+          await setDoc(doc(db, 'users', user.uid), { fcmTokens: arrayRemove(token) }, { merge: true });
+          setToken('');
+        }
+      }
+    } catch (e: any) {
+      addLog('Erro: ' + e.message);
+    }
+    setLoading(false);
+  }
+
   return (
     <div className="space-y-6 pb-20">
       {secaoAtiva === 'push' && (
@@ -2248,6 +2278,25 @@ function NotificacoesTab({ user, token, setToken, perm, setPerm, loading, setLoa
             <span className="material-symbols-outlined text-primary">notifications</span>
             Push
           </h3>
+
+          {/* Toggle persistente - mantem o push ligado nos proximos acessos ate ser desligado aqui */}
+          <div className="p-4 bg-surface-card rounded-xl border border-outline-variant flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h4 className="font-bold text-on-surface flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-xl">notifications_active</span>
+                Push sempre ativo
+              </h4>
+              <p className="text-caption text-on-surface-variant mt-0.5">Mantém o push ligado neste aparelho até você desligar por aqui.</p>
+            </div>
+            <button
+              disabled={loading}
+              onClick={() => alternarPushSempreAtivo(!user?.pushHabilitado)}
+              className={`flex-shrink-0 w-11 h-6 rounded-full flex items-center px-0.5 transition-colors disabled:opacity-50 ${user?.pushHabilitado ? 'bg-primary justify-end' : 'bg-surface-container-highest justify-start'}`}
+              title={user?.pushHabilitado ? 'Desativar' : 'Ativar'}
+            >
+              <div className="w-5 h-5 rounded-full bg-white" />
+            </button>
+          </div>
 
           {/* Campanhas de push cadastradas no sistema */}
           <div>

@@ -144,7 +144,8 @@ export function usePushNotifications() {
       }
     );
 
-    // Push NAO registra automaticamente - usuario ativa manualmente
+    // Push NAO registra automaticamente aqui - depende do toggle "Push sempre ativo"
+    // (ver efeito separado abaixo, que roda de novo quando o usuario/preferencia carrega)
     // registerPush();
 
     return () => {
@@ -154,6 +155,14 @@ export function usePushNotifications() {
       actionListener.then((l) => l.remove());
     };
   }, [isNative]);
+
+  // Registra automaticamente (permissao + token) sempre que o app abre com o toggle "Push
+  // sempre ativo" ligado - roda de novo quando o usuario/preferencia carrega do Firestore
+  // (que acontece depois do mount, de forma assincrona).
+  useEffect(() => {
+    if (!isNative || !user?.pushHabilitado) return;
+    registerPush();
+  }, [isNative, user?.pushHabilitado]);
 
   const scheduleLocalNotification = async (title: string, body: string, delayMs: number = 1000) => {
     if (!isNative) return;

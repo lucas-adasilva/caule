@@ -20,6 +20,7 @@ interface UserData {
   estadiaFim?: string;
   estadiaAtiva?: boolean;
   isNewUser?: boolean;
+  pushHabilitado?: boolean;
 }
 
 interface AuthStore {
