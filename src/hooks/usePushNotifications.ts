@@ -10,7 +10,7 @@ import { collection, addDoc, serverTimestamp, doc, setDoc, arrayUnion } from 'fi
 import { db } from '../lib/firebase';
 import { useAuthStore } from '../stores/authStore';
 import { syncBadgeCount } from '../utils/badge';
-import { registerWebPush } from '../utils/webPush';
+import { registerWebPush, listenForegroundWebPush } from '../utils/webPush';
 
 export function usePushNotifications() {
   const { user } = useAuthStore();
@@ -162,6 +162,15 @@ export function usePushNotifications() {
       receiveListener.then((l) => l.remove());
       actionListener.then((l) => l.remove());
     };
+  }, [isNative]);
+
+  // No web/PWA, mensagens com a aba em primeiro plano não passam pelo service worker - só
+  // chegam via onMessage(). Sem isso, nada aparece se a aba estiver aberta na hora do push.
+  useEffect(() => {
+    if (isNative) return;
+    let unsubscribe: (() => void) | undefined;
+    listenForegroundWebPush().then((unsub) => { unsubscribe = unsub; });
+    return () => unsubscribe?.();
   }, [isNative]);
 
   // Registra automaticamente (permissao + token) sempre que o app abre com o toggle "Push

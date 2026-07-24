@@ -1,4 +1,4 @@
-import { getToken } from 'firebase/messaging';
+import { getToken, onMessage } from 'firebase/messaging';
 import { doc, setDoc, arrayUnion } from 'firebase/firestore';
 import { db, getWebMessaging, VAPID_KEY } from '@/lib/firebase';
 
@@ -38,4 +38,34 @@ export async function registerWebPush(uid: string): Promise<{ ok: boolean; error
   } catch (e: any) {
     return { ok: false, error: e?.message || 'Erro desconhecido ao registrar push web' };
   }
+}
+
+/**
+ * Mensagens com o app/aba em PRIMEIRO PLANO não passam pelo service worker (só chegam lá
+ * quando em segundo plano) - chegam aqui, via onMessage(). Sem isso, nada aparece se a pessoa
+ * estiver com a aba aberta no momento do push. Mostra a notificação manualmente via SW pra
+ * manter o mesmo ícone/clique do caminho de segundo plano.
+ */
+export async function listenForegroundWebPush(): Promise<() => void> {
+  const messaging = await getWebMessaging();
+  if (!messaging || !('serviceWorker' in navigator)) return () => {};
+
+  const unsubscribe = onMessage(messaging, async (payload) => {
+    const data = payload.data || {};
+    const title = data.title || payload.notification?.title || 'Caule';
+    const body = data.body || payload.notification?.body || '';
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification(title, {
+        body,
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/icon-96x96.png',
+        data,
+      });
+    } catch (e) {
+      console.error('[Push] Erro ao mostrar notificação em primeiro plano:', e);
+    }
+  });
+
+  return unsubscribe;
 }
