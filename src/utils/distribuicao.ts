@@ -27,7 +27,7 @@ export interface Atribuicao {
   responsavelId: string;
   responsavelNome: string;
   diaSemana: number;
-  status: 'pendente' | 'concluída';
+  status: 'pendente' | 'concluida';
   dataConclusao?: string;
   dataPlanejamento?: string;
   historico?: AtribuicaoHistorico[];
@@ -512,7 +512,7 @@ export async function redistribuirPorEntrada(
   moradores.forEach((m) => (carga[m.uid] = 0));
 
   const pendentes = dist.atribuicoes.filter((a) => a.status === 'pendente');
-  const concluidas = dist.atribuicoes.filter((a) => a.status === 'concluída');
+  const concluidas = dist.atribuicoes.filter((a) => a.status === 'concluida');
   const novasAtribuicoes: Atribuicao[] = [...concluidas];
   const tarefasRedistribuidas: Atribuicao[] = [];
 

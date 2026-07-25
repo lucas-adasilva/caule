@@ -43,7 +43,7 @@ interface Atribuicao {
   responsavelId: string;
   responsavelNome: string;
   diaSemana: number;
-  status: 'pendente' | 'concluída';
+  status: 'pendente' | 'concluida';
 }
 
 interface Distribuicao {

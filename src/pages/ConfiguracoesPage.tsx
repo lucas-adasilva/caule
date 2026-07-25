@@ -12,7 +12,7 @@ import { existeViagemSobrepondoPeriodo } from '@/utils/viagens';
 
 interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; foto?: string; contribuicaoMinima?: number; contribuicaoIdeal?: number; contribuicaoAbundante?: number; }
 interface Comodo { id: string; nome: string; icone: string; cor: string; tipo: 'coletivo' | 'privado'; casaId: string; ordem: number; createdBy: string; responsavelId?: string; aceitaEventos?: boolean; aceitaHospedes?: boolean; }
-interface Tarefa { id: string; titulo: string; descricao: string; comodoId: string; responsavelId: string; casaId: string; prioridade: 'alta' | 'media' | 'baixa'; frequencia: 'unica' | 'diaria' | 'semanal' | 'quinzenal' | 'mensal'; status: 'aguardando_responsavel' | 'pendente' | 'em_andamento' | 'concluída'; tipo: 'coletiva' | 'privada'; diasSemana: string[]; diaMes: number; createdBy: string; dataUnica?: string; vezesPorSemana?: number; }
+interface Tarefa { id: string; titulo: string; descricao: string; comodoId: string; responsavelId: string; casaId: string; prioridade: 'alta' | 'media' | 'baixa'; frequencia: 'unica' | 'diaria' | 'semanal' | 'quinzenal' | 'mensal'; status: 'aguardando_responsavel' | 'pendente' | 'em_andamento' | 'concluida'; tipo: 'coletiva' | 'privada'; diasSemana: string[]; diaMes: number; createdBy: string; dataUnica?: string; vezesPorSemana?: number; }
 interface UserData {
   uid: string;
   name: string;
@@ -34,7 +34,7 @@ interface UserData {
 }
 type Aba = 'casas' | 'comodos' | 'tarefas' | 'moradores' | 'distribuição' | 'notificações' | 'financeiro';
 
-interface Atribuicao { id: string; tarefaId: string; titulo: string; descricao: string; prioridade: 'alta' | 'media' | 'baixa'; responsavelId: string; responsavelNome: string; diaSemana: number; status: 'pendente' | 'concluída'; dataConclusao?: string; execucaoId?: string; }
+interface Atribuicao { id: string; tarefaId: string; titulo: string; descricao: string; prioridade: 'alta' | 'media' | 'baixa'; responsavelId: string; responsavelNome: string; diaSemana: number; status: 'pendente' | 'concluida'; dataConclusao?: string; execucaoId?: string; }
 interface Distribuicao { id: string; weekId: string; houseId: string; atribuicoes: Atribuicao[]; }
 interface TarefaBase { id: string; titulo: string; descricao: string; frequencia: string; prioridade: 'alta' | 'media' | 'baixa'; diasSemana: string[]; horarioLimite: string; houseId: string; ativo: boolean; }
 interface Execucao { id: string; tarefaId: string; titulo?: string; executorId: string; executorNome?: string; weekId?: string; data: string; casaId: string; }
@@ -1010,7 +1010,7 @@ export function ConfiguracoesPage() {
     if (!distribuicao || moradoresPresentes.length === 0) return;
     setDistLoading(true); setErro(''); setSucesso('');
     try {
-      const concluidas = distribuicao.atribuicoes.filter(a => a.status === 'concluída');
+      const concluidas = distribuicao.atribuicoes.filter(a => a.status === 'concluida');
       const pendentes = distribuicao.atribuicoes.filter(a => a.status === 'pendente');
       const concluidasPorMorador: Record<string, number> = {};
       concluidas.forEach(a => { concluidasPorMorador[a.responsavelId] = (concluidasPorMorador[a.responsavelId] || 0) + 1; });
@@ -1047,7 +1047,7 @@ export function ConfiguracoesPage() {
         execucaoId = undefined;
       }
       const novasAtribuicoes = distribuicao.atribuicoes.map(a => {
-        if (a.id === atribuicao.id) { const novoStatus: 'pendente' | 'concluída' = isConcluindo ? 'concluída' : 'pendente'; return { ...a, status: novoStatus, dataConclusao: isConcluindo ? new Date().toISOString() : undefined, execucaoId }; }
+        if (a.id === atribuicao.id) { const novoStatus: 'pendente' | 'concluida' = isConcluindo ? 'concluida' : 'pendente'; return { ...a, status: novoStatus, dataConclusao: isConcluindo ? new Date().toISOString() : undefined, execucaoId }; }
         return a;
       });
       await updateDoc(doc(db, 'distribuicoes', distribuicao.id), { atribuicoes: novasAtribuicoes });
@@ -1963,7 +1963,7 @@ export function ConfiguracoesPage() {
                   <p className="text-[10px] text-on-surface-variant uppercase">Pendentes</p>
                 </div>
                 <div className="bg-surface-card rounded-xl border border-outline-variant p-3 text-center">
-                  <p className="text-2xl font-bold text-secondary">{distribuicao.atribuicoes.filter(a => a.status === 'concluída').length}</p>
+                  <p className="text-2xl font-bold text-secondary">{distribuicao.atribuicoes.filter(a => a.status === 'concluida').length}</p>
                   <p className="text-[10px] text-on-surface-variant uppercase">Concluidas</p>
                 </div>
               </div>
@@ -1984,7 +1984,7 @@ export function ConfiguracoesPage() {
                   const atribDoDia = distribuicao.atribuicoes.filter(a => a.diaSemana === idx);
                   if (atribDoDia.length === 0) return null;
                   const pendentes = atribDoDia.filter(a => a.status === 'pendente');
-                  const concluidas = atribDoDia.filter(a => a.status === 'concluída');
+                  const concluidas = atribDoDia.filter(a => a.status === 'concluida');
                   return (
                     <div key={idx} className="bg-surface-card rounded-xl border border-outline-variant p-3">
                       <div className="flex justify-between items-center mb-2">
@@ -1996,11 +1996,11 @@ export function ConfiguracoesPage() {
                           <div key={a.id} className="flex items-center justify-between py-1">
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               <button onClick={() => toggleTarefaDistribuicao(a)} className="flex-shrink-0">
-                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${a.status === 'concluída' ? 'border-primary bg-primary' : 'border-outline-variant hover:border-primary'}`}>
-                                  {a.status === 'concluída' && <span className="material-symbols-outlined text-[12px] text-on-primary">check</span>}
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${a.status === 'concluida' ? 'border-primary bg-primary' : 'border-outline-variant hover:border-primary'}`}>
+                                  {a.status === 'concluida' && <span className="material-symbols-outlined text-[12px] text-on-primary">check</span>}
                                 </div>
                               </button>
-                              <span className={`text-sm truncate ${a.status === 'concluída' ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{a.titulo}</span>
+                              <span className={`text-sm truncate ${a.status === 'concluida' ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{a.titulo}</span>
                             </div>
                             <span className="text-[10px] text-text-muted flex-shrink-0 ml-2">{a.responsavelNome?.split(' ')[0]}</span>
                           </div>
