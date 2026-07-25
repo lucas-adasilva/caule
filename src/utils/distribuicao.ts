@@ -375,6 +375,9 @@ export async function redistribuirPorSaida(
   const textoMotivo =
     motivo === 'viagem' ? 'Morador saiu em viagem' : 'Hóspede encerrou a estadia';
 
+  // Dia de hoje (segunda=0, domingo=6) - tarefas de dias que já passaram nao sao redistribuidas
+  const diaHoje = (new Date().getDay() + 6) % 7;
+
   const novasAtribuicoes: Atribuicao[] = [];
   const tarefasParaRealocar: Atribuicao[] = [];
   const tarefasRedistribuidas: Atribuicao[] = [];
@@ -382,7 +385,7 @@ export async function redistribuirPorSaida(
   let realocadas = 0;
 
   for (const atrib of dist.atribuicoes) {
-    if (atrib.responsavelId !== uidSaindo || atrib.status !== 'pendente') {
+    if (atrib.responsavelId !== uidSaindo || atrib.status !== 'pendente' || atrib.diaSemana < diaHoje) {
       novasAtribuicoes.push(atrib);
       continue;
     }
@@ -514,6 +517,13 @@ export async function redistribuirPorEntrada(
   const tarefasRedistribuidas: Atribuicao[] = [];
 
   for (const atrib of pendentes) {
+    // Dias que já passaram nesta semana não são tocados - não faz sentido reatribuir (nem pro
+    // recém-chegado, nem pra ninguém) uma tarefa cujo dia já ficou pra trás.
+    if (atrib.diaSemana < diaHoje) {
+      novasAtribuicoes.push(atrib);
+      continue;
+    }
+
     // Se for dia de hoje, o morador que entrou não pode receber (só a partir de amanhã)
     const candidatos =
       atrib.diaSemana === diaHoje && moradorEntrando
@@ -565,7 +575,7 @@ export async function redistribuirPorEntrada(
 
   let adiantadas = 0;
   if (capacidadeSobrando > 0) {
-    const resultadoAdiantamento = await adiantarTarefas(casaId, weekId, capacidadeSobrando, moradores, carga);
+    const resultadoAdiantamento = await adiantarTarefas(casaId, weekId, capacidadeSobrando, moradores, carga, diaHoje);
     novasAtribuicoes.push(...resultadoAdiantamento.tarefasAdiantadas);
     adiantadas = resultadoAdiantamento.tarefasAdiantadas.length;
 
@@ -652,13 +662,19 @@ async function adiantarTarefas(
   weekIdAtual: string,
   quantidadeMaxima: number,
   moradores: MoradorInfo[],
-  cargaAtual: Record<string, number>
+  cargaAtual: Record<string, number>,
+  diaHoje: number
 ): Promise<ResultadoAdiantamento> {
   const weekIdFuturo = proximaSemana(weekIdAtual);
   const distFutura = await buscarDistribuicao(casaId, weekIdFuturo);
   if (!distFutura) return { tarefasAdiantadas: [] };
 
-  const tarefasPendentesFuturas = distFutura.atribuicoes.filter((a) => a.status === 'pendente');
+  // Só adianta tarefas cujo dia da semana ainda não passou na semana ATUAL - o "dia" da tarefa
+  // é preservado ao trazer da semana seguinte pra essa, entao adiantar uma tarefa de "quarta"
+  // pra uma semana onde quarta já passou faria ela nascer com data retroativa.
+  const tarefasPendentesFuturas = distFutura.atribuicoes.filter(
+    (a) => a.status === 'pendente' && a.diaSemana >= diaHoje
+  );
   if (tarefasPendentesFuturas.length === 0) return { tarefasAdiantadas: [] };
 
   const tarefasParaAdiantar = tarefasPendentesFuturas.slice(0, quantidadeMaxima);
