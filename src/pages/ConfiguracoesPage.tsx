@@ -36,6 +36,7 @@ type Aba = 'casas' | 'comodos' | 'tarefas' | 'moradores' | 'distribuição' | 'n
 
 interface Atribuicao { id: string; tarefaId: string; titulo: string; descricao: string; prioridade: 'alta' | 'media' | 'baixa'; responsavelId: string; responsavelNome: string; diaSemana: number; status: 'pendente' | 'concluida'; dataConclusao?: string; execucaoId?: string; }
 interface Distribuicao { id: string; weekId: string; houseId: string; atribuicoes: Atribuicao[]; }
+interface DistribuicaoBackup { id: string; distribuicaoId: string; weekId: string; atribuicoes: Atribuicao[]; totalTarefas: number; createdAt?: { seconds: number } | null; }
 interface TarefaBase { id: string; titulo: string; descricao: string; frequencia: string; prioridade: 'alta' | 'media' | 'baixa'; diasSemana: string[]; horarioLimite: string; houseId: string; ativo: boolean; }
 interface Execucao { id: string; tarefaId: string; titulo?: string; executorId: string; executorNome?: string; weekId?: string; data: string; casaId: string; }
 interface MoradorPresente { uid: string; name: string; isPresent: boolean; isActive: boolean; role?: string; estadiaInicio?: string; estadiaFim?: string; }
@@ -165,6 +166,10 @@ export function ConfiguracoesPage() {
   const [considerarDomingo, setConsiderarDomingo] = useState(false);
   const [viagens, setViagens] = useState<Viagem[]>([]);
   const [debugLog, setDebugLog] = useState<string[]>([]);
+  const [showBackups, setShowBackups] = useState(false);
+  const [backups, setBackups] = useState<DistribuicaoBackup[]>([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [restaurandoBackupId, setRestaurandoBackupId] = useState<string | null>(null);
 
   // Verifica se um morador está viajando durante uma semana específica
   function moradorViajandoNaSemana(uid: string, weekId: string): { viajando: boolean; diasFora: number[] } {
@@ -1067,6 +1072,39 @@ export function ConfiguracoesPage() {
     setDistLoading(false);
   }
 
+  async function abrirBackups() {
+    if (!distribuicao) return;
+    setShowBackups(true);
+    setLoadingBackups(true);
+    try {
+      const q = query(collection(db, 'distribuicoesBackups'), where('distribuicaoId', '==', distribuicao.id));
+      const snap = await getDocs(q);
+      const lista: DistribuicaoBackup[] = [];
+      snap.forEach(d => lista.push({ id: d.id, ...(d.data() as any) }));
+      lista.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setBackups(lista);
+    } catch (e: any) {
+      setErro('Erro ao carregar backups: ' + e.message);
+    }
+    setLoadingBackups(false);
+  }
+
+  async function restaurarBackup(backup: DistribuicaoBackup) {
+    if (!distribuicao) return;
+    const dataFormatada = backup.createdAt ? new Date(backup.createdAt.seconds * 1000).toLocaleString('pt-BR') : '?';
+    if (!confirm(`Restaurar a distribuição pro estado de ${dataFormatada}?\n\nO estado atual (${distribuicao.atribuicoes.length} tarefas) será substituído por esse backup (${backup.totalTarefas} tarefas) - mas fica salvo como um novo backup antes, então dá pra desfazer.`)) return;
+    setRestaurandoBackupId(backup.id);
+    try {
+      await updateDoc(doc(db, 'distribuicoes', distribuicao.id), { atribuicoes: backup.atribuicoes });
+      setDistribuicao({ ...distribuicao, atribuicoes: backup.atribuicoes });
+      setSucesso('Distribuição restaurada!');
+      setShowBackups(false);
+    } catch (e: any) {
+      setErro('Erro ao restaurar: ' + e.message);
+    }
+    setRestaurandoBackupId(null);
+  }
+
   const abas: { key: Aba; label: string; icon: string }[] = [
     { key: 'casas', label: 'Casas', icon: '🏠' },
     { key: 'comodos', label: 'Cômodos', icon: '🚪' },
@@ -1925,6 +1963,9 @@ export function ConfiguracoesPage() {
                   <button onClick={redistribuirTarefas} disabled={distLoading} className="flex-1 bg-surface-container text-on-surface border border-outline-variant font-bold py-3 rounded-lg text-sm hover:bg-surface-container-highest transition-all disabled:opacity-50">
                     Redistribuir
                   </button>
+                  <button onClick={abrirBackups} disabled={distLoading} className="px-3 bg-surface-container text-on-surface border border-outline-variant rounded-lg hover:bg-surface-container-highest transition-all disabled:opacity-50" title="Backups desta distribuição">
+                    <span className="material-symbols-outlined">history</span>
+                  </button>
                   <button onClick={handleExcluirDistribuicao} disabled={distLoading} className="px-3 bg-error/10 border border-error/30 text-error rounded-lg hover:bg-error/20 transition-all disabled:opacity-50" title="Excluir distribuição">
                     <span className="material-symbols-outlined">delete</span>
                   </button>
@@ -2025,6 +2066,45 @@ export function ConfiguracoesPage() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Modal de Backups da Distribuicao */}
+        {showBackups && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowBackups(false)} />
+            <div className="relative bg-surface rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-outline-variant space-y-4 max-h-[80vh] flex flex-col">
+              <div className="flex items-center justify-between">
+                <h3 className="font-section-heading text-section-heading">Backups — {semanaSelecionada}</h3>
+                <button onClick={() => setShowBackups(false)} className="p-1 hover:bg-surface-container rounded-full transition-colors">
+                  <span className="material-symbols-outlined text-on-surface-variant">close</span>
+                </button>
+              </div>
+              <p className="text-xs text-on-surface-variant -mt-2">Guardados automaticamente toda vez que a distribuição desta semana muda.</p>
+              {loadingBackups ? (
+                <div className="text-center py-8"><span className="material-symbols-outlined animate-spin text-primary text-3xl">refresh</span></div>
+              ) : backups.length === 0 ? (
+                <p className="text-sm text-on-surface-variant text-center py-6">Nenhum backup ainda pra essa distribuição.</p>
+              ) : (
+                <div className="space-y-2 overflow-y-auto flex-1">
+                  {backups.map(b => (
+                    <div key={b.id} className="flex items-center justify-between gap-2 p-3 bg-surface-card rounded-xl border border-outline-variant">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-on-surface">{b.createdAt ? new Date(b.createdAt.seconds * 1000).toLocaleString('pt-BR') : '?'}</p>
+                        <p className="text-[10px] text-on-surface-variant">{b.totalTarefas} tarefa{b.totalTarefas !== 1 ? 's' : ''}</p>
+                      </div>
+                      <button
+                        onClick={() => restaurarBackup(b)}
+                        disabled={restaurandoBackupId === b.id}
+                        className="flex-shrink-0 px-3 py-1.5 bg-primary-container text-on-primary-container font-bold rounded-lg text-xs hover:brightness-110 transition-all disabled:opacity-50"
+                      >
+                        {restaurandoBackupId === b.id ? '...' : 'Restaurar'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

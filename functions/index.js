@@ -1,4 +1,4 @@
-const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
@@ -6,6 +6,36 @@ const { getMessaging } = require('firebase-admin/messaging');
 
 initializeApp();
 const db = getFirestore();
+
+// ==========================================
+// BACKUP DE DISTRIBUICOES
+// ==========================================
+// Toda vez que uma distribuicao muda, guarda o estado ANTERIOR (antes da mudanca) num
+// documento separado - cobre TODOS os caminhos de escrita (TarefasPage, ConfiguracoesPage,
+// redistribuicao por viagem/hospedagem, geracao semanal automatica) sem precisar duplicar
+// logica de backup em cada um. So grava se as atribuicoes realmente mudaram, pra nao gerar
+// lixo em escritas que tocam outros campos do doc sem alterar a lista.
+exports.backupDistribuicao = onDocumentWritten('distribuicoes/{distId}', async (event) => {
+  const before = event.data?.before;
+  const after = event.data?.after;
+  if (!before || !before.exists || !after || !after.exists) return; // ignora criacao e exclusao
+
+  const dadosAntes = before.data();
+  const dadosDepois = after.data();
+  const atribuicoesAntes = dadosAntes.atribuicoes || [];
+  const atribuicoesDepois = dadosDepois.atribuicoes || [];
+
+  if (JSON.stringify(atribuicoesAntes) === JSON.stringify(atribuicoesDepois)) return;
+
+  await db.collection('distribuicoesBackups').add({
+    distribuicaoId: event.params.distId,
+    casaId: dadosAntes.casaId,
+    weekId: dadosAntes.weekId,
+    atribuicoes: atribuicoesAntes,
+    totalTarefas: atribuicoesAntes.length,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+});
 
 // Dispara push real (FCM) para o destinatário sempre que uma notificação in-app é criada
 // (redistribuição de tarefas por viagem/estadia, etc). O título já vem definido por quem gravou o doc.

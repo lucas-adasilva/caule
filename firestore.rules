@@ -87,5 +87,11 @@ service cloud.firestore {
     match /campanhasNotificacao/{campanhaId} {
       allow read, write: if request.auth != null;
     }
+    // Backups de distribuicoes - gerados automaticamente pela Cloud Function backupDistribuicao
+    // a cada mudanca; leitura pra listar no modal de restauracao, escrita so por seguranca
+    // (quem escreve de verdade e o Admin SDK da function, que ignora as regras)
+    match /distribuicoesBackups/{backupId} {
+      allow read, write: if request.auth != null;
+    }
   }
 }
