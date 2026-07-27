@@ -101,6 +101,7 @@ export function HomePage() {
   const [moradoresEmViagem, setMoradoresEmViagem] = useState<Set<string>>(new Set());
   const [tarefaSelecionada, setTarefaSelecionada] = useState<{ atribuicao: Atribuicao; tarefa: TarefaBase | undefined; comodo: Comodo } | null>(null);
   const [concluindoTarefa, setConcluindoTarefa] = useState(false);
+  const [confirmandoReatribuicao, setConfirmandoReatribuicao] = useState(false);
 
   const weekDays = getWeekDays();
 
@@ -222,14 +223,6 @@ export function HomePage() {
     const { atribuicao, tarefa } = tarefaSelecionada;
     const souResponsavel = atribuicao.responsavelId === user.uid;
     const tituloTarefa = tarefa?.titulo || atribuicao.titulo;
-
-    const confirmado = souResponsavel
-      ? confirm(`Marcar "${tituloTarefa}" como concluída?`)
-      : confirm(
-          `Essa tarefa está atribuída a ${atribuicao.responsavelNome || 'outra pessoa'}, não a você.\n\n` +
-          `Confirma que você mesmo já fez "${tituloTarefa}"? Ela vai passar a contar como sua — aparecendo como concluída no seu Folhas e saindo do nome de ${atribuicao.responsavelNome || 'quem estava com ela'}.`
-        );
-    if (!confirmado) return;
 
     setConcluindoTarefa(true);
     try {
@@ -522,13 +515,49 @@ export function HomePage() {
             </span>
 
             <button
-              onClick={concluirTarefa}
+              onClick={() => {
+                if (tarefaSelecionada.atribuicao.responsavelId === user?.uid) concluirTarefa();
+                else setConfirmandoReatribuicao(true);
+              }}
               disabled={concluindoTarefa}
               className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary font-bold py-2.5 rounded-lg text-sm hover:brightness-110 transition-all disabled:opacity-50"
             >
               <span className="material-symbols-outlined text-lg">{concluindoTarefa ? 'hourglass_top' : 'check_circle'}</span>
               {concluindoTarefa ? 'Concluindo...' : tarefaSelecionada.atribuicao.responsavelId === user?.uid ? 'Marcar como concluída' : 'Eu já fiz — concluir por mim'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: confirmar conclusao de tarefa de outra pessoa */}
+      {confirmandoReatribuicao && tarefaSelecionada && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => !concluindoTarefa && setConfirmandoReatribuicao(false)}>
+          <div className="bg-surface rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-outline-variant space-y-4 text-center" onClick={e => e.stopPropagation()}>
+            <div className="w-14 h-14 mx-auto bg-primary/10 rounded-full flex items-center justify-center">
+              <span className="material-symbols-outlined text-primary text-3xl">volunteer_activism</span>
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-bold text-on-surface text-lg">Essa tarefa é do(a) {tarefaSelecionada.atribuicao.responsavelNome?.split(' ')[0] || 'outra pessoa'}</h3>
+              <p className="text-sm text-on-surface-variant">
+                Mas se você já cuidou de <span className="font-medium text-on-surface">"{tarefaSelecionada.tarefa?.titulo || tarefaSelecionada.atribuicao.titulo}"</span>, sem problema — ela passa a ser sua: some da lista do(a) {tarefaSelecionada.atribuicao.responsavelNome?.split(' ')[0] || 'outra pessoa'} e aparece concluída na sua.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setConfirmandoReatribuicao(false)}
+                disabled={concluindoTarefa}
+                className="flex-1 bg-surface-container text-on-surface border border-outline-variant font-bold py-2.5 rounded-lg text-sm hover:bg-surface-container-highest transition-all disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => { await concluirTarefa(); setConfirmandoReatribuicao(false); }}
+                disabled={concluindoTarefa}
+                className="flex-1 bg-primary text-on-primary font-bold py-2.5 rounded-lg text-sm hover:brightness-110 transition-all disabled:opacity-50"
+              >
+                {concluindoTarefa ? 'Um instante...' : 'Sim, foi eu'}
+              </button>
+            </div>
           </div>
         </div>
       )}
