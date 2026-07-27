@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { useApp } from '@/App';
@@ -57,6 +57,18 @@ function diaSemanaHoje(): number {
   return (new Date().getDay() + 6) % 7;
 }
 
+// Mesma formula (Jan-1-based) usada em TarefasPage.tsx/ConfiguracoesPage.tsx pra achar a
+// distribuicao "desta semana" - precisa bater, senao a tarefa concluida aqui grava um weekId
+// que a pagina Tarefas nao reconhece como semana atual.
+function getWeekIdAtual(): string {
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const primeiraSegunda = new Date(ano, 0, 1);
+  const diasDesdeInicio = Math.floor((hoje.getTime() - primeiraSegunda.getTime()) / (24 * 60 * 60 * 1000));
+  const semana = Math.ceil((diasDesdeInicio + primeiraSegunda.getDay()) / 7);
+  return `${ano}-W${String(semana).padStart(2, '0')}`;
+}
+
 function getWeekDays() {
   const today = new Date();
   const currentDay = today.getDay();
@@ -88,6 +100,7 @@ export function HomePage() {
   const [selectedDay, setSelectedDay] = useState(diaSemanaHoje());
   const [moradoresEmViagem, setMoradoresEmViagem] = useState<Set<string>>(new Set());
   const [tarefaSelecionada, setTarefaSelecionada] = useState<{ atribuicao: Atribuicao; tarefa: TarefaBase | undefined; comodo: Comodo } | null>(null);
+  const [concluindoTarefa, setConcluindoTarefa] = useState(false);
 
   const weekDays = getWeekDays();
 
@@ -158,12 +171,7 @@ export function HomePage() {
         setTarefas(tarefasData);
 
         // Distribuicao da semana atual
-        const today = new Date();
-        const ano = today.getFullYear();
-        const primeiraSegunda = new Date(ano, 0, 1);
-        const diasDesdeInicio = Math.floor((today.getTime() - primeiraSegunda.getTime()) / (24 * 60 * 60 * 1000));
-        const semana = Math.ceil((diasDesdeInicio + primeiraSegunda.getDay()) / 7);
-        const weekId = `${ano}-W${String(semana).padStart(2, '0')}`;
+        const weekId = getWeekIdAtual();
 
         const qDist = query(collection(db, 'distribuicoes'), where('casaId', '==', user.houseId));
         const sDist = await getDocs(qDist);
@@ -204,6 +212,73 @@ export function HomePage() {
     }
     tarefasPorComodo[comodo.id].tarefas.push({ atribuicao: atrib, tarefa });
   });
+
+  // Conclui a tarefa selecionada no modal - se quem clicou nao for o responsavel original,
+  // a tarefa passa a ser atribuida a quem concluiu (mesma "cadeia de acoes" que TarefasPage.tsx
+  // faz ao marcar uma tarefa como feita: cria o registro de execucao usado no rodizio justo e
+  // atualiza a atribuicao com status/dataConclusao/execucaoId).
+  async function concluirTarefa() {
+    if (!tarefaSelecionada || !distribuicao || !user?.uid || !user?.houseId) return;
+    const { atribuicao, tarefa } = tarefaSelecionada;
+    const souResponsavel = atribuicao.responsavelId === user.uid;
+    const tituloTarefa = tarefa?.titulo || atribuicao.titulo;
+
+    const confirmado = souResponsavel
+      ? confirm(`Marcar "${tituloTarefa}" como concluída?`)
+      : confirm(
+          `Essa tarefa está atribuída a ${atribuicao.responsavelNome || 'outra pessoa'}, não a você.\n\n` +
+          `Confirma que você mesmo já fez "${tituloTarefa}"? Ela vai passar a contar como sua — aparecendo como concluída no seu Folhas e saindo do nome de ${atribuicao.responsavelNome || 'quem estava com ela'}.`
+        );
+    if (!confirmado) return;
+
+    setConcluindoTarefa(true);
+    try {
+      const agora = new Date().toISOString();
+      const execRef = await addDoc(collection(db, 'execucoes'), {
+        tarefaId: atribuicao.tarefaId,
+        titulo: tituloTarefa,
+        executorId: user.uid,
+        executorNome: user.name || 'Morador',
+        weekId: getWeekIdAtual(),
+        data: agora,
+        casaId: user.houseId,
+      });
+
+      const novasAtribuicoes = distribuicao.atribuicoes.map(a => {
+        if (a.id !== atribuicao.id) return a;
+        const atualizada: any = {
+          ...a,
+          status: 'concluida',
+          dataConclusao: agora,
+          execucaoId: execRef.id,
+          responsavelId: user.uid,
+          responsavelNome: user.name || 'Morador',
+        };
+        if (!souResponsavel) {
+          atualizada.historico = [
+            ...((a as any).historico || []),
+            {
+              data: agora,
+              tipo: 'redistribuicao',
+              motivo: 'Concluída por outra pessoa pela Visão Geral',
+              responsavelAnteriorId: a.responsavelId,
+              responsavelAnteriorNome: a.responsavelNome,
+              responsavelNovoId: user.uid,
+              responsavelNovoNome: user.name,
+            },
+          ];
+        }
+        return atualizada;
+      });
+
+      await updateDoc(doc(db, 'distribuicoes', distribuicao.id), { atribuicoes: novasAtribuicoes, updatedAt: serverTimestamp() });
+      setDistribuicao({ ...distribuicao, atribuicoes: novasAtribuicoes });
+      setTarefaSelecionada(null);
+    } catch (e) {
+      console.error('Erro ao concluir tarefa:', e);
+    }
+    setConcluindoTarefa(false);
+  }
 
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body-md antialiased">
@@ -397,6 +472,7 @@ export function HomePage() {
                           }`}>
                             {atribuicao.prioridade}
                           </span>
+                          <span className="material-symbols-outlined text-on-surface-variant text-base flex-shrink-0" title="Ver responsável">person</span>
                           <span className="material-symbols-outlined text-on-surface-variant text-lg flex-shrink-0">chevron_right</span>
                         </button>
                       ))}
@@ -444,6 +520,15 @@ export function HomePage() {
             }`}>
               Prioridade {tarefaSelecionada.atribuicao.prioridade}
             </span>
+
+            <button
+              onClick={concluirTarefa}
+              disabled={concluindoTarefa}
+              className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary font-bold py-2.5 rounded-lg text-sm hover:brightness-110 transition-all disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-lg">{concluindoTarefa ? 'hourglass_top' : 'check_circle'}</span>
+              {concluindoTarefa ? 'Concluindo...' : tarefaSelecionada.atribuicao.responsavelId === user?.uid ? 'Marcar como concluída' : 'Eu já fiz — concluir por mim'}
+            </button>
           </div>
         </div>
       )}
