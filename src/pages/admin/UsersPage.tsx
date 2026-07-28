@@ -20,6 +20,12 @@ interface Pessoa {
   pronome?: Pronome;
 }
 
+interface ComodoHospede {
+  id: string;
+  nome: string;
+  icone: string;
+}
+
 function estadiaAtiva(estadiaInicio?: string, estadiaFim?: string): boolean {
   if (!estadiaInicio || !estadiaFim) return false;
   const hoje = new Date().toISOString().split('T')[0];
@@ -94,6 +100,7 @@ export function UsersPage() {
   const [mesSelecionado, setMesSelecionado] = useState(new Date().getMonth());
   const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
   const [reembolsandoMes, setReembolsandoMes] = useState(false);
+  const [comodosHospedes, setComodosHospedes] = useState<ComodoHospede[]>([]);
 
   async function carregarDados() {
     if (!user?.houseId) { setLoading(false); return; }
@@ -138,8 +145,23 @@ export function UsersPage() {
     setLoadingHistorico(false);
   }
 
+  async function carregarComodosHospedes() {
+    if (!user?.houseId) return;
+    try {
+      const q = query(collection(db, 'comodos'), where('casaId', '==', user.houseId));
+      const snap = await getDocs(q);
+      const coms: ComodoHospede[] = [];
+      snap.forEach(d => {
+        const data = d.data();
+        if (data.tipo === 'privado' && data.aceitaHospedes === true) coms.push({ id: d.id, nome: data.nome || 'Cômodo', icone: data.icone || '🏠' });
+      });
+      setComodosHospedes(coms);
+    } catch (e) { console.error('[Moradores] Erro ao carregar cômodos:', e); }
+  }
+
   useEffect(() => { carregarDados(); }, [user?.houseId]);
   useEffect(() => { carregarHistorico(); }, [user?.houseId]);
+  useEffect(() => { carregarComodosHospedes(); }, [user?.houseId]);
 
   async function togglePagamento(item: Hospedagem) {
     setHistorico(prev => prev.map(h => h.id === item.id ? { ...h, statusPagamento: !h.statusPagamento } : h));
@@ -394,12 +416,17 @@ export function UsersPage() {
                               </td>
                               <td className="py-2 pr-3 text-on-surface-variant text-center font-bold">{dias}</td>
                               <td className="py-1 pr-3">
-                                <input
-                                  defaultValue={item.dormitorio}
-                                  onChange={e => atualizarCampoLocal(item.id, 'dormitorio', e.target.value)}
-                                  onBlur={e => salvarCampo(item.id, 'dormitorio', e.target.value)}
-                                  className="w-24 bg-transparent text-on-surface-variant border-b border-transparent hover:border-outline-variant focus:border-primary outline-none py-1"
-                                />
+                                <select
+                                  value={comodosHospedes.some(c => c.nome === item.dormitorio) ? item.dormitorio : ''}
+                                  onChange={e => { atualizarCampoLocal(item.id, 'dormitorio', e.target.value); salvarCampo(item.id, 'dormitorio', e.target.value); }}
+                                  className="w-28 bg-transparent text-on-surface-variant border-b border-transparent hover:border-outline-variant focus:border-primary outline-none py-1"
+                                >
+                                  <option value="">Selecione</option>
+                                  {item.dormitorio && !comodosHospedes.some(c => c.nome === item.dormitorio) && (
+                                    <option value={item.dormitorio}>{item.dormitorio} (antigo)</option>
+                                  )}
+                                  {comodosHospedes.map(c => <option key={c.id} value={c.nome}>{c.icone} {c.nome}</option>)}
+                                </select>
                               </td>
                               <td className="py-1 pr-3">
                                 <select

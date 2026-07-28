@@ -74,3 +74,20 @@ export async function encerrarHospedagemAberta(hospedeUid: string, novaSaida: st
     await updateDoc(doc(db, 'hospedagens', aberta.id), { saida: novaSaida, updatedAt: serverTimestamp() });
   }
 }
+
+/**
+ * Mantem o registro de hospedagem em aberto sincronizado quando um ADMIN edita a estadia direto
+ * em Configuracoes > Moradores (chegada/saida/dormitorio) - sem isso, a tabela de Historico de
+ * Hospedagem fica com datas/dormitorio desatualizados, batendo so com o que o proprio hospede
+ * preencheu em algum momento na pagina Estadia. Nao cria registro novo (cadastro do zero pelo
+ * admin ainda passa so pela colecao `users`) - so sincroniza se ja existir um em aberto.
+ */
+export async function sincronizarHospedagemAberta(
+  hospedeUid: string,
+  campos: Partial<Pick<Hospedagem, 'chegada' | 'saida' | 'dormitorio'>>
+): Promise<void> {
+  const aberta = await buscarHospedagemAberta(hospedeUid);
+  if (aberta) {
+    await updateDoc(doc(db, 'hospedagens', aberta.id), { ...campos, updatedAt: serverTimestamp() });
+  }
+}

@@ -9,6 +9,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 import { redistribuirPorSaida, redistribuirPorEntrada } from '@/utils/distribuicao';
 import { getSemanaDaData, getIntervaloSemana, sobrepoeSemanaAtual } from '@/utils/semana';
 import { existeViagemSobrepondoPeriodo } from '@/utils/viagens';
+import { sincronizarHospedagemAberta, encerrarHospedagemAberta } from '@/utils/hospedagem';
 
 interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; foto?: string; contribuicaoMinima?: number; contribuicaoIdeal?: number; contribuicaoAbundante?: number; }
 interface Comodo { id: string; nome: string; icone: string; cor: string; tipo: 'coletivo' | 'privado'; casaId: string; ordem: number; createdBy: string; responsavelId?: string; aceitaEventos?: boolean; aceitaHospedes?: boolean; }
@@ -637,6 +638,21 @@ export function ConfiguracoesPage() {
       const contaDepois = contaSemana(roleNova, isPresentDepois, novaEstadiaInicio, novaEstadiaFim);
 
       await updateDoc(doc(db, 'users', editandoMoradorId), dadosParaSalvar);
+
+      // Mantem o registro de hospedagem (Historico de Hospedagem em Ramos) sincronizado com o
+      // que o admin editou aqui - sem isso a saida/dormitorio ficam desatualizados na tabela.
+      if (roleNova === 'hospede') {
+        try {
+          await sincronizarHospedagemAberta(editandoMoradorId, {
+            chegada: novaEstadiaInicio,
+            saida: novaEstadiaFim,
+            dormitorio: formMoradorCompleto.room ?? moradorAnterior?.room ?? '',
+          });
+        } catch (err) {
+          console.error('Erro ao sincronizar histórico de hospedagem:', err);
+        }
+      }
+
       setEditandoMoradorId(null);
       setFormMoradorCompleto({});
       setSucesso('Morador atualizado!');
@@ -679,6 +695,8 @@ export function ConfiguracoesPage() {
         isPresent: false,
         updatedAt: serverTimestamp(),
       });
+      try { await encerrarHospedagemAberta(editandoMoradorId, new Date().toISOString().split('T')[0]); }
+      catch (err) { console.error('Erro ao sincronizar histórico de hospedagem:', err); }
       setFormMoradorCompleto(prev => ({ ...prev, estadiaInicio: '', estadiaFim: '' }));
       setSucesso('Estadia excluída!');
       carregarMoradores();
@@ -1723,8 +1741,18 @@ export function ConfiguracoesPage() {
                     </div>
                   ) : (
                     <div>
-                      <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Quarto</label>
-                      <input value={formMoradorCompleto.room || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, room: e.target.value })} placeholder="ex: Quarto 2" className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm" />
+                      <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Cômodo</label>
+                      {(() => {
+                        const comodosHospedes = comodos.filter(c => c.tipo === 'privado' && c.aceitaHospedes);
+                        return comodosHospedes.length === 0 ? (
+                          <p className="text-xs text-on-surface-variant py-2">Nenhum cômodo privado marcado como "aceita hóspedes" ainda.</p>
+                        ) : (
+                          <select value={formMoradorCompleto.room || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, room: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm">
+                            <option value="">Selecione</option>
+                            {comodosHospedes.map(c => <option key={c.id} value={c.nome}>{c.icone} {c.nome}</option>)}
+                          </select>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
