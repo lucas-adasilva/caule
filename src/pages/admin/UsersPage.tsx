@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { TopAppBar } from '@/components/TopAppBar';
@@ -42,6 +42,21 @@ function calcularDias(chegada: string, saida: string): number {
   return Math.max(0, Math.round((d2.getTime() - d1.getTime()) / 86400000));
 }
 
+// Quantos dias da estadia (chegada inclusive, saida exclusive - mesma convencao de calcularDias)
+// caem dentro do mes/ano informado. Uma estadia que atravessa a virada do mes conta os dias de
+// cada mes separadamente (ex: chegada 28/07, saida 03/08 -> 4 dias em julho, 2 dias em agosto).
+function diasNoMes(chegada: string, saida: string, ano: number, mes: number): number {
+  const inicio = new Date(chegada + 'T00:00:00');
+  const fimExclusivo = new Date(saida + 'T00:00:00');
+  const mesInicio = new Date(ano, mes, 1);
+  const mesFimExclusivo = new Date(ano, mes + 1, 1);
+  const rangeInicio = inicio > mesInicio ? inicio : mesInicio;
+  const rangeFim = fimExclusivo < mesFimExclusivo ? fimExclusivo : mesFimExclusivo;
+  return Math.max(0, Math.round((rangeFim.getTime() - rangeInicio.getTime()) / 86400000));
+}
+
+const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
 function PessoaCard({ pessoa }: { pessoa: Pessoa }) {
   const telefone = pessoa.phone ? pessoa.phone.replace(/\D/g, '') : '';
   // Sem o "+55" pra caber no card - o link do WhatsApp usa o numero completo de qualquer forma.
@@ -76,6 +91,9 @@ export function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [historico, setHistorico] = useState<Hospedagem[]>([]);
   const [loadingHistorico, setLoadingHistorico] = useState(true);
+  const [mesSelecionado, setMesSelecionado] = useState(new Date().getMonth());
+  const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
+  const [reembolsandoMes, setReembolsandoMes] = useState(false);
 
   async function carregarDados() {
     if (!user?.houseId) { setLoading(false); return; }
@@ -186,6 +204,34 @@ export function UsersPage() {
     }
   }
 
+  // Linhas que contam pro mes/ano selecionado: precisam ter algum dia dentro do mes E estarem
+  // marcadas como pagas (regra explicita - reembolso e o total so consideram quem ja pagou).
+  const linhasDoMes = useMemo(() => {
+    return historico
+      .map(item => ({ item, dias: diasNoMes(item.chegada, item.saida, anoSelecionado, mesSelecionado) }))
+      .filter(({ item, dias }) => dias > 0 && item.statusPagamento);
+  }, [historico, anoSelecionado, mesSelecionado]);
+
+  const resumoMes = useMemo(() => {
+    const hospedesDistintos = new Set(linhasDoMes.map(({ item }) => item.hospedeUid || item.hospedeNome));
+    const totalContribuicao = linhasDoMes.reduce((soma, { item, dias }) => soma + dias * (item.valorContribuicao ?? 0), 0);
+    return { hospedes: hospedesDistintos.size, total: totalContribuicao };
+  }, [linhasDoMes]);
+
+  async function reembolsarMes() {
+    if (linhasDoMes.length === 0) return;
+    if (!confirm(`Marcar como reembolsadas as ${linhasDoMes.length} linha(s) que contam pra ${MESES[mesSelecionado]}/${anoSelecionado}?`)) return;
+    setReembolsandoMes(true);
+    const idsAlvo = new Set(linhasDoMes.map(({ item }) => item.id));
+    setHistorico(prev => prev.map(h => idsAlvo.has(h.id) ? { ...h, statusReembolso: true } : h));
+    try {
+      await Promise.all(linhasDoMes.map(({ item }) => updateDoc(doc(db, 'hospedagens', item.id), { statusReembolso: true, updatedAt: serverTimestamp() })));
+    } catch (e) {
+      console.error('[Moradores] Erro ao reembolsar mês:', e);
+    }
+    setReembolsandoMes(false);
+  }
+
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body-md pb-32">
       <TopAppBar
@@ -231,11 +277,43 @@ export function UsersPage() {
 
             {user?.role !== 'hospede' && (
               <section>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-section-heading font-bold text-on-surface flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[20px] text-on-surface-variant">history</span>
-                    Histórico de Hospedagem
-                  </h3>
+                <h3 className="text-section-heading font-bold text-on-surface mb-3 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[20px] text-on-surface-variant">history</span>
+                  Histórico de Hospedagem
+                </h3>
+
+                {/* Resumo do mes + slicer de mes/ano */}
+                <div className="flex flex-wrap items-center gap-3 mb-4 p-3 bg-surface-card rounded-xl border border-outline-variant">
+                  <div className="flex gap-4 flex-1 min-w-[180px]">
+                    <div>
+                      <p className="text-[10px] uppercase text-on-surface-variant font-bold">Hóspedes</p>
+                      <p className="text-xl font-bold text-page-ramos">{resumoMes.hospedes}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-on-surface-variant font-bold">Contribuição total</p>
+                      <p className="text-xl font-bold text-page-ramos">R$ {resumoMes.total.toFixed(2)}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <select
+                      value={mesSelecionado}
+                      onChange={e => setMesSelecionado(parseInt(e.target.value, 10))}
+                      className="bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-1.5 px-2 text-xs"
+                    >
+                      {MESES.map((nome, i) => <option key={i} value={i}>{nome}</option>)}
+                    </select>
+                    <select
+                      value={anoSelecionado}
+                      onChange={e => setAnoSelecionado(parseInt(e.target.value, 10))}
+                      className="bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-1.5 px-2 text-xs"
+                    >
+                      {[anoSelecionado - 1, anoSelecionado, anoSelecionado + 1].map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Acoes */}
+                <div className="flex items-center gap-4 mb-3">
                   <button
                     onClick={adicionarLinhaHistorico}
                     className="flex items-center gap-1 text-[11px] font-bold text-page-ramos hover:brightness-110 transition-all"
@@ -243,7 +321,16 @@ export function UsersPage() {
                     <span className="material-symbols-outlined text-[16px]">add_circle</span>
                     Nova linha
                   </button>
+                  <button
+                    onClick={reembolsarMes}
+                    disabled={reembolsandoMes || linhasDoMes.length === 0}
+                    className="flex items-center gap-1 text-[11px] font-bold text-tertiary hover:brightness-110 transition-all disabled:opacity-40"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">currency_exchange</span>
+                    {reembolsandoMes ? 'Reembolsando...' : `Reembolsar ${MESES[mesSelecionado]}`}
+                  </button>
                 </div>
+
                 {loadingHistorico ? (
                   <div className="flex justify-center py-6"><span className="material-symbols-outlined animate-spin text-page-ramos text-2xl">refresh</span></div>
                 ) : historico.length === 0 ? (
