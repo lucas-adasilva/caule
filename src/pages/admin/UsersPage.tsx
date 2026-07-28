@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { TopAppBar } from '@/components/TopAppBar';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -40,12 +40,6 @@ function calcularDias(chegada: string, saida: string): number {
   const d1 = new Date(chegada + 'T00:00:00');
   const d2 = new Date(saida + 'T00:00:00');
   return Math.max(0, Math.round((d2.getTime() - d1.getTime()) / 86400000));
-}
-
-function formatarData(iso: string): string {
-  if (!iso) return '-';
-  const [ano, mes, dia] = iso.split('-');
-  return `${dia}/${mes}/${ano}`;
 }
 
 function PessoaCard({ pessoa }: { pessoa: Pessoa }) {
@@ -147,6 +141,51 @@ export function UsersPage() {
     }
   }
 
+  // Edicao direta na tabela - atualiza local pra resposta imediata e grava no Firestore.
+  // "Dias" e "Contribuicao Total" nunca sao gravados, sao sempre calculados na hora de exibir.
+  function atualizarCampoLocal<K extends keyof Hospedagem>(id: string, campo: K, valor: Hospedagem[K]) {
+    setHistorico(prev => prev.map(h => h.id === id ? { ...h, [campo]: valor } : h));
+  }
+
+  async function salvarCampo<K extends keyof Hospedagem>(id: string, campo: K, valor: Hospedagem[K]) {
+    try { await updateDoc(doc(db, 'hospedagens', id), { [campo]: valor, updatedAt: serverTimestamp() }); }
+    catch (e) { console.error('[Moradores] Erro ao salvar campo do histórico:', e); }
+  }
+
+  async function adicionarLinhaHistorico() {
+    if (!user?.houseId) return;
+    const hoje = new Date().toISOString().split('T')[0];
+    const novo = {
+      casaId: user.houseId,
+      hospedeUid: '',
+      hospedeNome: 'Novo hóspede',
+      responsavelUid: '',
+      responsavelNome: '',
+      chegada: hoje,
+      saida: hoje,
+      dormitorio: '',
+      faixaContribuicao: 'minimo' as const,
+      valorContribuicao: 0,
+      statusPagamento: false,
+      statusReembolso: false,
+      createdAt: serverTimestamp(),
+    };
+    try {
+      const ref = await addDoc(collection(db, 'hospedagens'), novo);
+      setHistorico(prev => [{ id: ref.id, ...novo, createdAt: undefined }, ...prev]);
+    } catch (e) { console.error('[Moradores] Erro ao adicionar linha:', e); }
+  }
+
+  async function excluirLinhaHistorico(item: Hospedagem) {
+    if (!confirm(`Excluir o registro de hospedagem de ${item.hospedeNome || 'hóspede sem nome'}?`)) return;
+    setHistorico(prev => prev.filter(h => h.id !== item.id));
+    try { await deleteDoc(doc(db, 'hospedagens', item.id)); }
+    catch (e) {
+      console.error('[Moradores] Erro ao excluir linha:', e);
+      setHistorico(prev => [...prev, item].sort((a, b) => b.chegada.localeCompare(a.chegada)));
+    }
+  }
+
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body-md pb-32">
       <TopAppBar
@@ -192,63 +231,143 @@ export function UsersPage() {
 
             {user?.role !== 'hospede' && (
               <section>
-                <h3 className="text-section-heading font-bold text-on-surface mb-3 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[20px] text-on-surface-variant">history</span>
-                  Histórico de Hospedagem
-                </h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-section-heading font-bold text-on-surface flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[20px] text-on-surface-variant">history</span>
+                    Histórico de Hospedagem
+                  </h3>
+                  <button
+                    onClick={adicionarLinhaHistorico}
+                    className="flex items-center gap-1 text-[11px] font-bold text-page-ramos hover:brightness-110 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">add_circle</span>
+                    Nova linha
+                  </button>
+                </div>
                 {loadingHistorico ? (
                   <div className="flex justify-center py-6"><span className="material-symbols-outlined animate-spin text-page-ramos text-2xl">refresh</span></div>
                 ) : historico.length === 0 ? (
                   <p className="text-sm text-text-muted">Nenhuma hospedagem registrada ainda.</p>
                 ) : (
                   <div className="overflow-x-auto -mx-margin-page px-margin-page">
-                    <table className="w-full text-xs border-collapse min-w-[720px]">
+                    <table className="w-full text-xs border-collapse min-w-[920px]">
                       <thead>
-                        <tr className="text-left text-on-surface-variant border-b border-outline-variant">
+                        <tr className="text-left text-page-ramos border-b border-outline-variant">
                           <th className="py-2 pr-3 font-bold">Hóspede</th>
                           <th className="py-2 pr-3 font-bold">Responsável</th>
                           <th className="py-2 pr-3 font-bold">Chegada</th>
                           <th className="py-2 pr-3 font-bold">Saída</th>
                           <th className="py-2 pr-3 font-bold text-center">Dias</th>
                           <th className="py-2 pr-3 font-bold">Dormitório</th>
-                          <th className="py-2 pr-3 font-bold">Contribuição</th>
+                          <th className="py-2 pr-3 font-bold">Faixa</th>
+                          <th className="py-2 pr-3 font-bold">Contribuição por dia</th>
+                          <th className="py-2 pr-3 font-bold">Contribuição Total</th>
                           <th className="py-2 pr-3 font-bold text-center">Pagamento</th>
                           <th className="py-2 pr-3 font-bold text-center">Reembolso</th>
+                          <th className="py-2 pr-1 font-bold text-center"></th>
                         </tr>
                       </thead>
                       <tbody>
-                        {historico.map(item => (
-                          <tr key={item.id} className="border-b border-outline-variant/50">
-                            <td className="py-2 pr-3 text-on-surface font-bold whitespace-nowrap">{item.hospedeNome}</td>
-                            <td className="py-2 pr-3 text-on-surface-variant whitespace-nowrap">{item.responsavelNome || '-'}</td>
-                            <td className="py-2 pr-3 text-on-surface-variant whitespace-nowrap">{formatarData(item.chegada)}</td>
-                            <td className="py-2 pr-3 text-on-surface-variant whitespace-nowrap">{formatarData(item.saida)}</td>
-                            <td className="py-2 pr-3 text-on-surface-variant text-center">{calcularDias(item.chegada, item.saida)}</td>
-                            <td className="py-2 pr-3 text-on-surface-variant whitespace-nowrap">{item.dormitorio || '-'}</td>
-                            <td className="py-2 pr-3 text-on-surface-variant whitespace-nowrap">
-                              R$ {(item.valorContribuicao ?? 0).toFixed(2)}
-                              <span className="text-[9px] text-on-surface-variant/70"> ({FAIXA_LABEL[item.faixaContribuicao] || item.faixaContribuicao})</span>
-                            </td>
-                            <td className="py-2 pr-3 text-center">
-                              <button
-                                onClick={() => togglePagamento(item)}
-                                className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${item.statusPagamento ? 'bg-primary border-primary text-on-primary' : 'border-outline-variant text-transparent'}`}
-                                title={item.statusPagamento ? 'Pago' : 'Marcar como pago'}
-                              >
-                                <span className="material-symbols-outlined text-[16px]">check</span>
-                              </button>
-                            </td>
-                            <td className="py-2 pr-3 text-center">
-                              <button
-                                onClick={() => toggleReembolso(item)}
-                                className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${item.statusReembolso ? 'bg-tertiary border-tertiary text-on-tertiary' : 'border-outline-variant text-transparent'}`}
-                                title={item.statusReembolso ? 'Reembolsado' : 'Marcar como reembolsado'}
-                              >
-                                <span className="material-symbols-outlined text-[16px]">check</span>
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                        {historico.map(item => {
+                          const dias = calcularDias(item.chegada, item.saida);
+                          const total = dias * (item.valorContribuicao ?? 0);
+                          return (
+                            <tr key={item.id} className="border-b border-outline-variant/50">
+                              <td className="py-1 pr-3">
+                                <input
+                                  defaultValue={item.hospedeNome}
+                                  onChange={e => atualizarCampoLocal(item.id, 'hospedeNome', e.target.value)}
+                                  onBlur={e => salvarCampo(item.id, 'hospedeNome', e.target.value)}
+                                  className="w-28 bg-transparent text-on-surface font-bold border-b border-transparent hover:border-outline-variant focus:border-primary outline-none py-1"
+                                />
+                              </td>
+                              <td className="py-1 pr-3">
+                                <input
+                                  defaultValue={item.responsavelNome}
+                                  onChange={e => atualizarCampoLocal(item.id, 'responsavelNome', e.target.value)}
+                                  onBlur={e => salvarCampo(item.id, 'responsavelNome', e.target.value)}
+                                  className="w-28 bg-transparent text-on-surface-variant border-b border-transparent hover:border-outline-variant focus:border-primary outline-none py-1"
+                                />
+                              </td>
+                              <td className="py-1 pr-3">
+                                <input
+                                  type="date"
+                                  defaultValue={item.chegada}
+                                  onChange={e => { atualizarCampoLocal(item.id, 'chegada', e.target.value); salvarCampo(item.id, 'chegada', e.target.value); }}
+                                  className="w-32 bg-transparent text-on-surface-variant border-b border-transparent hover:border-outline-variant focus:border-primary outline-none py-1"
+                                />
+                              </td>
+                              <td className="py-1 pr-3">
+                                <input
+                                  type="date"
+                                  defaultValue={item.saida}
+                                  onChange={e => { atualizarCampoLocal(item.id, 'saida', e.target.value); salvarCampo(item.id, 'saida', e.target.value); }}
+                                  className="w-32 bg-transparent text-on-surface-variant border-b border-transparent hover:border-outline-variant focus:border-primary outline-none py-1"
+                                />
+                              </td>
+                              <td className="py-2 pr-3 text-on-surface-variant text-center font-bold">{dias}</td>
+                              <td className="py-1 pr-3">
+                                <input
+                                  defaultValue={item.dormitorio}
+                                  onChange={e => atualizarCampoLocal(item.id, 'dormitorio', e.target.value)}
+                                  onBlur={e => salvarCampo(item.id, 'dormitorio', e.target.value)}
+                                  className="w-24 bg-transparent text-on-surface-variant border-b border-transparent hover:border-outline-variant focus:border-primary outline-none py-1"
+                                />
+                              </td>
+                              <td className="py-1 pr-3">
+                                <select
+                                  value={item.faixaContribuicao}
+                                  onChange={e => { const v = e.target.value as Hospedagem['faixaContribuicao']; atualizarCampoLocal(item.id, 'faixaContribuicao', v); salvarCampo(item.id, 'faixaContribuicao', v); }}
+                                  className="bg-transparent text-on-surface-variant border-b border-transparent hover:border-outline-variant focus:border-primary outline-none py-1"
+                                >
+                                  {Object.entries(FAIXA_LABEL).map(([valor, label]) => <option key={valor} value={valor}>{label}</option>)}
+                                </select>
+                              </td>
+                              <td className="py-1 pr-3">
+                                <div className="flex items-center gap-0.5 text-on-surface-variant">
+                                  R$
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    defaultValue={item.valorContribuicao ?? 0}
+                                    onChange={e => atualizarCampoLocal(item.id, 'valorContribuicao', parseFloat(e.target.value) || 0)}
+                                    onBlur={e => salvarCampo(item.id, 'valorContribuicao', parseFloat(e.target.value) || 0)}
+                                    className="w-16 bg-transparent border-b border-transparent hover:border-outline-variant focus:border-primary outline-none py-1"
+                                  />
+                                </div>
+                              </td>
+                              <td className="py-2 pr-3 text-on-surface font-bold whitespace-nowrap">R$ {total.toFixed(2)}</td>
+                              <td className="py-2 pr-3 text-center">
+                                <button
+                                  onClick={() => togglePagamento(item)}
+                                  className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${item.statusPagamento ? 'bg-primary border-primary text-on-primary' : 'border-outline-variant text-transparent'}`}
+                                  title={item.statusPagamento ? 'Pago' : 'Marcar como pago'}
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">check</span>
+                                </button>
+                              </td>
+                              <td className="py-2 pr-3 text-center">
+                                <button
+                                  onClick={() => toggleReembolso(item)}
+                                  className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${item.statusReembolso ? 'bg-tertiary border-tertiary text-on-tertiary' : 'border-outline-variant text-transparent'}`}
+                                  title={item.statusReembolso ? 'Reembolsado' : 'Marcar como reembolsado'}
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">check</span>
+                                </button>
+                              </td>
+                              <td className="py-2 pr-1 text-center">
+                                <button
+                                  onClick={() => excluirLinhaHistorico(item)}
+                                  className="w-6 h-6 rounded-md flex items-center justify-center text-error/70 hover:bg-error/10 hover:text-error transition-colors"
+                                  title="Excluir linha"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
