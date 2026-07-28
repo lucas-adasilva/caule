@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { useApp } from '@/App';
@@ -237,34 +237,44 @@ export function HomePage() {
         casaId: user.houseId,
       });
 
-      const novasAtribuicoes = distribuicao.atribuicoes.map(a => {
-        if (a.id !== atribuicao.id) return a;
-        const atualizada: any = {
-          ...a,
-          status: 'concluida',
-          dataConclusao: agora,
-          execucaoId: execRef.id,
-          responsavelId: user.uid,
-          responsavelNome: user.name || 'Morador',
-        };
-        if (!souResponsavel) {
-          atualizada.historico = [
-            ...((a as any).historico || []),
-            {
-              data: agora,
-              tipo: 'redistribuicao',
-              motivo: 'Concluída por outra pessoa pela Visão Geral',
-              responsavelAnteriorId: a.responsavelId,
-              responsavelAnteriorNome: a.responsavelNome,
-              responsavelNovoId: user.uid,
-              responsavelNovoNome: user.name,
-            },
-          ];
-        }
-        return atualizada;
+      // Le a distribuicao de novo dentro da transacao - nao confia no array carregado quando a
+      // tela abriu, que pode estar desatualizado (outra pessoa pode ter mexido em outra tarefa
+      // nesse meio-tempo). Sem isso, essa escrita sobrescreveria o documento inteiro com uma
+      // versao antiga, apagando qualquer mudanca feita por outros desde entao.
+      const distRef = doc(db, 'distribuicoes', distribuicao.id);
+      let novasAtribuicoes: Atribuicao[] = [];
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(distRef);
+        if (!snap.exists()) throw new Error('Distribuição não encontrada');
+        const atribuicoesAtuais: Atribuicao[] = snap.data().atribuicoes || [];
+        novasAtribuicoes = atribuicoesAtuais.map(a => {
+          if (a.id !== atribuicao.id) return a;
+          const atualizada: any = {
+            ...a,
+            status: 'concluida',
+            dataConclusao: agora,
+            execucaoId: execRef.id,
+            responsavelId: user.uid,
+            responsavelNome: user.name || 'Morador',
+          };
+          if (!souResponsavel) {
+            atualizada.historico = [
+              ...((a as any).historico || []),
+              {
+                data: agora,
+                tipo: 'redistribuicao',
+                motivo: 'Concluída por outra pessoa pela Visão Geral',
+                responsavelAnteriorId: a.responsavelId,
+                responsavelAnteriorNome: a.responsavelNome,
+                responsavelNovoId: user.uid,
+                responsavelNovoNome: user.name,
+              },
+            ];
+          }
+          return atualizada;
+        });
+        tx.update(distRef, { atribuicoes: novasAtribuicoes, updatedAt: serverTimestamp() });
       });
-
-      await updateDoc(doc(db, 'distribuicoes', distribuicao.id), { atribuicoes: novasAtribuicoes, updatedAt: serverTimestamp() });
       setDistribuicao({ ...distribuicao, atribuicoes: novasAtribuicoes });
       setTarefaSelecionada(null);
     } catch (e) {

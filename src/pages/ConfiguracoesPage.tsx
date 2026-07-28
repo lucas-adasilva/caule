@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, arrayRemove, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, arrayRemove, orderBy, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
@@ -619,10 +619,18 @@ export function ConfiguracoesPage() {
       }
 
       // "Conta pra semana atual" antes e depois do save - mesma regra de buscarMoradoresPresentes()
-      // (hospede: estadia ativa; morador/admin: isPresent). Cobre tanto mudanca de datas de
+      // (hospede: estadia ativa HOJE; morador/admin: isPresent). Cobre tanto mudanca de datas de
       // estadia quanto mudanca de funcao (ex: hospede promovido a morador).
+      // IMPORTANTE: usa estadiaAtivaHoje (inicio<=hoje && fim>hoje), nao sobrepoeSemanaAtual -
+      // sobrepoeSemanaAtual so checa se o periodo toca a semana atual em algum ponto, entao
+      // encurtar a saida de um hospede pra "hoje" continua contando como true antes E depois
+      // (hoje sempre esta dentro da semana atual), nunca disparando a redistribuicao automatica.
+      const estadiaAtivaHoje = (inicio: string, fim: string) => {
+        const hoje = new Date().toISOString().split('T')[0];
+        return !!(inicio && fim && inicio <= hoje && fim > hoje);
+      };
       const contaSemana = (role: string, isPresent: boolean | undefined, estadiaInicio: string, estadiaFim: string) =>
-        role === 'hospede' ? sobrepoeSemanaAtual(estadiaInicio, estadiaFim) : isPresent !== false;
+        role === 'hospede' ? estadiaAtivaHoje(estadiaInicio, estadiaFim) : isPresent !== false;
 
       const contavaAntes = contaSemana(roleAnterior, moradorAnterior?.isPresent, moradorAnterior?.estadiaInicio || '', moradorAnterior?.estadiaFim || '');
       const isPresentDepois = roleNova === 'hospede' ? dadosParaSalvar.isPresent : moradorAnterior?.isPresent;
@@ -746,10 +754,16 @@ export function ConfiguracoesPage() {
       setSucesso('Viagem salva!');
       await carregarViagensMorador(editandoMoradorId);
       await carregarViagensMoradores();
-      // Redistribui se a presença na semana atual mudou (viagem passou a cobrir a semana ou deixou de cobrir)
+      // Redistribui se a presença HOJE mudou (viagem passou a cobrir hoje ou deixou de cobrir).
+      // Usa viajandoHoje (dataSaida<=hoje<=dataRetorno), nao sobrepoeSemanaAtual - sobrepoeSemanaAtual
+      // so checa se o periodo toca a semana em algum ponto, entao encurtar a viagem pra terminar
+      // "hoje" continua contando como true antes E depois (hoje sempre esta na semana atual),
+      // nunca disparando a redistribuicao automatica quando a pessoa efetivamente já voltou.
       if (casaSelecionada?.id) {
-        const sobrepoeAntes = viagemOriginal ? sobrepoeSemanaAtual(viagemOriginal.dataSaida, viagemOriginal.dataRetorno) : false;
-        const sobrepoeDepois = sobrepoeSemanaAtual(novaViagem.dataSaida, novaViagem.dataRetorno);
+        const hoje = new Date().toISOString().split('T')[0];
+        const viajandoHoje = (saida: string, retorno: string) => !!(saida && retorno && saida <= hoje && retorno >= hoje);
+        const sobrepoeAntes = viagemOriginal ? viajandoHoje(viagemOriginal.dataSaida, viagemOriginal.dataRetorno) : false;
+        const sobrepoeDepois = viajandoHoje(novaViagem.dataSaida, novaViagem.dataRetorno);
         if (sobrepoeAntes !== sobrepoeDepois) {
           const semanaAtual = getSemanaDaData(new Date());
           try {
@@ -1015,22 +1029,34 @@ export function ConfiguracoesPage() {
     if (!distribuicao || moradoresPresentes.length === 0) return;
     setDistLoading(true); setErro(''); setSucesso('');
     try {
-      const concluidas = distribuicao.atribuicoes.filter(a => a.status === 'concluida');
-      const pendentes = distribuicao.atribuicoes.filter(a => a.status === 'pendente');
-      const concluidasPorMorador: Record<string, number> = {};
-      concluidas.forEach(a => { concluidasPorMorador[a.responsavelId] = (concluidasPorMorador[a.responsavelId] || 0) + 1; });
-      const novasAtribuicoes: Atribuicao[] = [...concluidas];
-      const tarefasPorMorador: Record<string, number> = {};
-      moradoresPresentes.forEach(m => { tarefasPorMorador[m.uid] = concluidasPorMorador[m.uid] || 0; });
-      pendentes.forEach(p => {
-        const sortedMoradores = [...moradoresPresentes].sort((a, b) => {
-          const execsA = execucoes.filter(e => e.tarefaId === p.tarefaId && e.executorId === a.uid).length;
-          const execsB = execucoes.filter(e => e.tarefaId === p.tarefaId && e.executorId === b.uid).length;
-          return (tarefasPorMorador[a.uid] || 0) + execsA - ((tarefasPorMorador[b.uid] || 0) + execsB);
+      // Le a distribuicao DE NOVO, direto do Firestore, dentro da transacao - nao confia no
+      // array em memoria (`distribuicao.atribuicoes`), que pode estar desatualizado se alguem
+      // concluiu uma tarefa em outro dispositivo/aba desde que essa tela carregou. Sem isso,
+      // esse "rebuild geral" sobrescreve o documento inteiro e apaga qualquer conclusao recente
+      // que essa aba ainda nao sabia que existia.
+      const distRef = doc(db, 'distribuicoes', distribuicao.id);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(distRef);
+        if (!snap.exists()) throw new Error('Distribuição não encontrada');
+        const atribuicoesAtuais: Atribuicao[] = snap.data().atribuicoes || [];
+
+        const concluidas = atribuicoesAtuais.filter(a => a.status === 'concluida');
+        const pendentes = atribuicoesAtuais.filter(a => a.status === 'pendente');
+        const concluidasPorMorador: Record<string, number> = {};
+        concluidas.forEach(a => { concluidasPorMorador[a.responsavelId] = (concluidasPorMorador[a.responsavelId] || 0) + 1; });
+        const novasAtribuicoes: Atribuicao[] = [...concluidas];
+        const tarefasPorMorador: Record<string, number> = {};
+        moradoresPresentes.forEach(m => { tarefasPorMorador[m.uid] = concluidasPorMorador[m.uid] || 0; });
+        pendentes.forEach(p => {
+          const sortedMoradores = [...moradoresPresentes].sort((a, b) => {
+            const execsA = execucoes.filter(e => e.tarefaId === p.tarefaId && e.executorId === a.uid).length;
+            const execsB = execucoes.filter(e => e.tarefaId === p.tarefaId && e.executorId === b.uid).length;
+            return (tarefasPorMorador[a.uid] || 0) + execsA - ((tarefasPorMorador[b.uid] || 0) + execsB);
+          });
+          if (sortedMoradores.length > 0) { const r = sortedMoradores[0]; tarefasPorMorador[r.uid] = (tarefasPorMorador[r.uid] || 0) + 1; novasAtribuicoes.push({ ...p, responsavelId: r.uid, responsavelNome: r.name }); }
         });
-        if (sortedMoradores.length > 0) { const r = sortedMoradores[0]; tarefasPorMorador[r.uid] = (tarefasPorMorador[r.uid] || 0) + 1; novasAtribuicoes.push({ ...p, responsavelId: r.uid, responsavelNome: r.name }); }
+        tx.update(distRef, { atribuicoes: novasAtribuicoes });
       });
-      await updateDoc(doc(db, 'distribuicoes', distribuicao.id), { atribuicoes: novasAtribuicoes });
       setSucesso('Tarefas redistribuídas!');
       await carregarDadosDistribuicao();
     } catch (e: any) { setErro('Erro ao redistribuir: ' + e.message); }
@@ -1051,11 +1077,21 @@ export function ConfiguracoesPage() {
         await deleteDoc(doc(db, 'execucoes', atribuicao.execucaoId));
         execucaoId = undefined;
       }
-      const novasAtribuicoes = distribuicao.atribuicoes.map(a => {
-        if (a.id === atribuicao.id) { const novoStatus: 'pendente' | 'concluida' = isConcluindo ? 'concluida' : 'pendente'; return { ...a, status: novoStatus, dataConclusao: isConcluindo ? new Date().toISOString() : undefined, execucaoId }; }
-        return a;
+      // Le a distribuicao de novo dentro da transacao (nao confia no array em memoria) - so o
+      // registro que muda de fato precisa vir do estado atual em Firestore; as tarefas
+      // atualizadas ficam preservadas mesmo se algo mudou em outra aba/dispositivo nesse meio-tempo.
+      const distRef = doc(db, 'distribuicoes', distribuicao.id);
+      let novasAtribuicoes: Atribuicao[] = [];
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(distRef);
+        if (!snap.exists()) throw new Error('Distribuição não encontrada');
+        const atribuicoesAtuais: Atribuicao[] = snap.data().atribuicoes || [];
+        novasAtribuicoes = atribuicoesAtuais.map(a => {
+          if (a.id === atribuicao.id) { const novoStatus: 'pendente' | 'concluida' = isConcluindo ? 'concluida' : 'pendente'; return { ...a, status: novoStatus, dataConclusao: isConcluindo ? new Date().toISOString() : undefined, execucaoId }; }
+          return a;
+        });
+        tx.update(distRef, { atribuicoes: novasAtribuicoes });
       });
-      await updateDoc(doc(db, 'distribuicoes', distribuicao.id), { atribuicoes: novasAtribuicoes });
       setDistribuicao({ ...distribuicao, atribuicoes: novasAtribuicoes });
     } catch (e: any) { setErro('Erro: ' + e.message); }
   }

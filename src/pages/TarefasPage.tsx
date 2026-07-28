@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, deleteDoc, runTransaction } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { useApp } from '@/App';
@@ -214,17 +214,27 @@ export function TarefasPage() {
         await deleteDoc(doc(db, 'execucoes', atribuicao.execucaoId));
         execucaoId = undefined;
       }
-      // Cria objeto de update - nao inclui dataConclusao/execucaoId quando desfaz (remove do doc)
-      const novasAtribuicoes = distribuicao.atribuicoes.map(a => {
-        if (a.id === atribuicao.id) {
-          const updated: any = { ...a, status: (isConcluindo ? 'concluida' : 'pendente') as 'pendente' | 'concluida' };
-          if (isConcluindo) { updated.dataConclusao = new Date().toISOString(); updated.execucaoId = execucaoId; }
-          else { delete updated.dataConclusao; delete updated.execucaoId; } // Remove campos ao inves de undefined
-          return updated;
-        }
-        return a;
+      // Le a distribuicao de novo dentro da transacao - nao confia no array local, que pode
+      // estar desatualizado se outra pessoa mudou alguma tarefa nesse meio-tempo (outra aba,
+      // outro dispositivo, o admin redistribuindo, etc.) - sem isso, essa escrita sobrescreveria
+      // o documento inteiro com uma versao antiga, perdendo a mudanca de quem escreveu por ultimo.
+      const distRef = doc(db, 'distribuicoes', distribuicao.id);
+      let novasAtribuicoes: Atribuicao[] = [];
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(distRef);
+        if (!snap.exists()) throw new Error('Distribuição não encontrada');
+        const atribuicoesAtuais: Atribuicao[] = snap.data().atribuicoes || [];
+        novasAtribuicoes = atribuicoesAtuais.map(a => {
+          if (a.id === atribuicao.id) {
+            const updated: any = { ...a, status: (isConcluindo ? 'concluida' : 'pendente') as 'pendente' | 'concluida' };
+            if (isConcluindo) { updated.dataConclusao = new Date().toISOString(); updated.execucaoId = execucaoId; }
+            else { delete updated.dataConclusao; delete updated.execucaoId; } // Remove campos ao inves de undefined
+            return updated;
+          }
+          return a;
+        });
+        tx.update(distRef, { atribuicoes: novasAtribuicoes });
       });
-      await updateDoc(doc(db, 'distribuicoes', distribuicao.id), { atribuicoes: novasAtribuicoes });
       setDistribuicao({ ...distribuicao, atribuicoes: novasAtribuicoes });
     } catch (e) { console.error('toggleTarefa error:', e); }
   }
