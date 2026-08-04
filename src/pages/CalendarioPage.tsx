@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
 import { db, storage } from '@/lib/firebase';
 import { TopAppBar } from '@/components/TopAppBar';
 import { useApp } from '@/App';
 import { useAuthStore } from '@/stores/authStore';
 import type { Evento } from '@/utils/eventos';
 import { eventoOcorreEm } from '@/utils/eventos';
+
+const MESES_RANKING = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 interface ItemPendente {
   id: string;
@@ -180,6 +183,13 @@ export function CalendarioPage() {
   const [salvandoItem, setSalvandoItem] = useState(false);
   const [enviandoFotoId, setEnviandoFotoId] = useState<string | null>(null);
 
+  // Dashboard "Ranking de Moradores"
+  const [visaoRanking, setVisaoRanking] = useState<'menos' | 'mais'>('menos');
+  const [granularidadeRanking, setGranularidadeRanking] = useState<'semana' | 'mes' | 'ano'>('semana');
+  const [anoRanking, setAnoRanking] = useState(new Date().getFullYear());
+  const [mesRanking, setMesRanking] = useState(new Date().getMonth());
+  const [semanaRanking, setSemanaRanking] = useState('');
+
   useEffect(() => {
     async function carregar() {
       if (!user?.houseId) { setLoading(false); return; }
@@ -296,6 +306,59 @@ export function CalendarioPage() {
   const diaSelecionadoLabel = diaSelecionado.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });
 
   const top10PorPrioridade = calcularTop10PorPrioridade(distribuicoes, tarefasBase, comodos);
+
+  // Anos e semanas com distribuicao de verdade (pra nao oferecer opcoes vazias no slicer)
+  const anosComDados = useMemo(() => {
+    const anos = new Set<number>();
+    distribuicoes.forEach(d => { const s = segundaDaSemana(d.weekId); if (!isNaN(s.getTime())) anos.add(s.getFullYear()); });
+    anos.add(new Date().getFullYear());
+    return Array.from(anos).sort((a, b) => b - a);
+  }, [distribuicoes]);
+
+  const semanasDoAno = useMemo(() => {
+    return distribuicoes
+      .map(d => ({ weekId: d.weekId, segunda: segundaDaSemana(d.weekId) }))
+      .filter(w => !isNaN(w.segunda.getTime()) && w.segunda.getFullYear() === anoRanking)
+      .sort((a, b) => b.segunda.getTime() - a.segunda.getTime());
+  }, [distribuicoes, anoRanking]);
+
+  // Semana selecionada default: a mais recente do ano escolhido, assim que a lista carrega
+  useEffect(() => {
+    if (!semanaRanking && semanasDoAno.length > 0) setSemanaRanking(semanasDoAno[0].weekId);
+  }, [semanasDoAno, semanaRanking]);
+
+  const rankingMoradores = useMemo(() => {
+    const distsFiltradas = distribuicoes.filter(dist => {
+      const segunda = segundaDaSemana(dist.weekId);
+      if (isNaN(segunda.getTime())) return false;
+      if (granularidadeRanking === 'semana') return dist.weekId === semanaRanking;
+      if (granularidadeRanking === 'mes') return segunda.getFullYear() === anoRanking && segunda.getMonth() === mesRanking;
+      return segunda.getFullYear() === anoRanking;
+    });
+
+    const porMorador: Record<string, { total: number; concluidas: number }> = {};
+    distsFiltradas.forEach(dist => {
+      dist.atribuicoes.forEach(a => {
+        if (!a.responsavelNome) return;
+        if (!porMorador[a.responsavelNome]) porMorador[a.responsavelNome] = { total: 0, concluidas: 0 };
+        porMorador[a.responsavelNome].total++;
+        if (a.status === 'concluida' || a.status === 'concluída') porMorador[a.responsavelNome].concluidas++;
+      });
+    });
+
+    const linhas = Object.entries(porMorador).map(([nome, v]) => ({
+      nome,
+      total: v.total,
+      concluidas: v.concluidas,
+      naoConcluidas: v.total - v.concluidas,
+      pctNaoConcluidas: v.total > 0 ? Math.round(((v.total - v.concluidas) / v.total) * 1000) / 10 : 0,
+    }));
+
+    return visaoRanking === 'menos'
+      ? [...linhas].sort((a, b) => b.pctNaoConcluidas - a.pctNaoConcluidas)
+      : [...linhas].sort((a, b) => b.concluidas - a.concluidas);
+  }, [distribuicoes, granularidadeRanking, anoRanking, mesRanking, semanaRanking, visaoRanking]);
+
   const PRIORIDADES: { key: 'alta' | 'media' | 'baixa'; label: string; corTexto: string; corBg: string; corBorda: string }[] = [
     { key: 'alta', label: 'Alta Prioridade', corTexto: 'text-error', corBg: 'bg-error/10', corBorda: 'border-error/30' },
     { key: 'media', label: 'Média Prioridade', corTexto: 'text-yellow-600', corBg: 'bg-yellow-500/10', corBorda: 'border-yellow-500/30' },
@@ -407,6 +470,115 @@ export function CalendarioPage() {
               ))}
             </div>
           )}
+        </section>
+
+        {/* Ranking de Moradores */}
+        <section className="space-y-stack-md">
+          <h3 className="text-section-heading font-section-heading text-on-surface">Ranking de Moradores</h3>
+
+          {/* Toggle de visao */}
+          <div className="flex bg-surface-container-low rounded-xl p-1 border border-outline-variant/50">
+            <button
+              onClick={() => setVisaoRanking('menos')}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${visaoRanking === 'menos' ? 'bg-error/20 text-error' : 'text-on-surface-variant'}`}
+            >
+              Quem menos concluiu
+            </button>
+            <button
+              onClick={() => setVisaoRanking('mais')}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${visaoRanking === 'mais' ? 'bg-primary/20 text-primary' : 'text-on-surface-variant'}`}
+            >
+              Quem mais concluiu
+            </button>
+          </div>
+
+          {/* Slicer: granularidade + ano + (semana ou mes) */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex bg-surface-container-low rounded-lg p-1 border border-outline-variant/50">
+              {(['semana', 'mes', 'ano'] as const).map(g => (
+                <button
+                  key={g}
+                  onClick={() => setGranularidadeRanking(g)}
+                  className={`px-3 py-1.5 rounded-md text-[11px] font-bold capitalize transition-all ${granularidadeRanking === g ? 'bg-page-ciclos/25 text-page-ciclos' : 'text-on-surface-variant'}`}
+                >
+                  {g === 'mes' ? 'Mês' : g}
+                </button>
+              ))}
+            </div>
+
+            <select
+              value={anoRanking}
+              onChange={e => { setAnoRanking(parseInt(e.target.value, 10)); setSemanaRanking(''); }}
+              className="bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-1.5 px-2 text-xs"
+            >
+              {anosComDados.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+
+            {granularidadeRanking === 'mes' && (
+              <select
+                value={mesRanking}
+                onChange={e => setMesRanking(parseInt(e.target.value, 10))}
+                className="bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-1.5 px-2 text-xs"
+              >
+                {MESES_RANKING.map((nome, i) => <option key={i} value={i}>{nome}</option>)}
+              </select>
+            )}
+
+            {granularidadeRanking === 'semana' && (
+              semanasDoAno.length === 0 ? (
+                <span className="text-[11px] text-on-surface-variant">Nenhuma semana com dados em {anoRanking}</span>
+              ) : (
+                <select
+                  value={semanaRanking}
+                  onChange={e => setSemanaRanking(e.target.value)}
+                  className="bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-1.5 px-2 text-xs"
+                >
+                  {semanasDoAno.map(({ weekId, segunda }) => {
+                    const domingo = new Date(segunda); domingo.setDate(domingo.getDate() + 6);
+                    const fmt = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+                    return <option key={weekId} value={weekId}>{fmt(segunda)} - {fmt(domingo)}</option>;
+                  })}
+                </select>
+              )
+            )}
+          </div>
+
+          {/* Grafico */}
+          <div className="glass-card rounded-xl p-4">
+            {rankingMoradores.length === 0 ? (
+              <p className="text-sm text-on-surface-variant text-center py-8">Nenhuma tarefa distribuída nesse período.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={Math.max(160, rankingMoradores.length * 44)}>
+                <BarChart data={rankingMoradores} layout="vertical" margin={{ top: 4, right: 28, left: 4, bottom: 4 }}>
+                  <XAxis type="number" hide domain={visaoRanking === 'menos' ? [0, 100] : [0, 'dataMax']} />
+                  <YAxis type="category" dataKey="nome" width={90} tick={{ fill: 'var(--color-on-surface-variant)', fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    cursor={{ fill: 'var(--color-surface-container-low)' }}
+                    contentStyle={{ background: 'var(--color-surface-card)', border: '1px solid var(--color-outline-variant)', borderRadius: 8, fontSize: 12 }}
+                    formatter={(_value: number, _name: string, item: any) => {
+                      const linha = item.payload;
+                      return visaoRanking === 'menos'
+                        ? [`${linha.pctNaoConcluidas}% (${linha.naoConcluidas}/${linha.total})`, 'Não concluídas']
+                        : [`${linha.concluidas} tarefa${linha.concluidas === 1 ? '' : 's'}`, 'Concluídas'];
+                    }}
+                  />
+                  <Bar
+                    dataKey={visaoRanking === 'menos' ? 'pctNaoConcluidas' : 'concluidas'}
+                    fill={visaoRanking === 'menos' ? 'var(--color-error)' : 'var(--color-primary)'}
+                    radius={[0, 6, 6, 0]}
+                    barSize={22}
+                  >
+                    <LabelList
+                      dataKey={visaoRanking === 'menos' ? 'pctNaoConcluidas' : 'concluidas'}
+                      position="right"
+                      formatter={(v: number) => visaoRanking === 'menos' ? `${v}%` : `${v}`}
+                      style={{ fill: 'var(--color-on-surface)', fontSize: 11, fontWeight: 700 }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </section>
 
         {/* Ciclos de Tarefas Não Concluídas */}
