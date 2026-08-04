@@ -352,11 +352,12 @@ export function CalendarioPage() {
       concluidas: v.concluidas,
       naoConcluidas: v.total - v.concluidas,
       pctNaoConcluidas: v.total > 0 ? Math.round(((v.total - v.concluidas) / v.total) * 1000) / 10 : 0,
+      pctConcluidas: v.total > 0 ? Math.round((v.concluidas / v.total) * 1000) / 10 : 0,
     }));
 
     return visaoRanking === 'menos'
       ? [...linhas].sort((a, b) => b.pctNaoConcluidas - a.pctNaoConcluidas)
-      : [...linhas].sort((a, b) => b.concluidas - a.concluidas);
+      : [...linhas].sort((a, b) => b.pctConcluidas - a.pctConcluidas);
   }, [distribuicoes, granularidadeRanking, anoRanking, mesRanking, semanaRanking, visaoRanking]);
 
   const PRIORIDADES: { key: 'alta' | 'media' | 'baixa'; label: string; corTexto: string; corBg: string; corBorda: string }[] = [
@@ -550,7 +551,7 @@ export function CalendarioPage() {
             ) : (
               <ResponsiveContainer width="100%" height={Math.max(160, rankingMoradores.length * 44)}>
                 <BarChart data={rankingMoradores} layout="vertical" margin={{ top: 4, right: 28, left: 4, bottom: 4 }}>
-                  <XAxis type="number" hide domain={visaoRanking === 'menos' ? [0, 100] : [0, 'dataMax']} />
+                  <XAxis type="number" hide domain={[0, 100]} />
                   <YAxis type="category" dataKey="nome" width={90} tick={{ fill: 'var(--color-on-surface-variant)', fontSize: 12 }} axisLine={false} tickLine={false} />
                   <Tooltip
                     cursor={{ fill: 'var(--color-surface-container-low)' }}
@@ -559,19 +560,19 @@ export function CalendarioPage() {
                       const linha = item.payload;
                       return visaoRanking === 'menos'
                         ? [`${linha.pctNaoConcluidas}% (${linha.naoConcluidas}/${linha.total})`, 'Não concluídas']
-                        : [`${linha.concluidas} tarefa${linha.concluidas === 1 ? '' : 's'}`, 'Concluídas'];
+                        : [`${linha.pctConcluidas}% (${linha.concluidas}/${linha.total})`, 'Concluídas'];
                     }}
                   />
                   <Bar
-                    dataKey={visaoRanking === 'menos' ? 'pctNaoConcluidas' : 'concluidas'}
+                    dataKey={visaoRanking === 'menos' ? 'pctNaoConcluidas' : 'pctConcluidas'}
                     fill={visaoRanking === 'menos' ? 'var(--color-error)' : 'var(--color-primary)'}
                     radius={[0, 6, 6, 0]}
                     barSize={22}
                   >
                     <LabelList
-                      dataKey={visaoRanking === 'menos' ? 'pctNaoConcluidas' : 'concluidas'}
+                      dataKey={visaoRanking === 'menos' ? 'pctNaoConcluidas' : 'pctConcluidas'}
                       position="right"
-                      formatter={(v: number) => visaoRanking === 'menos' ? `${v}%` : `${v}`}
+                      formatter={(v: number) => `${v}%`}
                       style={{ fill: 'var(--color-on-surface)', fontSize: 11, fontWeight: 700 }}
                     />
                   </Bar>
