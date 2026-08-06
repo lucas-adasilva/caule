@@ -25,6 +25,9 @@ interface TarefaBase {
   titulo: string;
   comodoId: string;
   prioridade: 'alta' | 'media' | 'baixa';
+  frequencia?: string;
+  diasSemana?: string[];
+  vezesPorSemana?: number;
 }
 interface ComodoInfo {
   id: string;
@@ -90,6 +93,71 @@ function segundaDaSemana(weekId: string): Date {
   const jan4 = new Date(ano, 0, 4);
   const primeiraSegunda = new Date(jan4.getTime() - ((jan4.getDay() + 6) % 7) * 24 * 60 * 60 * 1000);
   return new Date(primeiraSegunda.getTime() + (semana - 1) * 7 * 24 * 60 * 60 * 1000);
+}
+
+// Inverso de segundaDaSemana: dada uma segunda-feira, acha o weekId (mesma convencao Jan-4-ISO).
+// Impreciso pertinho da virada do ano (semana que cruza dezembro/janeiro), mas isso so afeta uma
+// estimativa, entao nao vale a pena tratar esse caso especial aqui.
+function weekIdDaSegunda(segunda: Date): string {
+  const ano = segunda.getFullYear();
+  const jan4 = new Date(ano, 0, 4);
+  const primeiraSegunda = new Date(jan4.getTime() - ((jan4.getDay() + 6) % 7) * 24 * 60 * 60 * 1000);
+  const diff = Math.round((segunda.getTime() - primeiraSegunda.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  return `${ano}-W${String(diff + 1).padStart(2, '0')}`;
+}
+
+// Todas as segundas-feiras que caem dentro do mes informado (mes 0-11).
+function segundasDoMes(ano: number, mes: number): Date[] {
+  const segundas: Date[] = [];
+  const d = new Date(ano, mes, 1);
+  while (d.getDay() !== 1) d.setDate(d.getDate() + 1);
+  while (d.getMonth() === mes) {
+    segundas.push(new Date(d));
+    d.setDate(d.getDate() + 7);
+  }
+  return segundas;
+}
+
+function segundasDoAno(ano: number): Date[] {
+  let todas: Date[] = [];
+  for (let mes = 0; mes < 12; mes++) todas = todas.concat(segundasDoMes(ano, mes));
+  return todas;
+}
+
+// Mesmo calculo de getSemanaDoMes() usado em functions/index.js/ConfiguracoesPage.tsx pra saber
+// se uma semana e a "primeira" do mes (usado pra estimar tarefas mensais).
+function semanaDoMesDoWeekId(weekId: string): number {
+  const segunda = segundaDaSemana(weekId);
+  if (isNaN(segunda.getTime())) return 0;
+  const mes = segunda.getMonth();
+  const ano = segunda.getFullYear();
+  const primeiroDiaMes = new Date(ano, mes, 1);
+  const diaSemana = primeiroDiaMes.getDay();
+  const primeiraSegundaDoMes = new Date(primeiroDiaMes.getTime() - (diaSemana === 0 ? 6 : diaSemana - 1) * 24 * 60 * 60 * 1000);
+  const diasDiff = Math.floor((segunda.getTime() - primeiraSegundaDoMes.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  return diasDiff + 1;
+}
+
+// Estima quantas tarefas UMA semana sem distribuicao real geraria, a partir das regras de
+// recorrencia de tarefasBase - mesma expansao usada em gerarAtribuicoesSemana()
+// (functions/index.js/ConfiguracoesPage.tsx), sem multiplicar por morador (cada ocorrencia = 1
+// tarefa, independente de quem faria).
+function estimarTarefasSemana(tarefasBase: TarefaBase[], weekId: string): number {
+  const match = weekId.match(/-W(\d+)$/);
+  const numSemana = match ? parseInt(match[1], 10) : 0;
+  const semanaPar = numSemana % 2 === 0;
+  const primeiraDoMes = semanaDoMesDoWeekId(weekId) === 1;
+
+  let total = 0;
+  tarefasBase.forEach(t => {
+    if (t.frequencia === 'diaria') total += 6;
+    else if (t.frequencia === 'semanal' && t.diasSemana && t.diasSemana.length > 0) total += t.diasSemana.length;
+    else if (t.frequencia === 'semanal') total += t.vezesPorSemana || 1;
+    else if (t.frequencia === 'quinzenal') { if (!semanaPar) total += 1; }
+    else if (t.frequencia === 'mensal') { if (primeiraDoMes) total += 1; }
+    // 'unica' nao entra na estimativa - e pontual, nao da pra prever recorrencia
+  });
+  return total;
 }
 
 function fimDoDia(d: Date): Date {
@@ -203,7 +271,7 @@ export function CalendarioPage() {
         const qTarefas = query(collection(db, 'tarefas'), where('casaId', '==', user.houseId));
         const sTarefas = await getDocs(qTarefas);
         const listaTarefas: TarefaBase[] = [];
-        sTarefas.forEach(d => { const data = d.data(); listaTarefas.push({ id: d.id, titulo: data.titulo || 'Tarefa', comodoId: data.comodoId || '', prioridade: data.prioridade || 'media' }); });
+        sTarefas.forEach(d => { const data = d.data(); listaTarefas.push({ id: d.id, titulo: data.titulo || 'Tarefa', comodoId: data.comodoId || '', prioridade: data.prioridade || 'media', frequencia: data.frequencia || 'semanal', diasSemana: data.diasSemana || [], vezesPorSemana: data.vezesPorSemana }); });
         setTarefasBase(listaTarefas);
 
         const qComodos = query(collection(db, 'comodos'), where('casaId', '==', user.houseId));
@@ -315,17 +383,65 @@ export function CalendarioPage() {
     return Array.from(anos).sort((a, b) => b - a);
   }, [distribuicoes]);
 
+  // Todas as semanas do ano (nao so as que ja tem distribuicao real) - semanas sem dados entram
+  // com temDados=false, pra oferecer a opcao mesmo assim (o percentual geral estima o total
+  // esperado pra elas em vez de mostrar 0 tarefas).
   const semanasDoAno = useMemo(() => {
-    return distribuicoes
-      .map(d => ({ weekId: d.weekId, segunda: segundaDaSemana(d.weekId) }))
-      .filter(w => !isNaN(w.segunda.getTime()) && w.segunda.getFullYear() === anoRanking)
+    return segundasDoAno(anoRanking)
+      .map(segunda => {
+        const weekId = weekIdDaSegunda(segunda);
+        return { weekId, segunda, temDados: distribuicoes.some(d => d.weekId === weekId) };
+      })
       .sort((a, b) => b.segunda.getTime() - a.segunda.getTime());
   }, [distribuicoes, anoRanking]);
 
-  // Semana selecionada default: a mais recente do ano escolhido, assim que a lista carrega
+  // Semana selecionada default: a mais recente do ano escolhido QUE TEM DADOS (senao a mais
+  // recente de qualquer jeito), assim que a lista carrega
   useEffect(() => {
-    if (!semanaRanking && semanasDoAno.length > 0) setSemanaRanking(semanasDoAno[0].weekId);
+    if (semanaRanking || semanasDoAno.length === 0) return;
+    const comDados = semanasDoAno.find(w => w.temDados);
+    setSemanaRanking((comDados || semanasDoAno[0]).weekId);
   }, [semanasDoAno, semanaRanking]);
+
+  // Percentual geral de conclusao no periodo selecionado - soma tudo (todos os moradores juntos).
+  // Semanas sem distribuicao real entram com um total ESTIMADO a partir da recorrencia das
+  // tarefas cadastradas (0 concluidas, ja que nada foi distribuido ainda).
+  const percentualGeral = useMemo(() => {
+    let semanasAlvo: Date[] = [];
+    if (granularidadeRanking === 'semana') {
+      const segunda = segundaDaSemana(semanaRanking);
+      if (!isNaN(segunda.getTime())) semanasAlvo = [segunda];
+    } else if (granularidadeRanking === 'mes') {
+      semanasAlvo = segundasDoMes(anoRanking, mesRanking);
+    } else {
+      semanasAlvo = segundasDoAno(anoRanking);
+    }
+
+    let total = 0;
+    let concluidas = 0;
+    let temEstimativa = false;
+
+    semanasAlvo.forEach(segunda => {
+      const weekId = weekIdDaSegunda(segunda);
+      const dist = distribuicoes.find(d => d.weekId === weekId);
+      if (dist) {
+        dist.atribuicoes.forEach(a => {
+          total++;
+          if (a.status === 'concluida' || a.status === 'concluída') concluidas++;
+        });
+      } else {
+        const estimativa = estimarTarefasSemana(tarefasBase, weekId);
+        if (estimativa > 0) { total += estimativa; temEstimativa = true; }
+      }
+    });
+
+    return {
+      total,
+      concluidas,
+      pct: total > 0 ? Math.round((concluidas / total) * 1000) / 10 : 0,
+      temEstimativa,
+    };
+  }, [distribuicoes, tarefasBase, granularidadeRanking, anoRanking, mesRanking, semanaRanking]);
 
   const rankingMoradores = useMemo(() => {
     const distsFiltradas = distribuicoes.filter(dist => {
@@ -526,22 +642,38 @@ export function CalendarioPage() {
             )}
 
             {granularidadeRanking === 'semana' && (
-              semanasDoAno.length === 0 ? (
-                <span className="text-[11px] text-on-surface-variant">Nenhuma semana com dados em {anoRanking}</span>
-              ) : (
-                <select
-                  value={semanaRanking}
-                  onChange={e => setSemanaRanking(e.target.value)}
-                  className="bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-1.5 px-2 text-xs"
-                >
-                  {semanasDoAno.map(({ weekId, segunda }) => {
-                    const domingo = new Date(segunda); domingo.setDate(domingo.getDate() + 6);
-                    const fmt = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-                    return <option key={weekId} value={weekId}>{fmt(segunda)} - {fmt(domingo)}</option>;
-                  })}
-                </select>
-              )
+              <select
+                value={semanaRanking}
+                onChange={e => setSemanaRanking(e.target.value)}
+                className="bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-1.5 px-2 text-xs"
+              >
+                {semanasDoAno.map(({ weekId, segunda, temDados }) => {
+                  const domingo = new Date(segunda); domingo.setDate(domingo.getDate() + 6);
+                  const fmt = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+                  return <option key={weekId} value={weekId}>{fmt(segunda)} - {fmt(domingo)}{temDados ? '' : ' (estimado)'}</option>;
+                })}
+              </select>
             )}
+          </div>
+
+          {/* Percentual geral do periodo - soma todos os moradores */}
+          <div className="glass-card rounded-xl p-4 space-y-2">
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-label-sm font-bold text-on-surface-variant uppercase">Concluído no período</p>
+                <p className="text-[10px] text-on-surface-variant">
+                  {percentualGeral.concluidas} de {percentualGeral.total} tarefa{percentualGeral.total === 1 ? '' : 's'}
+                  {percentualGeral.temEstimativa ? ' (algumas semanas ainda não distribuídas - total estimado)' : ''}
+                </p>
+              </div>
+              <p className="text-3xl font-bold text-page-ciclos">{percentualGeral.pct}%</p>
+            </div>
+            <div className="h-2.5 rounded-full bg-surface-container-low overflow-hidden">
+              <div
+                className="h-full rounded-full bg-page-ciclos transition-all"
+                style={{ width: `${Math.min(100, percentualGeral.pct)}%` }}
+              />
+            </div>
           </div>
 
           {/* Grafico */}
