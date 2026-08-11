@@ -53,7 +53,7 @@ export function EstadiaPage() {
       const coms: Comodo[] = [];
       sComodos.forEach(d => {
         const data = d.data();
-        if (data.tipo === 'privado' && data.aceitaHospedes === true) coms.push({ id: d.id, nome: data.nome || 'Cômodo', icone: data.icone || '🏠' });
+        if (data.aceitaHospedes === true) coms.push({ id: d.id, nome: data.nome || 'Cômodo', icone: data.icone || '🏠' });
       });
       setComodos(coms);
 

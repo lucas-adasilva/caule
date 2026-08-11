@@ -198,7 +198,7 @@ export function UsersPage() {
       const coms: ComodoHospede[] = [];
       snap.forEach(d => {
         const data = d.data();
-        if (data.tipo === 'privado' && data.aceitaHospedes === true) coms.push({ id: d.id, nome: data.nome || 'Cômodo', icone: data.icone || '🏠' });
+        if (data.aceitaHospedes === true) coms.push({ id: d.id, nome: data.nome || 'Cômodo', icone: data.icone || '🏠' });
       });
       setComodosHospedes(coms);
     } catch (e) { console.error('[Moradores] Erro ao carregar cômodos:', e); }
@@ -441,7 +441,7 @@ export function UsersPage() {
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-section-heading font-bold text-on-surface flex items-center gap-2">
                     <span className="material-symbols-outlined text-[20px] text-on-surface-variant">event_upcoming</span>
-                    Reservas Futuras
+                    Planejamento de Hospedagens
                   </h3>
                   <button
                     onClick={abrirModalReserva}

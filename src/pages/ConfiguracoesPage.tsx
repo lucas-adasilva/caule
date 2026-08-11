@@ -1771,9 +1771,9 @@ export function ConfiguracoesPage() {
                     <div>
                       <label className="text-[10px] text-on-surface-variant uppercase font-bold block mb-1">Cômodo</label>
                       {(() => {
-                        const comodosHospedes = comodos.filter(c => c.tipo === 'privado' && c.aceitaHospedes);
+                        const comodosHospedes = comodos.filter(c => c.aceitaHospedes);
                         return comodosHospedes.length === 0 ? (
-                          <p className="text-xs text-on-surface-variant py-2">Nenhum cômodo privado marcado como "aceita hóspedes" ainda.</p>
+                          <p className="text-xs text-on-surface-variant py-2">Nenhum cômodo marcado como "aceita hóspedes" ainda.</p>
                         ) : (
                           <select value={formMoradorCompleto.room || ''} onChange={e => setFormMoradorCompleto({ ...formMoradorCompleto, room: e.target.value })} className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm">
                             <option value="">Selecione</option>
