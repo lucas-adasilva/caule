@@ -26,6 +26,18 @@ interface ComodoHospede {
   icone: string;
 }
 
+interface ReservaFutura {
+  id: string;
+  casaId: string;
+  hospedeNome: string;
+  chegada: string; // YYYY-MM-DD
+  saida: string; // YYYY-MM-DD (exclusiva, mesma convencao de Hospedagem: ultima noite e saida - 1 dia)
+  comodoId: string;
+  comodoNome: string;
+  comodoIcone: string;
+  createdBy: string;
+}
+
 function estadiaAtiva(estadiaInicio?: string, estadiaFim?: string): boolean {
   if (!estadiaInicio || !estadiaFim) return false;
   const hoje = new Date().toISOString().split('T')[0];
@@ -62,6 +74,31 @@ function diasNoMes(chegada: string, saida: string, ano: number, mes: number): nu
 }
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const DIAS_SEMANA_CAL = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+
+function formatDateLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Grade do mes (domingo primeiro, com dias de padding do mes anterior/seguinte pra completar semanas)
+function getDiasDoMesCalendario(referencia: Date): { data: Date; noMesAtual: boolean }[] {
+  const ano = referencia.getFullYear();
+  const mes = referencia.getMonth();
+  const primeiroDiaMes = new Date(ano, mes, 1);
+  const ultimoDiaMes = new Date(ano, mes + 1, 0);
+  const diaSemanaPrimeiro = primeiroDiaMes.getDay(); // Dom=0
+
+  const dias: { data: Date; noMesAtual: boolean }[] = [];
+  for (let i = diaSemanaPrimeiro; i > 0; i--) dias.push({ data: new Date(ano, mes, 1 - i), noMesAtual: false });
+  for (let dia = 1; dia <= ultimoDiaMes.getDate(); dia++) dias.push({ data: new Date(ano, mes, dia), noMesAtual: true });
+  while (dias.length % 7 !== 0) {
+    const ultimo = dias[dias.length - 1].data;
+    const d = new Date(ultimo);
+    d.setDate(d.getDate() + 1);
+    dias.push({ data: d, noMesAtual: false });
+  }
+  return dias;
+}
 
 function PessoaCard({ pessoa }: { pessoa: Pessoa }) {
   const telefone = pessoa.phone ? pessoa.phone.replace(/\D/g, '') : '';
@@ -101,6 +138,14 @@ export function UsersPage() {
   const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
   const [reembolsandoMes, setReembolsandoMes] = useState(false);
   const [comodosHospedes, setComodosHospedes] = useState<ComodoHospede[]>([]);
+  const [reservas, setReservas] = useState<ReservaFutura[]>([]);
+  const [loadingReservas, setLoadingReservas] = useState(true);
+  const [comodosReserva, setComodosReserva] = useState<ComodoHospede[]>([]);
+  const [mesReferenciaReserva, setMesReferenciaReserva] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+  const [modalReservaOpen, setModalReservaOpen] = useState(false);
+  const [salvandoReserva, setSalvandoReserva] = useState(false);
+  const [erroReserva, setErroReserva] = useState('');
+  const [formReserva, setFormReserva] = useState({ hospedeNome: '', chegada: '', saida: '', comodoId: '' });
 
   async function carregarDados() {
     if (!user?.houseId) { setLoading(false); return; }
@@ -159,9 +204,41 @@ export function UsersPage() {
     } catch (e) { console.error('[Moradores] Erro ao carregar cômodos:', e); }
   }
 
+  async function carregarReservas() {
+    if (!user?.houseId) { setLoadingReservas(false); return; }
+    setLoadingReservas(true);
+    try {
+      const q = query(collection(db, 'reservasFuturas'), where('casaId', '==', user.houseId));
+      const snap = await getDocs(q);
+      const itens: ReservaFutura[] = [];
+      snap.forEach(d => itens.push({ id: d.id, ...d.data() } as ReservaFutura));
+      itens.sort((a, b) => a.chegada.localeCompare(b.chegada));
+      setReservas(itens);
+    } catch (e) { console.error('[Moradores] Erro ao carregar reservas futuras:', e); }
+    setLoadingReservas(false);
+  }
+
+  // Comodos pra reserva futura: coletivos e privados, desde que aceitem hospedes - diferente do
+  // combo do historico de hospedagem (comodosHospedes acima), que so lista privados.
+  async function carregarComodosReserva() {
+    if (!user?.houseId) return;
+    try {
+      const q = query(collection(db, 'comodos'), where('casaId', '==', user.houseId));
+      const snap = await getDocs(q);
+      const coms: ComodoHospede[] = [];
+      snap.forEach(d => {
+        const data = d.data();
+        if (data.aceitaHospedes === true) coms.push({ id: d.id, nome: data.nome || 'Cômodo', icone: data.icone || '🏠' });
+      });
+      setComodosReserva(coms);
+    } catch (e) { console.error('[Moradores] Erro ao carregar cômodos para reserva:', e); }
+  }
+
   useEffect(() => { carregarDados(); }, [user?.houseId]);
   useEffect(() => { carregarHistorico(); }, [user?.houseId]);
   useEffect(() => { carregarComodosHospedes(); }, [user?.houseId]);
+  useEffect(() => { carregarReservas(); }, [user?.houseId]);
+  useEffect(() => { carregarComodosReserva(); }, [user?.houseId]);
 
   async function togglePagamento(item: Hospedagem) {
     setHistorico(prev => prev.map(h => h.id === item.id ? { ...h, statusPagamento: !h.statusPagamento } : h));
@@ -225,6 +302,67 @@ export function UsersPage() {
       setHistorico(prev => [...prev, item].sort((a, b) => b.chegada.localeCompare(a.chegada)));
     }
   }
+
+  function abrirModalReserva() {
+    setFormReserva({ hospedeNome: '', chegada: '', saida: '', comodoId: '' });
+    setErroReserva('');
+    setModalReservaOpen(true);
+  }
+
+  function fecharModalReserva() {
+    setModalReservaOpen(false);
+    setErroReserva('');
+  }
+
+  async function handleSalvarReserva() {
+    if (!user?.houseId) return;
+    if (!formReserva.hospedeNome.trim()) { setErroReserva('Informe o nome do hóspede'); return; }
+    if (!formReserva.chegada || !formReserva.saida) { setErroReserva('Informe as datas de entrada e saída'); return; }
+    if (formReserva.saida <= formReserva.chegada) { setErroReserva('A data de saída precisa ser depois da entrada'); return; }
+    if (!formReserva.comodoId) { setErroReserva('Selecione o cômodo'); return; }
+    const comodo = comodosReserva.find(c => c.id === formReserva.comodoId);
+    if (!comodo) { setErroReserva('Cômodo inválido'); return; }
+    setSalvandoReserva(true);
+    setErroReserva('');
+    try {
+      const novo = {
+        casaId: user.houseId,
+        hospedeNome: formReserva.hospedeNome.trim(),
+        chegada: formReserva.chegada,
+        saida: formReserva.saida,
+        comodoId: comodo.id,
+        comodoNome: comodo.nome,
+        comodoIcone: comodo.icone,
+        createdBy: user.uid,
+        createdAt: serverTimestamp(),
+      };
+      const ref = await addDoc(collection(db, 'reservasFuturas'), novo);
+      setReservas(prev => [...prev, { id: ref.id, ...novo, createdAt: undefined }].sort((a, b) => a.chegada.localeCompare(b.chegada)));
+      setModalReservaOpen(false);
+    } catch (e) { console.error('[Moradores] Erro ao salvar reserva futura:', e); setErroReserva('Erro ao salvar. Tente novamente.'); }
+    setSalvandoReserva(false);
+  }
+
+  async function excluirReserva(item: ReservaFutura) {
+    if (!confirm(`Excluir a reserva de ${item.hospedeNome}?`)) return;
+    setReservas(prev => prev.filter(r => r.id !== item.id));
+    try { await deleteDoc(doc(db, 'reservasFuturas', item.id)); }
+    catch (e) {
+      console.error('[Moradores] Erro ao excluir reserva futura:', e);
+      setReservas(prev => [...prev, item].sort((a, b) => a.chegada.localeCompare(b.chegada)));
+    }
+  }
+
+  function mesReservaAnterior() { setMesReferenciaReserva(prev => { const d = new Date(prev); d.setMonth(d.getMonth() - 1); return d; }); }
+  function mesReservaSeguinte() { setMesReferenciaReserva(prev => { const d = new Date(prev); d.setMonth(d.getMonth() + 1); return d; }); }
+
+  // Reservas cuja estadia (chegada inclusive, saida exclusive) cobre o dia informado.
+  function reservasNoDia(data: Date): ReservaFutura[] {
+    const dataStr = formatDateLocal(data);
+    return reservas.filter(r => r.chegada <= dataStr && dataStr < r.saida);
+  }
+
+  const diasCalendarioReserva = useMemo(() => getDiasDoMesCalendario(mesReferenciaReserva), [mesReferenciaReserva]);
 
   // Linhas que contam pro mes/ano selecionado: precisam ter algum dia dentro do mes E estarem
   // marcadas como pagas (regra explicita - reembolso e o total so consideram quem ja pagou).
@@ -298,6 +436,111 @@ export function UsersPage() {
             </section>
 
             {user?.role !== 'hospede' && (
+              <>
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-section-heading font-bold text-on-surface flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[20px] text-on-surface-variant">event_upcoming</span>
+                    Reservas Futuras
+                  </h3>
+                  <button
+                    onClick={abrirModalReserva}
+                    className="w-9 h-9 rounded-full bg-page-ramos text-white flex items-center justify-center shadow hover:brightness-110 active:scale-90 transition-all flex-shrink-0"
+                    title="Nova reserva futura"
+                  >
+                    <span className="material-symbols-outlined text-xl">add</span>
+                  </button>
+                </div>
+
+                {/* Calendario mensal */}
+                <div className="glass-card rounded-xl p-3 mb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <button onClick={mesReservaAnterior} className="material-symbols-outlined text-on-surface-variant p-1 hover:bg-surface-variant rounded transition-colors">chevron_left</button>
+                    <h4 className="font-section-heading text-body-md text-on-surface capitalize">{mesReferenciaReserva.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h4>
+                    <button onClick={mesReservaSeguinte} className="material-symbols-outlined text-on-surface-variant p-1 hover:bg-surface-variant rounded transition-colors">chevron_right</button>
+                  </div>
+
+                  <div className="grid grid-cols-7 mb-1 text-center">
+                    {DIAS_SEMANA_CAL.map((d, i) => <span key={i} className="text-[10px] font-bold text-on-surface-variant opacity-60">{d}</span>)}
+                  </div>
+
+                  {loadingReservas ? (
+                    <div className="flex justify-center py-6"><span className="material-symbols-outlined animate-spin text-page-ramos text-2xl">refresh</span></div>
+                  ) : (
+                    <div className="grid grid-cols-7 gap-1">
+                      {diasCalendarioReserva.map(({ data, noMesAtual }, idx) => {
+                        const isHoje = data.toDateString() === new Date().toDateString();
+                        const reservasDoDia = noMesAtual ? reservasNoDia(data) : [];
+                        return (
+                          <div
+                            key={idx}
+                            className={`min-h-[4.5rem] rounded-lg p-1 flex flex-col gap-0.5 ${
+                              !noMesAtual
+                                ? 'opacity-20'
+                                : isHoje
+                                ? 'bg-page-ramos/10 ring-1 ring-page-ramos'
+                                : 'bg-surface-container/50'
+                            }`}
+                          >
+                            <span className={`text-[10px] leading-none ${isHoje ? 'font-bold text-page-ramos' : 'text-on-surface-variant'}`}>{data.getDate()}</span>
+                            <div className="flex flex-col gap-0.5 overflow-hidden">
+                              {reservasDoDia.slice(0, 2).map(r => (
+                                <span key={r.id} className="text-[8px] leading-tight font-bold text-page-ramos bg-page-ramos/15 rounded px-0.5 py-px truncate" title={r.hospedeNome}>
+                                  {r.hospedeNome.split(' ')[0]}
+                                </span>
+                              ))}
+                              {reservasDoDia.length > 2 && (
+                                <span className="text-[8px] leading-none text-on-surface-variant">+{reservasDoDia.length - 2}</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Tabela de reservas futuras */}
+                {!loadingReservas && (
+                  reservas.length === 0 ? (
+                    <p className="text-sm text-text-muted mb-2">Nenhuma reserva futura cadastrada ainda.</p>
+                  ) : (
+                    <div className="overflow-x-auto -mx-margin-page px-margin-page mb-2">
+                      <table className="w-full text-xs border-collapse min-w-[520px]">
+                        <thead>
+                          <tr className="text-left text-page-ramos border-b border-outline-variant">
+                            <th className="py-2 pr-3 font-bold">Hóspede</th>
+                            <th className="py-2 pr-3 font-bold">Entrada</th>
+                            <th className="py-2 pr-3 font-bold">Saída</th>
+                            <th className="py-2 pr-3 font-bold">Cômodo</th>
+                            <th className="py-2 pr-1 font-bold text-center"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {reservas.map(item => (
+                            <tr key={item.id} className="border-b border-outline-variant/50">
+                              <td className="py-2 pr-3 text-on-surface font-bold">{item.hospedeNome}</td>
+                              <td className="py-2 pr-3 text-on-surface-variant">{new Date(item.chegada + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                              <td className="py-2 pr-3 text-on-surface-variant">{new Date(item.saida + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                              <td className="py-2 pr-3 text-on-surface-variant">{item.comodoIcone} {item.comodoNome}</td>
+                              <td className="py-2 pr-1 text-center">
+                                <button
+                                  onClick={() => excluirReserva(item)}
+                                  className="w-6 h-6 rounded-md flex items-center justify-center text-error/70 hover:bg-error/10 hover:text-error transition-colors"
+                                  title="Excluir reserva"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                )}
+              </section>
+
               <section>
                 <h3 className="text-section-heading font-bold text-on-surface mb-3 flex items-center gap-2">
                   <span className="material-symbols-outlined text-[20px] text-on-surface-variant">history</span>
@@ -487,10 +730,86 @@ export function UsersPage() {
                   </div>
                 )}
               </section>
+              </>
             )}
           </div>
         )}
       </main>
+
+      {/* Modal Nova Reserva Futura */}
+      {modalReservaOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={fecharModalReserva} />
+          <div className="relative bg-surface rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-outline-variant space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="font-section-heading text-section-heading">Nova Reserva Futura</h3>
+              <button onClick={fecharModalReserva} className="p-1 hover:bg-surface-container rounded-full transition-colors">
+                <span className="material-symbols-outlined text-on-surface-variant">close</span>
+              </button>
+            </div>
+
+            <div>
+              <label className="text-label-sm text-on-surface-variant block mb-1">Nome do Hóspede</label>
+              <input
+                value={formReserva.hospedeNome}
+                onChange={e => setFormReserva({ ...formReserva, hospedeNome: e.target.value })}
+                placeholder="Nome do hóspede"
+                className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-label-sm text-on-surface-variant block mb-1">Data de Entrada</label>
+                <input
+                  type="date"
+                  value={formReserva.chegada}
+                  onChange={e => setFormReserva({ ...formReserva, chegada: e.target.value })}
+                  className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-label-sm text-on-surface-variant block mb-1">Data de Saída</label>
+                <input
+                  type="date"
+                  value={formReserva.saida}
+                  onChange={e => setFormReserva({ ...formReserva, saida: e.target.value })}
+                  className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-label-sm text-on-surface-variant block mb-1">Quarto</label>
+              {comodosReserva.length === 0 ? (
+                <p className="text-xs text-on-surface-variant">Nenhum cômodo está marcado como "aceita hóspedes" ainda.</p>
+              ) : (
+                <select
+                  value={formReserva.comodoId}
+                  onChange={e => setFormReserva({ ...formReserva, comodoId: e.target.value })}
+                  className="w-full bg-surface-container-high border border-outline-variant text-on-surface rounded-lg py-2 px-3 text-sm"
+                >
+                  <option value="">Selecione</option>
+                  {comodosReserva.map(c => <option key={c.id} value={c.id}>{c.icone} {c.nome}</option>)}
+                </select>
+              )}
+            </div>
+
+            {erroReserva && <p className="text-error text-xs">{erroReserva}</p>}
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleSalvarReserva}
+                disabled={salvandoReserva}
+                className="flex-1 bg-page-ramos text-white font-bold py-2 rounded-lg text-sm hover:brightness-110 transition-all disabled:opacity-50"
+              >
+                {salvandoReserva ? 'Salvando...' : 'Criar'}
+              </button>
+              <button onClick={fecharModalReserva} className="px-4 py-2 bg-surface-container text-on-surface rounded-lg text-sm border border-outline-variant">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

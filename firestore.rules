@@ -75,6 +75,10 @@ service cloud.firestore {
     match /hospedagens/{hospedagemId} {
       allow read, write: if request.auth != null;
     }
+    // Reservas futuras (planejamento de hospedagens que ainda vao acontecer)
+    match /reservasFuturas/{reservaId} {
+      allow read, write: if request.auth != null;
+    }
     // Chats
     match /chats/{chatId} {
       allow read, write: if request.auth != null;
