@@ -514,7 +514,7 @@ async function distribuirTarefasDaCasa(casaId, weekId) {
     db.collection('users').where('houseId', '==', casaId).get(),
   ]);
 
-  const tarefasBase = tarefasSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const tarefasBase = tarefasSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((t) => t.ativo !== false);
   if (tarefasBase.length === 0) return;
 
   const execucoes = execucoesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));

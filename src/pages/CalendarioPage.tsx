@@ -28,6 +28,7 @@ interface TarefaBase {
   frequencia?: string;
   diasSemana?: string[];
   vezesPorSemana?: number;
+  ativo?: boolean;
 }
 interface ComodoInfo {
   id: string;
@@ -149,7 +150,7 @@ function estimarTarefasSemana(tarefasBase: TarefaBase[], weekId: string): number
   const primeiraDoMes = semanaDoMesDoWeekId(weekId) === 1;
 
   let total = 0;
-  tarefasBase.forEach(t => {
+  tarefasBase.filter(t => t.ativo !== false).forEach(t => {
     if (t.frequencia === 'diaria') total += 6;
     else if (t.frequencia === 'semanal' && t.diasSemana && t.diasSemana.length > 0) total += t.diasSemana.length;
     else if (t.frequencia === 'semanal') total += t.vezesPorSemana || 1;
@@ -271,7 +272,7 @@ export function CalendarioPage() {
         const qTarefas = query(collection(db, 'tarefas'), where('casaId', '==', user.houseId));
         const sTarefas = await getDocs(qTarefas);
         const listaTarefas: TarefaBase[] = [];
-        sTarefas.forEach(d => { const data = d.data(); listaTarefas.push({ id: d.id, titulo: data.titulo || 'Tarefa', comodoId: data.comodoId || '', prioridade: data.prioridade || 'media', frequencia: data.frequencia || 'semanal', diasSemana: data.diasSemana || [], vezesPorSemana: data.vezesPorSemana }); });
+        sTarefas.forEach(d => { const data = d.data(); listaTarefas.push({ id: d.id, titulo: data.titulo || 'Tarefa', comodoId: data.comodoId || '', prioridade: data.prioridade || 'media', frequencia: data.frequencia || 'semanal', diasSemana: data.diasSemana || [], vezesPorSemana: data.vezesPorSemana, ativo: data.ativo }); });
         setTarefasBase(listaTarefas);
 
         const qComodos = query(collection(db, 'comodos'), where('casaId', '==', user.houseId));

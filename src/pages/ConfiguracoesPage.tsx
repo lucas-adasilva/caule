@@ -13,7 +13,7 @@ import { sincronizarHospedagemAberta, encerrarHospedagemAberta } from '@/utils/h
 
 interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; foto?: string; contribuicaoMinima?: number; contribuicaoIdeal?: number; contribuicaoAbundante?: number; }
 interface Comodo { id: string; nome: string; icone: string; cor: string; tipo: 'coletivo' | 'privado'; casaId: string; ordem: number; createdBy: string; responsavelId?: string; aceitaEventos?: boolean; aceitaHospedes?: boolean; }
-interface Tarefa { id: string; titulo: string; descricao: string; comodoId: string; responsavelId: string; casaId: string; prioridade: 'alta' | 'media' | 'baixa'; frequencia: 'unica' | 'diaria' | 'semanal' | 'quinzenal' | 'mensal'; status: 'aguardando_responsavel' | 'pendente' | 'em_andamento' | 'concluida'; tipo: 'coletiva' | 'privada'; diasSemana: string[]; diaMes: number; createdBy: string; dataUnica?: string; vezesPorSemana?: number; }
+interface Tarefa { id: string; titulo: string; descricao: string; comodoId: string; responsavelId: string; casaId: string; prioridade: 'alta' | 'media' | 'baixa'; frequencia: 'unica' | 'diaria' | 'semanal' | 'quinzenal' | 'mensal'; status: 'aguardando_responsavel' | 'pendente' | 'em_andamento' | 'concluida'; tipo: 'coletiva' | 'privada'; diasSemana: string[]; diaMes: number; createdBy: string; dataUnica?: string; vezesPorSemana?: number; ativo?: boolean; }
 interface UserData {
   uid: string;
   name: string;
@@ -476,7 +476,7 @@ export function ConfiguracoesPage() {
       if (editandoTarefaId) {
         await updateDoc(doc(db, 'tarefas', editandoTarefaId), { ...data, updatedAt: serverTimestamp() });
       } else {
-        await addDoc(collection(db, 'tarefas'), { ...data, createdAt: serverTimestamp() });
+        await addDoc(collection(db, 'tarefas'), { ...data, ativo: true, createdAt: serverTimestamp() });
       }
       setFormTarefa({ titulo: '', descricao: '', prioridade: 'media', frequencia: 'semanal', tipo: 'coletiva', diasSemana: [], horarioLimite: '', diaMes: 1, comodoId: '', dataUnica: '', vezesPorSemana: 1 });
       setEditandoTarefaId(null);
@@ -518,6 +518,17 @@ export function ConfiguracoesPage() {
     catch (e: any) { setErro('Erro: ' + e.message); }
   }
 
+  async function handleToggleAtivoTarefa(t: Tarefa) {
+    const novoAtivo = !(t.ativo !== false);
+    setTarefas(prev => prev.map(x => x.id === t.id ? { ...x, ativo: novoAtivo } : x));
+    try {
+      await updateDoc(doc(db, 'tarefas', t.id), { ativo: novoAtivo, updatedAt: serverTimestamp() });
+    } catch (e: any) {
+      setErro('Erro: ' + e.message);
+      setTarefas(prev => prev.map(x => x.id === t.id ? { ...x, ativo: t.ativo } : x));
+    }
+  }
+
   async function handleDuplicarTarefa(t: Tarefa) {
     try {
       const dados = {
@@ -536,6 +547,7 @@ export function ConfiguracoesPage() {
         status: 'aguardando_responsavel' as const,
         responsavelId: '',
         createdBy: user?.uid,
+        ativo: true,
         createdAt: serverTimestamp(),
       };
       await addDoc(collection(db, 'tarefas'), dados);
@@ -889,7 +901,7 @@ export function ConfiguracoesPage() {
   async function gerarTarefasSemana() {
     if (!casaSelecionada?.id) { setErro('Selecione uma casa'); return; }
     if (moradoresPresentes.length === 0) { setErro('Nenhum morador presente nesta casa. Verifique a aba Moradores.'); return; }
-    if (tarefasBase.length === 0) { setErro('Nenhuma tarefa cadastrada. Cadastre tarefas na aba Tarefas primeiro.'); return; }
+    if (tarefasBase.filter(t => t.ativo !== false).length === 0) { setErro('Nenhuma tarefa ativa cadastrada. Cadastre ou ative tarefas na aba Tarefas primeiro.'); return; }
     setDistLoading(true); setErro(''); setSucesso('');
     try {
       const casaId = casaSelecionada.id;
@@ -902,7 +914,7 @@ export function ConfiguracoesPage() {
       const numSemana = matchWeek ? parseInt(matchWeek[1], 10) : 0;
       const semanaPar = numSemana % 2 === 0;
 
-      tarefasBase.forEach(tarefa => {
+      tarefasBase.filter(tarefa => tarefa.ativo !== false).forEach(tarefa => {
         const diasUteis = considerarDomingo ? 7 : 6; // 7 = domingo a sábado, 6 = segunda a sábado
         if (tarefa.frequencia === 'diaria') { for (let d = 0; d < diasUteis; d++) tarefasExpandidas.push({ tarefa, dia: d }); }
         else if (tarefa.frequencia === 'semanal' && tarefa.diasSemana?.length > 0) {
@@ -1516,7 +1528,7 @@ export function ConfiguracoesPage() {
                           <div className="flex-1 h-px bg-outline-variant" />
                         </div>
                         {tarefasDoComodo.map(t => (
-                          <div key={t.id} className="bg-surface-card rounded-xl border border-outline-variant p-3">
+                          <div key={t.id} className={`rounded-xl border p-3 ${t.ativo !== false ? 'bg-surface-card border-outline-variant' : 'bg-surface-container-low border-outline-variant/50 opacity-60'}`}>
                             <div className="flex justify-between items-start">
                               <div className="min-w-0">
                                 <h4 className="font-bold text-on-surface truncate">{t.titulo}</h4>
@@ -1524,9 +1536,17 @@ export function ConfiguracoesPage() {
                                 <div className="flex gap-2 mt-1">
                                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.prioridade === 'alta' ? 'bg-tertiary-container/20 text-tertiary-container' : t.prioridade === 'media' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-gray-400/10 text-gray-500'}`}>{t.prioridade.toUpperCase()}</span>
                                   <span className="text-[10px] text-text-muted capitalize">{t.frequencia}</span>
+                                  {t.ativo === false && <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-error/10 text-error">DESATIVADA</span>}
                                 </div>
                               </div>
-                              <div className="flex gap-1 flex-shrink-0">
+                              <div className="flex gap-1 flex-shrink-0 items-center">
+                                <button
+                                  onClick={() => handleToggleAtivoTarefa(t)}
+                                  className={`flex-shrink-0 w-11 h-6 rounded-full flex items-center px-0.5 transition-colors ${t.ativo !== false ? 'bg-primary justify-end' : 'bg-surface-container-highest justify-start'}`}
+                                  title={t.ativo !== false ? 'Desativar (não entra em distribuições)' : 'Ativar (volta a entrar em distribuições)'}
+                                >
+                                  <div className="w-5 h-5 rounded-full bg-white" />
+                                </button>
                                 <button onClick={() => abrirModalEditarTarefa(t)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
                                 <button onClick={() => handleDuplicarTarefa(t)} className="p-1.5 text-[#2196F3] hover:bg-[#2196F3]/10 rounded-lg"><span className="material-symbols-outlined text-lg">content_copy</span></button>
                                 <button onClick={() => handleExcluirTarefa(t.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="material-symbols-outlined text-lg">delete</span></button>
@@ -1546,7 +1566,7 @@ export function ConfiguracoesPage() {
                         <div className="flex-1 h-px bg-outline-variant" />
                       </div>
                       {tarefasSemComodo.map(t => (
-                        <div key={t.id} className="bg-surface-card rounded-xl border border-outline-variant p-3">
+                        <div key={t.id} className={`rounded-xl border p-3 ${t.ativo !== false ? 'bg-surface-card border-outline-variant' : 'bg-surface-container-low border-outline-variant/50 opacity-60'}`}>
                           <div className="flex justify-between items-start">
                             <div className="min-w-0">
                               <h4 className="font-bold text-on-surface truncate">{t.titulo}</h4>
@@ -1554,9 +1574,17 @@ export function ConfiguracoesPage() {
                               <div className="flex gap-2 mt-1">
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.prioridade === 'alta' ? 'bg-tertiary-container/20 text-tertiary-container' : t.prioridade === 'media' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-gray-400/10 text-gray-500'}`}>{t.prioridade.toUpperCase()}</span>
                                 <span className="text-[10px] text-text-muted capitalize">{t.frequencia}</span>
+                                {t.ativo === false && <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-error/10 text-error">DESATIVADA</span>}
                               </div>
                             </div>
-                            <div className="flex gap-1 flex-shrink-0">
+                            <div className="flex gap-1 flex-shrink-0 items-center">
+                              <button
+                                onClick={() => handleToggleAtivoTarefa(t)}
+                                className={`flex-shrink-0 w-11 h-6 rounded-full flex items-center px-0.5 transition-colors ${t.ativo !== false ? 'bg-primary justify-end' : 'bg-surface-container-highest justify-start'}`}
+                                title={t.ativo !== false ? 'Desativar (não entra em distribuições)' : 'Ativar (volta a entrar em distribuições)'}
+                              >
+                                <div className="w-5 h-5 rounded-full bg-white" />
+                              </button>
                               <button onClick={() => abrirModalEditarTarefa(t)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><span className="material-symbols-outlined text-lg">edit</span></button>
                               <button onClick={() => handleExcluirTarefa(t.id)} className="p-1.5 text-error hover:bg-error/10 rounded-lg"><span className="material-symbols-outlined text-lg">delete</span></button>
                             </div>
