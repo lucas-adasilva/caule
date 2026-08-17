@@ -24,7 +24,7 @@ export function AcessoRestritoPage() {
       </div>
       <h1 className="font-headline-lg-mobile text-headline-lg-mobile">Seu acesso está desativado</h1>
       <p className="font-body-md text-text-muted max-w-xs">
-        O administrador da casa ativou o acesso restrito temporariamente. Assim que ele desativar, você poderá voltar a usar o app normalmente.
+        O administrador do app ativou o acesso restrito.
       </p>
       <button
         onClick={handleLogout}
