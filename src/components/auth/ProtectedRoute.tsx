@@ -23,6 +23,10 @@ export function ProtectedRoute({ children, allowedRoles, adminOnly }: ProtectedR
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
+  if (user.casaAcessoRestrito && user.role !== 'admin' && location.pathname !== '/acesso-restrito') {
+    return <Navigate to="/acesso-restrito" replace />;
+  }
+
   if (adminOnly && user.role !== 'admin') {
     return <Navigate to="/app" replace />;
   }

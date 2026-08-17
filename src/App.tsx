@@ -24,6 +24,7 @@ import { UsersPage } from './pages/admin/UsersPage';
 import { ProjetosPage } from './pages/ProjetosPage';
 import { syncBadgeCount } from './utils/badge';
 import { EstadiaPage } from './pages/EstadiaPage';
+import { AcessoRestritoPage } from './pages/AcessoRestritoPage';
 import { UpdateDialog } from './components/UpdateDialog';
 import { usePushNotifications } from './hooks/usePushNotifications';
 
@@ -37,7 +38,7 @@ export const useApp = () => useContext(AppContext);
 function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const hideNavPaths = ['/login', '/convite', '/cadastro', '/completar-perfil', '/vincular-casa'];
+  const hideNavPaths = ['/login', '/convite', '/cadastro', '/completar-perfil', '/vincular-casa', '/acesso-restrito'];
   const showNav = !hideNavPaths.includes(location.pathname);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -74,6 +75,16 @@ async function buildUserObject(firebaseUser: any) {
     console.error('[AUTH] Firestore ERRO:', e.code, e.message);
   }
 
+  let casaAcessoRestrito = false;
+  if (userData.houseId) {
+    try {
+      const casaDoc = await getDoc(doc(db, 'casas', userData.houseId));
+      if (casaDoc.exists()) casaAcessoRestrito = casaDoc.data().acessoRestrito === true;
+    } catch (e: any) {
+      console.error('[AUTH] Erro ao checar acesso restrito da casa:', e.code, e.message);
+    }
+  }
+
   const role = userData.role || 'hospede';
   let photoURL = '';
   if (firestoreFound && userData.photoURL && userData.photoURL.trim() !== '') {
@@ -104,6 +115,7 @@ async function buildUserObject(firebaseUser: any) {
     estadiaAtiva: verificarEstadiaAtiva(userData.estadiaInicio, userData.estadiaFim),
     isNewUser: !firestoreFound,
     pushHabilitado: userData.pushHabilitado === true,
+    casaAcessoRestrito,
   };
 }
 
@@ -141,9 +153,13 @@ function AuthListener() {
           if (pathname !== '/vincular-casa') {
             navigate('/vincular-casa', { replace: true });
           }
+        } else if (user.role !== 'admin' && user.casaAcessoRestrito) {
+          if (pathname !== '/acesso-restrito') {
+            navigate('/acesso-restrito', { replace: true });
+          }
         } else if (user.role === 'hospede' && !user.estadiaAtiva && pathname !== '/estadia') {
           navigate('/estadia', { replace: true });
-        } else if (pathname === '/login' || pathname === '/cadastro') {
+        } else if (pathname === '/login' || pathname === '/cadastro' || pathname === '/acesso-restrito') {
           navigate('/app', { replace: true });
         }
       } else {
@@ -158,6 +174,46 @@ function AuthListener() {
   return null;
 }
 
+// Escuta em tempo real a flag acessoRestrito da casa do usuario logado - sem isso, quem ja
+// estava com o app aberto so seria bloqueado/liberado no proximo login (o onAuthStateChanged
+// acima so roda uma vez por sessao), o que nao serve pro caso de uso de "bloquear todo mundo
+// agora enquanto mexo em varias coisas".
+function AcessoRestritoListener() {
+  const { user, setUser } = useAuthStore();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const pathnameRef = useRef(location.pathname);
+  useEffect(() => { pathnameRef.current = location.pathname; }, [location.pathname]);
+
+  useEffect(() => {
+    if (!user?.houseId) return;
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+
+    (async () => {
+      const { onSnapshot, doc } = await import('firebase/firestore');
+      const { db } = await import('./lib/firebase');
+      if (cancelled) return;
+      unsubscribe = onSnapshot(doc(db, 'casas', user.houseId as string), (snap) => {
+        const restrito = snap.exists() && snap.data().acessoRestrito === true;
+        const current = useAuthStore.getState().user;
+        if (!current || current.casaAcessoRestrito === restrito) return;
+        setUser({ ...current, casaAcessoRestrito: restrito });
+        const pathname = pathnameRef.current;
+        if (restrito && current.role !== 'admin' && pathname !== '/acesso-restrito') {
+          navigate('/acesso-restrito', { replace: true });
+        } else if (!restrito && pathname === '/acesso-restrito') {
+          navigate('/app', { replace: true });
+        }
+      });
+    })();
+
+    return () => { cancelled = true; if (unsubscribe) unsubscribe(); };
+  }, [user?.houseId, setUser, navigate]);
+
+  return null;
+}
+
 function AppRoutes() {
   usePushNotifications();
 
@@ -168,6 +224,7 @@ function AppRoutes() {
         <Route path="/convite" element={<ConvitePage />} />
         <Route path="/cadastro" element={<CadastroPage />} />
         <Route path="/vincular-casa" element={<ProtectedRoute><VincularCasaPage /></ProtectedRoute>} />
+        <Route path="/acesso-restrito" element={<ProtectedRoute><AcessoRestritoPage /></ProtectedRoute>} />
         <Route path="/" element={<Navigate to="/app" replace />} />
         <Route path="/app" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
         <Route path="/tarefas" element={<ProtectedRoute><TarefasPage /></ProtectedRoute>} />
@@ -201,6 +258,7 @@ export default function App() {
         <SplashScreen onComplete={() => setShowSplash(false)} />
       )}
       <AuthListener />
+      <AcessoRestritoListener />
       <AppRoutes />
     </HashRouter>
   );

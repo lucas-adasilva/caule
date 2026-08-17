@@ -21,6 +21,7 @@ interface UserData {
   estadiaAtiva?: boolean;
   isNewUser?: boolean;
   pushHabilitado?: boolean;
+  casaAcessoRestrito?: boolean;
 }
 
 interface AuthStore {

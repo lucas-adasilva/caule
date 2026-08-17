@@ -11,7 +11,7 @@ import { getSemanaDaData, getIntervaloSemana, sobrepoeSemanaAtual } from '@/util
 import { existeViagemSobrepondoPeriodo } from '@/utils/viagens';
 import { sincronizarHospedagemAberta, encerrarHospedagemAberta } from '@/utils/hospedagem';
 
-interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; foto?: string; contribuicaoMinima?: number; contribuicaoIdeal?: number; contribuicaoAbundante?: number; }
+interface Casa { id: string; nome: string; endereco: string; cidade: string; estado: string; cep: string; createdBy: string; senhaCadastro?: string; foto?: string; contribuicaoMinima?: number; contribuicaoIdeal?: number; contribuicaoAbundante?: number; acessoRestrito?: boolean; }
 interface Comodo { id: string; nome: string; icone: string; cor: string; tipo: 'coletivo' | 'privado'; casaId: string; ordem: number; createdBy: string; responsavelId?: string; aceitaEventos?: boolean; aceitaHospedes?: boolean; }
 interface Tarefa { id: string; titulo: string; descricao: string; comodoId: string; responsavelId: string; casaId: string; prioridade: 'alta' | 'media' | 'baixa'; frequencia: 'unica' | 'diaria' | 'semanal' | 'quinzenal' | 'mensal'; status: 'aguardando_responsavel' | 'pendente' | 'em_andamento' | 'concluida'; tipo: 'coletiva' | 'privada'; diasSemana: string[]; diaMes: number; createdBy: string; dataUnica?: string; vezesPorSemana?: number; ativo?: boolean; }
 interface UserData {
@@ -357,6 +357,22 @@ export function ConfiguracoesPage() {
     if (!confirm('Ao excluir esta casa, os cômodos, tarefas e distribuições vinculados a ela permanecerão no sistema, mas não ficarão mais visíveis.\n\nTem certeza que desejá excluir?')) return;
     try { await deleteDoc(doc(db, 'casas', id)); setSucesso('Casa excluída!'); carregarCasas(); if (casaSelecionada?.id === id) setCasaSelecionada(null); }
     catch (e: any) { setErro('Erro: ' + e.message); }
+  }
+
+  // Bloqueia o acesso de todo mundo que nao seja admin - usado quando a casa esta em modo de
+  // manutencao/preparacao (ex: varias mudancas em sequencia sendo feitas so pelo admin).
+  async function toggleAcessoRestrito() {
+    if (!casaSelecionada?.id) return;
+    const novoValor = !casaSelecionada.acessoRestrito;
+    setCasaSelecionada({ ...casaSelecionada, acessoRestrito: novoValor });
+    setCasas(prev => prev.map(c => c.id === casaSelecionada.id ? { ...c, acessoRestrito: novoValor } : c));
+    try {
+      await updateDoc(doc(db, 'casas', casaSelecionada.id), { acessoRestrito: novoValor, updatedAt: serverTimestamp() });
+    } catch (e: any) {
+      setErro('Erro: ' + e.message);
+      setCasaSelecionada(prev => prev ? { ...prev, acessoRestrito: !novoValor } : prev);
+      setCasas(prev => prev.map(c => c.id === casaSelecionada.id ? { ...c, acessoRestrito: !novoValor } : c));
+    }
   }
 
   async function salvarFinanceiro() {
@@ -1709,6 +1725,30 @@ export function ConfiguracoesPage() {
         {/* === MORADORES === */}
         {abaAtiva === 'moradores' && (
           <div className="space-y-4">
+            {/* Acesso restrito - bloqueia o app pra todo mundo que nao seja admin */}
+            {casaSelecionada && (
+              <div className={`rounded-xl border p-4 flex items-start justify-between gap-3 ${casaSelecionada.acessoRestrito ? 'bg-error/10 border-error/30' : 'bg-surface-card border-outline-variant'}`}>
+                <div className="min-w-0">
+                  <h4 className="font-bold text-on-surface flex items-center gap-1.5">
+                    <span className={`material-symbols-outlined text-[18px] ${casaSelecionada.acessoRestrito ? 'text-error' : 'text-on-surface-variant'}`}>lock</span>
+                    Acesso restrito ao admin
+                  </h4>
+                  <p className="text-caption text-on-surface-variant mt-0.5">
+                    {casaSelecionada.acessoRestrito
+                      ? 'Ativado — só admins conseguem usar o app agora. Os demais veem uma mensagem de acesso desativado.'
+                      : 'Quando ativado, só admins conseguem entrar no app. Útil enquanto você faz várias mudanças sozinho.'}
+                  </p>
+                </div>
+                <button
+                  onClick={toggleAcessoRestrito}
+                  className={`flex-shrink-0 w-11 h-6 rounded-full flex items-center px-0.5 transition-colors ${casaSelecionada.acessoRestrito ? 'bg-error justify-end' : 'bg-surface-container-highest justify-start'}`}
+                  title={casaSelecionada.acessoRestrito ? 'Desativar' : 'Ativar'}
+                >
+                  <div className="w-5 h-5 rounded-full bg-white" />
+                </button>
+              </div>
+            )}
+
             {/* Formulario completo de edicao */}
             {editandoMoradorId && (
               <div className="bg-surface-card rounded-xl border border-primary/30 p-4 space-y-3 shadow-lg">
